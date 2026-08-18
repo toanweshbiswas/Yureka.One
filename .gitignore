@@ -67,3 +67,4 @@ __pycache__/
 
 # --- Design dump (optional large assets; keep if you want it in git) ---
 # landing/design-reference/node_modules/
+docs/
