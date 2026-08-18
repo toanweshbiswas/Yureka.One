@@ -13,8 +13,37 @@ import type { Waitlist as ApiWaitlist, WaitlistJoinResult } from '@backend/lib/a
 import { motion, AnimatePresence } from 'motion/react';
 import { getSupabaseBrowser, signInWithGmail, supabaseConfigured, normalizeWaitlistStatus } from '@shared/auth';
 import { useSupabase } from '@shared/SupabaseProvider';
+import { appUrl, appOrigin, landingUrl } from '@shared/hosts';
+import { requestGmailReadonlyToken } from '@shared/gmailConsent';
 
 const WAITLIST_DRAFT_KEY = 'yureka_waitlist_draft';
+const WAITLIST_EMAIL_KEY = 'yureka_waitlist_email';
+const WAITLIST_PENDING_EMAIL_KEY = 'yureka_pending_waitlist_email';
+
+function rememberWaitlistEmail(email: string) {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized) return;
+    try {
+        localStorage.setItem(WAITLIST_EMAIL_KEY, normalized);
+        sessionStorage.setItem(WAITLIST_PENDING_EMAIL_KEY, normalized);
+    } catch {
+        // ignore
+    }
+}
+
+function readRememberedWaitlistEmail(): string {
+    try {
+        return (
+            (localStorage.getItem(WAITLIST_EMAIL_KEY) ||
+                sessionStorage.getItem(WAITLIST_PENDING_EMAIL_KEY) ||
+                '')
+                .trim()
+                .toLowerCase()
+        );
+    } catch {
+        return '';
+    }
+}
 
 // ─── MASTER DATA ───
 const BANK_LOGOS: Record<string, string> = {
@@ -247,6 +276,9 @@ const WaitlistPage: React.FC = () => {
     const [goingToWaiting, setGoingToWaiting] = useState(false);
     const [returningApplicant, setReturningApplicant] = useState(false);
     const [existingStatus, setExistingStatus] = useState<string | null>(null);
+    const [statusCheckEmail, setStatusCheckEmail] = useState('');
+    const [statusChecking, setStatusChecking] = useState(false);
+    const [resumeChecked, setResumeChecked] = useState(false);
 
     const [step, setStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -321,6 +353,11 @@ const WaitlistPage: React.FC = () => {
                     setStep(draft.step);
                 }
             }
+            const remembered = readRememberedWaitlistEmail();
+            if (remembered) {
+                setStatusCheckEmail(remembered);
+                setFormData((prev) => (prev.email ? prev : { ...prev, email: remembered }));
+            }
         } catch {
             // ignore corrupt draft
         }
@@ -353,6 +390,7 @@ const WaitlistPage: React.FC = () => {
     };
 
     const showExistingSuccess = (entry: ApiWaitlist, alreadyJoined: boolean) => {
+        if (entry.email) rememberWaitlistEmail(entry.email);
         setSuccessData({
             rank: entry.rank ?? 1000,
             referralCode: entry.personalReferralCode ?? '',
@@ -379,17 +417,22 @@ const WaitlistPage: React.FC = () => {
 
     /** If this Gmail already applied, skip the form and route by status. */
     const resumeIfExistingApplicant = async (email: string, profile?: any): Promise<boolean> => {
+        const normalized = email.trim().toLowerCase();
+        if (!normalized) return false;
+
         const res = await api.get<ApiWaitlist>(
-            `/api/v1/waitlist/entry?email=${encodeURIComponent(email)}`,
+            `/api/v1/waitlist/entry?email=${encodeURIComponent(normalized)}`,
             { skipAuth: true, timeoutMs: 15000 }
         );
         if (isApiError(res) || !res.data) return false;
 
         const entry = res.data;
         const status = normalizeWaitlistStatus(entry.status) || entry.status;
+        rememberWaitlistEmail(entry.email || normalized);
 
         if (status === 'accepted') {
             clearDraft();
+            // Never show "added to waitlist" for approved users.
             navigate(`/login?next=${encodeURIComponent('/dashboard')}`, { replace: true });
             return true;
         }
@@ -401,6 +444,42 @@ const WaitlistPage: React.FC = () => {
         }
         return false;
     };
+
+    // Returning visitors: resume from remembered email without re-filling the form.
+    useEffect(() => {
+        if (isDashboard || !draftReady || resumeChecked) return;
+        if (user && (currentUserStatus === 'accepted' || currentUserStatus === 'admin' || currentUserStatus === 'pending' || currentUserStatus === 'on-hold' || currentUserStatus === 'rejected')) {
+            setResumeChecked(true);
+            return;
+        }
+        // If a mid-form draft already restored steps 2/4/6, don't override it.
+        if (step !== 1) {
+            setResumeChecked(true);
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            const remembered = readRememberedWaitlistEmail();
+            if (!remembered) {
+                if (!cancelled) setResumeChecked(true);
+                return;
+            }
+            setStatusChecking(true);
+            try {
+                const resumed = await resumeIfExistingApplicant(remembered);
+                if (!cancelled && !resumed) setResumeChecked(true);
+                if (!cancelled && resumed) setResumeChecked(true);
+            } finally {
+                if (!cancelled) setStatusChecking(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isDashboard, draftReady, resumeChecked, user, currentUserStatus, step]);
 
     // ─── REFERRAL PREFILLING ───
     useEffect(() => {
@@ -417,10 +496,6 @@ const WaitlistPage: React.FC = () => {
         'openid',
         'https://www.googleapis.com/auth/userinfo.email',
         'https://www.googleapis.com/auth/userinfo.profile',
-    ].join(' ');
-
-    const GMAIL_SCAN_SCOPES = [
-        'https://www.googleapis.com/auth/gmail.readonly',
     ].join(' ');
 
     const startGoogleSignup = () => {
@@ -517,8 +592,9 @@ const WaitlistPage: React.FC = () => {
             setScannedProfile(profile);
             setStep(2);
 
-            const emailForScore = profile.email || formData.email;
-            if (emailForScore) requestGmailScanThenScore(emailForScore);
+            // Do NOT auto-request gmail.readonly here — it is a restricted Google scope.
+            // Unverified apps show Error 403 access_denied for non–test users and block the flow.
+            // Scoring stays optional via "Compute Yureka Score" on step 2.
         } catch (e) {
             console.error('Profile lookup failed:', e);
             setScanError('Something went wrong reading your Google profile. Please try again.');
@@ -527,45 +603,35 @@ const WaitlistPage: React.FC = () => {
         }
     };
 
-    // Ask for gmail.readonly after login, then score via Render directly
-    // (Netlify proxy times out on long inbox scans).
+    // Optional: ask for gmail.readonly, then score (test users / after Google verification only).
     const requestGmailScanThenScore = (email: string) => {
-        const google = (window as any).google;
-        const clientId = (import.meta as any).env.VITE_GOOGLE_CLIENT_ID;
-        if (!google?.accounts?.oauth2 || !clientId) return;
-
-        const tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: GMAIL_SCAN_SCOPES,
-            callback: (tokenResponse: any) => {
-                if (tokenResponse?.error || !tokenResponse?.access_token) {
-                    console.warn('Gmail scan skipped (user denied or app unverified):', tokenResponse?.error);
-                    return;
-                }
-                triggerBackgroundScoreScan(tokenResponse.access_token, email);
-            },
+        setScanError(null);
+        setIsScanning(true);
+        void requestGmailReadonlyToken({ forceConsent: true }).then((consent) => {
+            setIsScanning(false);
+            if (!consent.accessToken) {
+                setScanError(
+                  consent.error ||
+                    'Gmail inbox access was not granted. You can finish the waitlist without a score.',
+                );
+                return;
+            }
+            triggerBackgroundScoreScan(consent.accessToken, email);
         });
-        try {
-            // Explicit consent so Gmail permission is requested after login scopes.
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        } catch (e) {
-            console.warn('Gmail scan request failed:', e);
-        }
     };
 
-    // Hit Render directly — inbox scoring can exceed Netlify's proxy timeout.
-    const SCORE_API_BASE =
-        (import.meta as any).env.VITE_SCORE_API_BASE ||
-        (typeof window !== 'undefined' && !/localhost|127\.0\.0\.1/.test(window.location.hostname)
-            ? 'https://yureka-one.onrender.com'
-            : '');
+    // Hit same-origin on EC2 / production. Only fall back to Render when explicitly set.
+    const SCORE_API_BASE = (
+      (import.meta as any).env.VITE_SCORE_API_BASE ||
+      ''
+    ).replace(/\/$/, '');
 
     const triggerBackgroundScoreScan = (accessToken: string, email: string) => {
         const url = `${SCORE_API_BASE}/api/scan-email`;
         fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ accessToken, email, fallbackData: {} }),
+            body: JSON.stringify({ accessToken, email, fallbackData: { email } }),
             signal: AbortSignal.timeout(180_000),
         })
             .then(async res => {
@@ -640,7 +706,6 @@ const WaitlistPage: React.FC = () => {
                 referral_code: formData.referralCode,
                 source_channel: formData.sourceChannel === 'Other' ? formData.otherSource : formData.sourceChannel,
                 role: 'user',
-                status: 'pending'
             };
 
             const res = await api.post<WaitlistJoinResult>('/api/v1/waitlist/join', entry, {
@@ -653,17 +718,13 @@ const WaitlistPage: React.FC = () => {
             }
             const joined = res.data!.data;
             const alreadyExists = Boolean(res.data!.alreadyExists);
+            rememberWaitlistEmail(canonicalEmail);
             setSuccessData({
                 rank: joined.rank ?? 1000,
                 referralCode: joined.personalReferralCode ?? ''
             });
             setReturningApplicant(alreadyExists);
             setExistingStatus(joined.status || 'pending');
-            try {
-                sessionStorage.setItem('yureka_pending_waitlist_email', canonicalEmail);
-            } catch {
-                // ignore
-            }
             if (normalizeWaitlistStatus(joined.status) === 'accepted' || joined.status === 'accepted') {
                 clearDraft();
                 navigate(`/login?next=${encodeURIComponent('/dashboard')}`, { replace: true });
@@ -697,7 +758,7 @@ const WaitlistPage: React.FC = () => {
                 navigate('/waiting');
                 return;
             }
-            const result = await signInWithGmail(`${window.location.origin}/waiting`);
+            const result = await signInWithGmail(`${appOrigin()}/login?next=${encodeURIComponent('/waiting')}`);
             if (result.error) {
                 setError(result.error);
                 setGoingToWaiting(false);
@@ -714,8 +775,26 @@ const WaitlistPage: React.FC = () => {
         navigate(`/login?next=${encodeURIComponent('/dashboard')}`);
     };
 
+    const checkExistingByEmail = async () => {
+        const email = statusCheckEmail.trim().toLowerCase();
+        if (!email || !email.includes('@')) {
+            setScanError('Enter the Gmail you used when you joined.');
+            return;
+        }
+        setScanError(null);
+        setStatusChecking(true);
+        try {
+            const resumed = await resumeIfExistingApplicant(email);
+            if (!resumed) {
+                setScanError('No waitlist application found for that email. Continue with Google to join.');
+            }
+        } finally {
+            setStatusChecking(false);
+        }
+    };
+
     // ─── SHARE LOGIC ───
-    const shareLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/join-waitlist?ref=${successData?.referralCode}`;
+    const shareLink = `${appUrl('/join-waitlist')}?ref=${successData?.referralCode}`;
     const shareText = "I just joined the Yureka.One waitlist! Use my referral code to get priority access.";
 
     const shareOnSocial = (platform: string) => {
@@ -754,10 +833,10 @@ const WaitlistPage: React.FC = () => {
                     Get Early Access
                 </h2>
                 <p className="text-white/60 text-sm leading-relaxed mb-6 sm:mb-8 max-w-xs mx-auto">
-                    Continue with Google to join the waitlist — we use your name and email to prefill your profile.
+                    Continue with Google to join — if you already applied, we skip the form and send you to the right place.
                 </p>
 
-                {isScanning ? (
+                {isScanning || statusChecking ? (
                     <div className="space-y-4 py-2">
                         <div className="relative w-12 h-12 mx-auto flex items-center justify-center">
                             <div className="absolute inset-0 border-2 border-white/5 rounded-full" />
@@ -767,7 +846,9 @@ const WaitlistPage: React.FC = () => {
                                 transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
                             />
                         </div>
-                        <p className="text-white/40 text-xs uppercase tracking-[0.2em]">Connecting Google…</p>
+                        <p className="text-white/40 text-xs uppercase tracking-[0.2em]">
+                            {statusChecking ? 'Checking your application…' : 'Connecting Google…'}
+                        </p>
                     </div>
                 ) : (
                     <button
@@ -779,12 +860,38 @@ const WaitlistPage: React.FC = () => {
                     </button>
                 )}
 
-                <p className="mt-6 text-[10px] font-black uppercase tracking-[0.3em] text-white/25">
-                    Already joined?{' '}
-                    <Link to="/login" className="text-clay hover:text-white transition-colors">
-                        Sign in
-                    </Link>
-                </p>
+                <div className="mt-8 pt-6 border-t border-white/10 text-left space-y-3">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 text-center">
+                        Already joined?
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                            type="email"
+                            value={statusCheckEmail}
+                            onChange={(e) => {
+                                setStatusCheckEmail(e.target.value);
+                                setScanError(null);
+                            }}
+                            placeholder="your@gmail.com"
+                            className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-clay/60"
+                        />
+                        <button
+                            type="button"
+                            onClick={checkExistingByEmail}
+                            disabled={statusChecking || isScanning}
+                            className="sm:w-auto px-5 py-3 rounded-xl bg-white/10 border border-white/15 text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-clay hover:text-black transition-all disabled:opacity-50"
+                        >
+                            Check status
+                        </button>
+                    </div>
+                    <p className="text-[10px] text-white/25 text-center">
+                        Or{' '}
+                        <Link to="/login" className="text-clay hover:text-white transition-colors">
+                            sign in
+                        </Link>
+                        {' '}if you were already accepted.
+                    </p>
+                </div>
                 {scanError && (
                     <p className="mt-4 text-red-400 text-[10px] font-bold uppercase tracking-widest">{scanError}</p>
                 )}
@@ -807,6 +914,25 @@ const WaitlistPage: React.FC = () => {
                 <div className="max-w-xs mx-auto flex items-center justify-center gap-2 bg-clay/10 border border-clay/25 rounded-2xl px-5 py-3">
                     <Award size={14} className="text-clay shrink-0" />
                     <span className="text-xs font-bold text-white/70">Yureka Score: <span className="text-clay font-black">{yurekaScore.score}/100</span> · {yurekaScore.decision}</span>
+                </div>
+            )}
+
+            {!yurekaScore && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 space-y-3">
+                    <p className="text-xs text-white/45 leading-relaxed">
+                        Optional: connect Gmail to estimate your Yureka Score from purchase emails. Until Google verifies the app, only approved test emails can grant inbox access.
+                    </p>
+                    <button
+                        type="button"
+                        disabled={isScanning || !(formData.email || scannedProfile?.email)}
+                        onClick={() => requestGmailScanThenScore(formData.email || scannedProfile?.email || '')}
+                        className="w-full sm:w-auto px-5 py-3 rounded-xl bg-white/10 border border-white/15 text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-clay hover:text-black transition-all disabled:opacity-50"
+                    >
+                        {isScanning ? 'Connecting…' : 'Compute Yureka Score'}
+                    </button>
+                    {scanError && (
+                        <p className="text-[10px] text-amber-200/90 leading-relaxed">{scanError}</p>
+                    )}
                 </div>
             )}
 
@@ -1008,7 +1134,9 @@ const WaitlistPage: React.FC = () => {
                     </h2>
                     <p className="text-sm text-white/40">
                         {returningApplicant
-                            ? 'We found your application. Jump back to your waiting room — no need to re-apply.'
+                            ? existingStatus === 'accepted'
+                                ? 'Your application was already accepted. Continue to your dashboard.'
+                                : 'We found your application. Jump back to your waiting room — no need to re-apply.'
                             : "Your spot is saved. Here's a summary of what we found."}
                     </p>
                 </div>
@@ -1120,7 +1248,11 @@ const WaitlistPage: React.FC = () => {
                         </button>
                     )}
                     <div>
-                        <Link to={basePath || "/"} className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 hover:text-clay transition-all">Back to Home</Link>
+                        {isDashboard ? (
+                            <Link to="/dashboard/home" className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 hover:text-clay transition-all">Back to Home</Link>
+                        ) : (
+                            <a href={landingUrl('/')} className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20 hover:text-clay transition-all">Back to Home</a>
+                        )}
                     </div>
                 </div>
             </motion.div>
@@ -1128,7 +1260,11 @@ const WaitlistPage: React.FC = () => {
     };
 
     return (
-        <div className="min-h-screen bg-[#080808] pt-20 sm:pt-24 md:pt-32 pb-32 px-4 sm:px-6 relative overflow-hidden font-sans selection:bg-clay/20">
+        <div className={`bg-[#080808] relative overflow-hidden font-sans selection:bg-clay/20 ${
+            isDashboard
+                ? 'min-h-0 pt-0 pb-8 px-0'
+                : 'min-h-screen pt-20 sm:pt-24 md:pt-32 pb-32 px-4 sm:px-6'
+        }`}>
             {/* Ambient background styling */}
             <div className="fixed inset-0 pointer-events-none opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
             <div className="fixed top-1/4 -left-1/4 w-[60%] h-[60%] bg-clay/8 blur-[100px] rounded-full pointer-events-none" />

@@ -245,70 +245,132 @@ def parse_transaction_data_expense(combined_text, sender, subject):
     sender_lower = sender.lower()
     subject_lower = subject.lower()
     brand_name = re.sub(r'\s*<.*?>', '', sender).replace('"', '').replace("'", "").strip()
-    
+    corpus_lower = f"{subject_lower}\n{combined_text.lower()}"
+
     is_transit_status = any(k in subject_lower or k in combined_text.lower() for k in [
-        "packed", "out for delivery", "reached your city", "arriving early", "has been delivered", "shipment"
-    ])
-    
+        "packed", "out for delivery", "reached your city", "arriving early",
+        "has been delivered", "shipment update", "tracking number",
+    ]) and not any(k in corpus_lower for k in ["invoice", "amount paid", "order total", "grand total", "debited"])
+
     amount = "N/A"
     normalized_text = re.sub(r'\s+', ' ', combined_text)
-    
+
+    # Strong transaction intent — prefer these over loose currency matches
+    strong_txn = any(k in corpus_lower for k in [
+        'debited', 'spent', 'withdrawn', 'charged', 'txn of', 'transaction of',
+        'payment successful', 'paid successfully', 'order confirmed', 'order placed',
+        'upi ref', 'upi-', 'neft', 'imps', 'rtgs', 'a/c', 'acct', 'account xx',
+        'transaction value', 'amount paid', 'grand total', 'invoice total',
+        'you paid', 'payment of', 'purchased',
+    ])
+
     if "eatclub" in sender_lower:
-        match = re.search(r'(?:Online Paid|Grand Total|Total|Sub Total)[:\s]*[₹Rs\.?]*\s*([\d,]+\.\d{2})', normalized_text, re.IGNORECASE)
+        match = re.search(
+            r'(?:Online Paid|Grand Total|Total|Sub Total)[:\s]*[₹Rs\.?]*\s*([\d,]+\.\d{2})',
+            normalized_text, re.IGNORECASE,
+        )
         if match:
             amount = f"₹ {match.group(1)}"
-            
+
     elif "namecheap" in sender_lower:
-        match = re.search(r'(?:Total|Charged|Amount)[:\s]*(?:US\s*\||\$)\s*([\d,]+\.\d{2})', normalized_text, re.IGNORECASE)
+        match = re.search(
+            r'(?:Total|Charged|Amount)[:\s]*(?:US\s*\||\$)\s*([\d,]+\.\d{2})',
+            normalized_text, re.IGNORECASE,
+        )
         if match:
             amount = f"$ {match.group(1)}"
 
-    elif "phonepe" in sender_lower:
-        match = re.search(r'(?:Transaction Value|Amount|Paid)[:\s]*[₹Rs\.?]*\s*([\d,]+(?:\.\d{2})?)', normalized_text, re.IGNORECASE)
+    elif any(k in sender_lower for k in ("phonepe", "paytm", "googlepay", "gpay", "amazon pay", "bhim")):
+        match = re.search(
+            r'(?:Transaction Value|Amount Paid|Amount|Paid|Debited|Txn Amount)[:\s]*[₹Rs\.?INR]*\s*([\d,]+(?:\.\d{1,2})?)',
+            normalized_text, re.IGNORECASE,
+        )
         if match:
             amount = f"₹ {match.group(1)}"
 
-    elif "axis" in sender_lower:
-        match = re.search(r'(?:debited for|spent|amount of|INR)[:\s]*INR\s*([\d,]+\.\d{2})', normalized_text, re.IGNORECASE)
+    elif any(k in sender_lower for k in (
+        "axis", "hdfc", "icici", "sbi", "kotak", "yes bank", "yesbank",
+        "indusind", "idfc", "bob", "pnb", "canara", "union bank", "cred",
+    )):
+        match = re.search(
+            r'(?:debited(?:\s+for|\s+by|\s+with)?|spent|txn(?:\s+of)?|transaction(?:\s+of)?|'
+            r'amount of|INR|Rs\.?|₹)\s*(?:of\s*)?(?:INR|Rs\.?|₹)?\s*([\d,]+\.?\d{0,2})',
+            normalized_text, re.IGNORECASE,
+        )
         if match:
             amount = f"₹ {match.group(1)}"
 
     elif "shiprocket" in sender_lower:
-        match = re.search(r'(?:Invoice Total|Amount Paid|Total Amount|Paid Total)[:\s]*[₹Rs\.?]*\s*\b(\d+(?:\.\d{2})?)\b', normalized_text, re.IGNORECASE)
+        match = re.search(
+            r'(?:Invoice Total|Amount Paid|Total Amount|Paid Total)[:\s]*[₹Rs\.?]*\s*\b(\d+(?:\.\d{2})?)\b',
+            normalized_text, re.IGNORECASE,
+        )
         if match:
             amount = f"₹ {match.group(1)}"
         elif is_transit_status:
             return brand_name, "N/A", "N/A"
 
+    elif any(k in sender_lower for k in (
+        "swiggy", "zomato", "amazon", "flipkart", "myntra", "nykaa",
+        "blinkit", "zepto", "bigbasket", "uber", "ola", "makemytrip", "bookmyshow",
+    )):
+        match = re.search(
+            r'(?:Grand Total|Order Total|Total Paid|Amount Paid|Total Amount|You paid|'
+            r'Paid successfully|Invoice Total|Net Payable)[:\s]*[₹Rs\.?INR]*\s*([\d,]+(?:\.\d{1,2})?)',
+            normalized_text, re.IGNORECASE,
+        )
+        if match:
+            amount = f"₹ {match.group(1)}"
+
     if amount == "N/A" and not is_transit_status:
-        global_patterns = [
-            r'(?:debited|spent|withdrawn|charged|paid|amount of|value of|payment of)\s+(?:for|to|with)?\s*([₹$]|Rs\.?|INR)\s*([\d,]+\.?\d*)',
-            r'([₹$]|Rs\.?|INR)\s*([\d,]+\.\d{2})',
-            r'([₹$]|Rs\.?|INR)\s*([\d,]+)'
+        # Priority 1: debit / spent phrasing (real money movement)
+        debit_patterns = [
+            r'(?:debited|spent|withdrawn|charged|txn(?:\s+of)?|transaction(?:\s+of)?|'
+            r'paid(?:\s+successfully)?|amount of|payment of|you paid)\s+'
+            r'(?:for|to|with|of|by|at)?\s*(?:INR|Rs\.?|₹|\$)?\s*([\d,]+\.?\d{0,2})',
+            r'(?:INR|Rs\.?|₹)\s*([\d,]+\.?\d{0,2})\s*(?:was\s+)?(?:debited|spent|charged|paid)',
         ]
-        for pattern in global_patterns:
-            match = re.search(pattern, normalized_text, re.IGNORECASE)
-            if match:
-                val = match.group(2)
-                sym = match.group(1)
-                if val not in ["1", "2"]:
-                    # standardise symbol
-                    if sym.upper() == 'INR': sym = '₹'
-                    elif sym.upper() == 'RS.': sym = '₹'
-                    elif sym.upper() == 'RS': sym = '₹'
-                    amount = f"{sym} {val}".strip()
+        for pattern in debit_patterns:
+            for match in re.finditer(pattern, normalized_text, re.IGNORECASE):
+                val = match.group(1)
+                if _looks_like_promo_amount(normalized_text, match.start(), match.end()):
+                    continue
+                if _is_plausible_amount(val):
+                    amount = f"₹ {val}"
                     break
+            if amount != "N/A":
+                break
+
+        # Priority 2: order/invoice totals — only with strong txn intent
+        if amount == "N/A" and strong_txn:
+            total_patterns = [
+                r'(?:grand total|order total|amount paid|total paid|invoice total|net payable)'
+                r'[:\s]*(?:INR|Rs\.?|₹|\$)?\s*([\d,]+\.?\d{0,2})',
+            ]
+            for pattern in total_patterns:
+                match = re.search(pattern, normalized_text, re.IGNORECASE)
+                if match and _is_plausible_amount(match.group(1)):
+                    if not _looks_like_promo_amount(normalized_text, match.start(), match.end()):
+                        amount = f"₹ {match.group(1)}"
+                        break
+
+        # Priority 3: bare currency — only for trusted bank/UPI senders, never promo context
+        if amount == "N/A" and _is_trusted_financial_sender(sender) and strong_txn:
+            bare = re.search(r'(?:₹|Rs\.?|INR)\s*([\d,]+\.\d{2})', normalized_text, re.IGNORECASE)
+            if bare and _is_plausible_amount(bare.group(1)):
+                if not _looks_like_promo_amount(normalized_text, bare.start(), bare.end()):
+                    amount = f"₹ {bare.group(1)}"
 
     item_details = "N/A"
     if "eatclub" in sender_lower and "product details" in combined_text.lower():
         lines = combined_text.split('\n')
         captured = []
-        start = False
+        start_cap = False
         for line in lines:
             if any(k in line.lower() for k in ["product details", "item description"]):
-                start = True
+                start_cap = True
                 continue
-            if start:
+            if start_cap:
                 if any(k in line.lower() for k in ["sub total", "total", "customer details", "order information"]):
                     break
                 cleaned = re.sub(r'\s+', ' ', line).strip()
@@ -319,13 +381,105 @@ def parse_transaction_data_expense(combined_text, sender, subject):
             item_details = " | ".join(captured[:3])
 
     if item_details == "N/A":
-        subject_cleaned = re.sub(r'(Order Confirmed:|Your order|Invoice for|Receipt for|Your delivery from|Your purchase|Confirmed|Booking|#\d+|\d+)', '', subject, flags=re.IGNORECASE).strip()
-        if len(subject_cleaned) > 5 and not any(x in subject_cleaned.lower() for x in ['successful', 'payment', 'thank you', 'alert']):
+        subject_cleaned = re.sub(
+            r'(Order Confirmed:|Your order|Invoice for|Receipt for|Your delivery from|'
+            r'Your purchase|Confirmed|Booking|#\d+|\d+)',
+            '', subject, flags=re.IGNORECASE,
+        ).strip()
+        if len(subject_cleaned) > 5 and not any(
+            x in subject_cleaned.lower() for x in ['successful', 'payment', 'thank you', 'alert']
+        ):
             item_details = subject_cleaned
         else:
             item_details = subject.strip()
 
     return brand_name, amount, item_details
+
+
+def _is_plausible_amount(val: str) -> bool:
+    try:
+        n = float(str(val).replace(',', ''))
+    except Exception:
+        return False
+    # Skip trivial / placeholder amounts that are usually footer noise
+    if n < 5:
+        return False
+    if n > 5_000_000:
+        return False
+    return True
+
+
+def _looks_like_promo_amount(text: str, start: int, end: int) -> bool:
+    """True when the matched rupee figure sits in marketing copy, not a debit."""
+    window = text[max(0, start - 48): min(len(text), end + 48)].lower()
+    promo_near = (
+        'save', 'off', 'flat', 'upto', 'up to', 'worth', 'get ₹', 'get rs',
+        'cashback offer', 'discount', 'coupon', 'promo', 'deal', 'sale',
+        'reward points', 'free gift', 'win ', 'scratch', 'voucher',
+        'minimum order', 'orders above', 'shop for',
+    )
+    return any(p in window for p in promo_near)
+
+
+def _is_trusted_financial_sender(sender: str) -> bool:
+    s = sender.lower()
+    trusted = (
+        'phonepe', 'paytm', 'googlepay', 'gpay', 'amazon pay', 'bhim', 'cred',
+        'axis', 'hdfc', 'icici', 'sbi', 'kotak', 'yesbank', 'yes bank',
+        'indusind', 'idfc', 'bankofbaroda', 'pnb', 'canara', 'unionbank',
+        'razorpay', 'cashfree', 'swiggy', 'zomato', 'amazon', 'flipkart',
+        'myntra', 'nykaa', 'blinkit', 'zepto', 'bigbasket', 'uber', 'ola',
+        'makemytrip', 'bookmyshow', 'shiprocket', 'eatclub',
+        'alerts@', 'noreply@', 'no-reply@', 'statement@', 'transactions@',
+    )
+    return any(t in s for t in trusted)
+
+
+# Promo / marketing noise — reject unless a strong debit signal overrides.
+_PROMO_SUBJECT_RE = re.compile(
+    r'(unsubscribe|newsletter|%[\s-]?off|flat\s*₹|flat\s*rs|save\s*upto|save\s*up\s*to|'
+    r'limited[\s-]?time|exclusive\s+offer|deal\s+of|sale\s+ends|promo\s*code|'
+    r'coupon\s*code|flash\s+sale|mega\s+sale|clearance|don.?t\s+miss|'
+    r'congratulations.?you.?ve\s+won|claim\s+your\s+(?:reward|gift|prize)|'
+    r'invite\s+friends|refer\s+(?:and|&)\s+earn|weekly\s+digest|'
+    r'marketing\s+update|new\s+arrivals|just\s+for\s+you)',
+    re.IGNORECASE,
+)
+
+_STRONG_TXN_RE = re.compile(
+    r'(debited|spent|withdrawn|charged|txn\s+of|transaction\s+(?:of|successful|alert)|'
+    r'payment\s+successful|paid\s+successfully|order\s+confirmed|order\s+placed|'
+    r'upi\s*ref|neft|imps|rtgs|a/c\s*xx|account\s+xx|amount\s+paid|grand\s+total|'
+    r'invoice\s+(?:total|for)|credit\s+card\s+statement|outstanding\s+(?:amount|due)|'
+    r'minimum\s+amount\s+due|total\s+amount\s+due|emi\s+due)',
+    re.IGNORECASE,
+)
+
+
+def is_promotional_noise(subject: str, snippet: str = '', body: str = '', sender: str = '') -> bool:
+    """
+    Drop marketing / promo mail that happens to mention rupee amounts.
+    Keep real debit / order / statement mail even if it also has offer copy.
+    """
+    head = f"{subject}\n{snippet}"
+    if _STRONG_TXN_RE.search(head) or _STRONG_TXN_RE.search(body[:2000] if body else ''):
+        return False
+    if _is_trusted_financial_sender(sender) and any(
+        k in head.lower() for k in ('debited', 'spent', 'statement', 'invoice', 'order confirmed', 'paid')
+    ):
+        return False
+    blob = f"{subject}\n{snippet}\n{(body or '')[:1500]}"
+    if _PROMO_SUBJECT_RE.search(blob):
+        return True
+    # Soft promo: many offer cues and no debit language
+    soft = sum(
+        1 for k in (
+            'offer', 'discount', 'cashback', 'coupon', 'sale', 'deal',
+            'subscribe', 'newsletter', 'unsubscribe',
+        ) if k in blob.lower()
+    )
+    return soft >= 3
+
 
 def extract_amount_bill(text):
     match = re.search(r'(?:rs\.?|inr|₹|amount|total)\s*[:\s]*([\d,]+\.?\d*)', text, re.IGNORECASE)
@@ -334,65 +488,138 @@ def extract_amount_bill(text):
         try:
             val = float(clean_val)
             return f"₹ {val:,.2f}"
-        except:
+        except Exception:
             return "N/A"
     return "N/A"
 
+
 def classify_type_bill(subject, snippet):
     text = (subject + snippet).lower()
-    if any(k in text for k in ['statement', 'due', 'outstanding']): 
+    if any(k in text for k in ['statement', 'due', 'outstanding', 'minimum amount']):
         return 'Credit Card Bill'
-    if 'invoice' in text: 
+    if 'invoice' in text:
         return 'Invoice'
-    if 'bill' in text: 
+    if 'bill' in text:
         return 'Bill'
     return 'Bill Transaction'
 
-def get_financial_score(subject, snippet):
-    """Scores email relevance for bill detection using weighted keyword matching (Script 2 approach)."""
+
+def get_financial_score(subject, snippet, sender=''):
+    """Scores email relevance for bill detection; promo cues subtract."""
     patterns = {
-        'bill': 5, 'statement': 5, 'debited': 5, 'credited': 5,
-        'outstanding': 5, 'invoice': 5, 'due': 4, 'transaction': 4,
-        'payment': 4, 'inr': 2
+        'bill': 5, 'statement': 6, 'debited': 7, 'credited': 4,
+        'outstanding': 6, 'invoice': 5, 'due': 3, 'transaction': 3,
+        'payment': 3, 'inr': 2, 'emi': 4, 'a/c': 3, 'upi': 3,
     }
-    text = (subject + snippet).lower()
-    return sum(weight for kw, weight in patterns.items() if kw in text)
+    text = (subject + ' ' + snippet).lower()
+    score = sum(weight for kw, weight in patterns.items() if kw in text)
+    if _is_trusted_financial_sender(sender):
+        score += 4
+    # Penalize marketing noise
+    for bad in ('unsubscribe', 'newsletter', '% off', 'flat ₹', 'flash sale', 'coupon', 'deal of'):
+        if bad in text:
+            score -= 6
+    return score
 
 
 def extract_amount_from_snippet(text):
-    """Fast amount extraction from snippet/subject without full body parsing (Script 2 approach)."""
+    """Prefer debit/due phrasing; skip promo-adjacent figures."""
+    for pattern in (
+        r'(?:debited|spent|outstanding|amount due|total due|minimum due|emi)'
+        r'[^0-9₹RsINR]{0,24}(?:rs\.?|inr|₹)?\s*([\d,]+\.?\d*)',
+        r'(?:rs\.?|inr|₹)\s*([\d,]+\.?\d*)\s*(?:debited|spent|due|outstanding)',
+        r'(?:total amount due|amount due|outstanding(?:\s+amount)?)[:\s]*(?:rs\.?|inr|₹)?\s*([\d,]+\.?\d*)',
+    ):
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            clean_val = match.group(1).replace(',', '')
+            try:
+                val = float(clean_val)
+                if val >= 5:
+                    return f"₹ {val:,.2f}"
+            except Exception:
+                pass
+
     match = re.search(r'(?:rs\.?|inr|₹|amount|total)\s*[:\s]*([\d,]+\.?\d*)', text, re.IGNORECASE)
     if match:
+        if _looks_like_promo_amount(text, match.start(), match.end()):
+            return "N/A"
         clean_val = match.group(1).replace(',', '')
         try:
             val = float(clean_val)
-            if val > 0:
+            if val >= 5:
                 return f"₹ {val:,.2f}"
         except Exception:
             pass
     return "N/A"
 
 
+def _gmail_expense_query() -> str:
+    """
+    Fetch real purchase / UPI / bank debit mail.
+    Explicitly exclude Gmail Promotions / Social / Forums.
+    """
+    banks = (
+        'from:(phonepe.com OR paytm.com OR google.com OR amazonpay.in OR bhimupi.org.in OR '
+        'cred.club OR axisbank.com OR axis.bank.in OR hdfcbank.net OR hdfcbank.com OR '
+        'icicibank.com OR onlinesbi.com OR sbi.co.in OR kotak.com OR yesbank.in OR '
+        'indusind.com OR idfcfirstbank.com OR bankofbaroda.in OR pnbindia.in OR '
+        'canarabank.com OR unionbankofindia.co.in OR razorpay.com)'
+    )
+    merchants = (
+        'from:(swiggy.in OR zomato.com OR amazon.in OR flipkart.com OR myntra.com OR '
+        'nykaa.com OR blinkit.com OR zepto.co OR bigbasket.com OR uber.com OR olacabs.com OR '
+        'makemytrip.com OR bookmyshow.com OR shiprocket.in OR eatclub.in)'
+    )
+    # Transactional subject cues catch bank alerts that land in Primary/Updates
+    subjects = (
+        'subject:(debited OR spent OR "transaction successful" OR "payment successful" OR '
+        '"order confirmed" OR "order placed" OR "upi" OR "txn alert" OR "account alert" OR '
+        'receipt OR invoice OR "amount paid")'
+    )
+    return (
+        f'((category:purchases) OR ({banks}) OR ({merchants}) OR ({subjects})) '
+        f'-category:promotions -category:social -category:forums '
+        f'-subject:(newsletter OR unsubscribe OR "% off" OR "flat rs" OR "flash sale") '
+        f'newer_than:2y'
+    )
+
+
+def _gmail_bill_query() -> str:
+    return (
+        '('
+        'subject:(statement OR outstanding OR "amount due" OR "minimum due" OR invoice OR '
+        'debited OR "credit card bill" OR emi OR "bill payment") '
+        'OR from:(hdfcbank.net OR hdfcbank.com OR icicibank.com OR axisbank.com OR axis.bank.in OR '
+        'onlinesbi.com OR kotak.com OR cred.club OR americanexpress.com OR dinersclub.com)'
+        ') '
+        '-category:promotions -category:social -category:forums '
+        '-subject:(newsletter OR "% off" OR "flash sale" OR coupon OR "deal of") '
+        'newer_than:2y'
+    )
+
+
 def execute_expense_scanner(gmail_service):
     """
-    Script 1: Full-body purchase/expense scanner.
-    Targets category:purchases and known merchant senders.
+    Full-body purchase/expense scanner.
+    Targets purchases + bank/UPI/merchant senders; excludes Gmail Promotions.
     Output type: 'Transaction' → shown in Expenses tab.
     """
     emails_data = []
-    query = (
-        'category:purchases OR from:noreply@phonepe.com OR from:alerts@axis.bank.in '
-        'OR from:info@net.shiprocket.in OR from:shiprocket.in OR from:eatclub.in '
-        'OR from:swiggy.in OR from:zomato.com OR from:amazon.in OR from:flipkart.com '
-        'OR from:uber.com OR from:olacabs.com OR from:makemytrip.com '
-        'OR from:bookmyshow.com OR from:myntra.com OR from:nykaa.com '
-        'OR from:blinkit.com OR from:zepto.co OR from:bigbasket.com'
-    )
+    query = _gmail_expense_query()
 
     try:
         sys.stderr.write("Expense Scanner: Fetching purchase emails...\n")
-        response = gmail_service.users().messages().list(userId='me', q=query, maxResults=150).execute()
+        sys.stderr.write(f"Expense Scanner query: {query}\n")
+        response = gmail_service.users().messages().list(userId='me', q=query, maxResults=200).execute()
         messages = response.get('messages', [])
+        # Paginate once more for important older alerts
+        page_token = response.get('nextPageToken')
+        if page_token and len(messages) < 350:
+            more = gmail_service.users().messages().list(
+                userId='me', q=query, maxResults=150, pageToken=page_token,
+            ).execute()
+            messages.extend(more.get('messages', []))
         sys.stderr.write(f"Expense Scanner: Found {len(messages)} emails. Batch fetching full bodies...\n")
 
         if not messages:
@@ -417,6 +644,7 @@ def execute_expense_scanner(gmail_service):
             batch.execute()
 
         sys.stderr.write(f"Expense Scanner: Processing {len(messages_details)} emails...\n")
+        skipped_promo = 0
 
         for msg in messages:
             msg_id = msg['id']
@@ -433,26 +661,32 @@ def execute_expense_scanner(gmail_service):
                 sender = headers_dict.get('from', '(Unknown Sender)')
                 date = headers_dict.get('date', '(Unknown Date)')
 
-                # Full body extraction (Script 1 approach)
                 html_content, pdf_content = extract_all_body_and_attachments(gmail_service, msg_id, payload)
                 soup = BeautifulSoup(html_content, 'html.parser')
                 clean_html_text = soup.get_text(separator=' ').strip()
                 unified_corpus = f"{clean_html_text}\n{snippet}\n{pdf_content}"
 
+                if is_promotional_noise(subject, snippet, unified_corpus, sender):
+                    skipped_promo += 1
+                    continue
+
                 brand, amount, description = parse_transaction_data_expense(unified_corpus, sender, subject)
 
                 if amount != "N/A":
-                    clean_date = re.sub(r'([\+\s-]\d{4}.*)$', '', date).strip()
+                    flags = classify_order_signals(subject, sender, description, unified_corpus)
                     emails_data.append({
                         'brandName': brand,
                         'amount': amount,
                         'description': description,
-                        'date': clean_date,
+                        'date': str(date or '').strip(),
                         'sender': sender,
-                        'type': 'Transaction'
+                        'type': 'Transaction',
+                        **flags,
                     })
             except Exception as e:
                 sys.stderr.write(f"Expense Scanner: Failed parsing {msg_id}: {str(e)}\n")
+
+        sys.stderr.write(f"Expense Scanner: Skipped {skipped_promo} promotional emails.\n")
 
     except Exception as e:
         sys.stderr.write(f"Expense Scanner: Query failed: {str(e)}\n")
@@ -463,16 +697,16 @@ def execute_expense_scanner(gmail_service):
 
 def execute_bill_scanner(gmail_service):
     """
-    Script 2: Fast metadata-only bill scanner using financial scoring.
-    Only fetches message headers + snippet — no full body, very fast.
-    Output types: Credit Card Bill / Invoice / Bill / Bill Transaction → shown in Bills tab.
+    Fast metadata bill scanner using financial scoring.
+    Excludes promotions and bare attachment-only mail.
     """
     emails_data = []
-    query = 'subject:(bill OR statement OR debited OR credited OR outstanding OR invoice OR due) OR has:attachment'
+    query = _gmail_bill_query()
 
     try:
         sys.stderr.write("Bill Scanner: Fetching bill candidate emails...\n")
-        response = gmail_service.users().messages().list(userId='me', q=query, maxResults=500).execute()
+        sys.stderr.write(f"Bill Scanner query: {query}\n")
+        response = gmail_service.users().messages().list(userId='me', q=query, maxResults=300).execute()
         messages = response.get('messages', [])
         sys.stderr.write(f"Bill Scanner: Found {len(messages)} candidates. Scoring...\n")
 
@@ -480,6 +714,7 @@ def execute_bill_scanner(gmail_service):
             return []
 
         seen_keys = set()
+        skipped_promo = 0
 
         for msg in messages:
             try:
@@ -494,25 +729,27 @@ def execute_bill_scanner(gmail_service):
                 sender = headers.get('From', '(Unknown Sender)')
                 date = headers.get('Date', '(Unknown Date)')
 
-                # Apply financial scoring filter — must score >= 5
-                score = get_financial_score(subject, snippet)
-                if score < 5:
+                if is_promotional_noise(subject, snippet, '', sender):
+                    skipped_promo += 1
                     continue
 
-                # Fast amount extraction from snippet/subject
+                score = get_financial_score(subject, snippet, sender)
+                # Stricter bar for non-bank senders
+                min_score = 5 if _is_trusted_financial_sender(sender) else 8
+                if score < min_score:
+                    continue
+
                 amount = extract_amount_from_snippet(snippet + " " + subject)
                 if amount == "N/A":
                     continue
 
-                # Classify bill type
                 bill_type = classify_type_bill(subject, snippet)
 
                 brand = re.sub(r'\s*<.*?>', '', sender).replace('"', '').replace("'", "").strip()
                 description = subject[:80].strip()
-                clean_date = re.sub(r'([\+\s-]\d{4}.*)$', '', date).strip()
+                mail_date = str(date or '').strip()
 
-                # Deduplicate by brand + date + amount
-                dedup_key = f"{brand}|{clean_date}|{amount}"
+                dedup_key = f"{brand}|{mail_date}|{amount}"
                 if dedup_key in seen_keys:
                     continue
                 seen_keys.add(dedup_key)
@@ -521,13 +758,15 @@ def execute_bill_scanner(gmail_service):
                     'brandName': brand,
                     'amount': amount,
                     'description': description,
-                    'date': clean_date,
+                    'date': mail_date,
                     'sender': sender,
                     'type': bill_type
                 })
 
             except Exception as e:
                 sys.stderr.write(f"Bill Scanner: Failed parsing {msg['id']}: {str(e)}\n")
+
+        sys.stderr.write(f"Bill Scanner: Skipped {skipped_promo} promotional emails.\n")
 
     except Exception as e:
         sys.stderr.write(f"Bill Scanner: Query failed: {str(e)}\n")
@@ -576,6 +815,8 @@ def _parse_date_iso(date_str):
     if not date_str:
         return ""
     raw = str(date_str).strip()
+    if raw.lower() in ('(unknown date)', 'unknown date', 'n/a'):
+        return ""
     try:
         return parsedate_to_datetime(raw).date().isoformat()
     except Exception:
@@ -591,83 +832,208 @@ def _parse_date_iso(date_str):
         "%d-%m-%Y",
         "%b %d, %Y",
         "%d %b %Y",
+        "%a, %d %b %Y",
         "%Y/%m/%d",
     ):
         try:
-            return datetime.strptime(raw[:32], fmt).date().isoformat()
+            return datetime.strptime(raw[:48], fmt).date().isoformat()
+        except Exception:
+            continue
+    # Legacy cache rows stored mangled dates like "Mon, 17 Aug" (year stripped).
+    today = datetime.utcnow().date()
+    for fmt in ("%a, %d %b", "%d %b", "%b %d"):
+        try:
+            parsed = datetime.strptime(raw[:32].strip(), fmt).date()
+            if parsed.year == 1900:
+                parsed = parsed.replace(year=today.year)
+            return parsed.isoformat()
         except Exception:
             continue
     return ""
 
 
+def classify_order_signals(subject, sender, description, corpus=''):
+    """Detect COD / prepaid / return / refund / reject / fail from Gmail text."""
+    text = f"{subject or ''}\n{sender or ''}\n{description or ''}\n{corpus or ''}".lower()
+
+    returned = bool(re.search(
+        r'\b(rto|return(?:ed|ing)?|reverse pickup|return initiated|return picked|'
+        r'item (?:was )?returned|exchange initiated)\b',
+        text,
+    ))
+    refunded = bool(re.search(
+        r'\b(refund(?:ed|ing)?|refund processed|reversal processed|'
+        r'amount (?:has been )?refunded|refund (?:initiated|completed))\b',
+        text,
+    ))
+    rejected = bool(re.search(
+        r'\b(payment (?:declined|rejected|failed)|transaction (?:declined|rejected)|'
+        r'insufficient (?:funds|balance)|card declined|bank declined)\b',
+        text,
+    ))
+    failed = bool(re.search(
+        r'\b(order (?:failed|canceled|cancelled)|could not (?:be )?process|'
+        r'payment unsuccessful|transaction failed|unable to place)\b',
+        text,
+    ))
+    is_cod = bool(re.search(
+        r'cash[\s-]?on[\s-]?delivery|pay[\s-]?on[\s-]?delivery|pay[\s-]?at[\s-]?delivery|'
+        r'(?:payment\s*(?:mode|method|type)|paid\s*(?:by|via)|pay\s*method)\s*[:\-]?\s*cod\b|'
+        r'\bcod\s+(?:order|payment|amount|collect|charge)|'
+        r'\bcollect\s+cod\b|\bcod\b',
+        text,
+    ))
+    prepaid_hint = bool(re.search(
+        r'\b(prepaid|paid online|amount paid|payment successful|upi|netbanking|'
+        r'you paid|paid via (?:card|upi|net)|online paid|debited)\b',
+        text,
+    ))
+    if is_cod:
+        payment_mode = 'cod'
+        prepaid = False
+    else:
+        payment_mode = 'prepaid'
+        prepaid = prepaid_hint or not (returned or refunded or rejected or failed)
+
+    return {
+        'paymentMode': payment_mode,
+        'cod': bool(is_cod),
+        'prepaid': bool(prepaid),
+        'returned': returned,
+        'refunded': refunded,
+        'rejected': rejected,
+        'failed': failed,
+    }
+
+
+def _in_last_months(date_iso, months=6):
+    if not date_iso or len(str(date_iso)) < 7:
+        return False
+    try:
+        d = datetime.fromisoformat(str(date_iso)[:10]).date()
+        return (datetime.utcnow().date() - d).days <= int(months * 30.5) + 2
+    except Exception:
+        return False
+
+
+def _spend_tier_score(avg):
+    """Avg monthly INR spend → 0–100. Bands are inclusive lower bound."""
+    if avg >= 100000: return 100
+    if avg >= 95000:  return 90
+    if avg >= 90000:  return 85
+    if avg >= 85000:  return 80
+    if avg >= 80000:  return 75
+    if avg >= 75000:  return 70
+    if avg >= 70000:  return 65
+    if avg >= 65000:  return 60
+    if avg >= 60000:  return 55
+    if avg >= 55000:  return 50
+    if avg >= 50000:  return 45
+    if avg >= 45000:  return 40
+    if avg >= 40000:  return 35
+    if avg >= 35000:  return 30
+    if avg >= 30000:  return 25
+    if avg >= 25000:  return 20
+    return max(0, round(20 * avg / 25000))
+
+
 def compute_yureka_score(transactions):
     """
-    Ports credit_score.py's spend-tier scoring model to run directly off the
-    transactions/bills this scanner already extracted, instead of the offline
-    Yureka Mail JSON ledger files. Flags (failed payments / missed bills)
-    aren't detected here, so reliability is scored as clean (no penalty).
+    Last-6-month INR purchase score.
+
+    Base = avg monthly spend band.
+    Plus: order volume, prepaid mix.
+    Minus: COD, returns, refunds, rejected payments, failed orders.
     """
-    from datetime import datetime
     from collections import Counter
 
-    purchases = []
+    window = []
     bills = []
     for t in transactions:
         value, currency = _parse_amount_value(t.get('amount'))
         if value is None:
             continue
         date_iso = _parse_date_iso(t.get('date'))
+        if t.get('cod') or t.get('prepaid') or t.get('paymentMode'):
+            flags = {
+                'cod': bool(t.get('cod')),
+                'prepaid': bool(t.get('prepaid')),
+                'returned': bool(t.get('returned')),
+                'refunded': bool(t.get('refunded')),
+                'rejected': bool(t.get('rejected')),
+                'failed': bool(t.get('failed')),
+                'paymentMode': t.get('paymentMode') or ('cod' if t.get('cod') else 'prepaid'),
+            }
+        else:
+            flags = classify_order_signals(
+                '', t.get('sender', ''), t.get('description', ''), '',
+            )
         row = {
             'Brand': t.get('brandName', ''),
             'Value': value,
             'Currency': currency,
             'DateISO': date_iso,
-            'Direction': 'Debit',
-            'Method': 'Card' if currency == 'USD' else ('UPI' if 'upi' in (t.get('description', '') + t.get('sender', '')).lower() else 'Other'),
+            **flags,
         }
-        if t.get('type') == 'Transaction':
-            purchases.append(row)
+        tx_type = str(t.get('type') or '').strip().lower()
+        if tx_type == 'transaction':
+            if currency == 'INR' and _in_last_months(date_iso, 6):
+                window.append(row)
         else:
-            bills.append({**row, 'DueISO': date_iso, 'Status': 'Paid'})
+            bills.append(row)
 
-    inr_debits = [r for r in purchases if r['Currency'] == 'INR']
-    spend_total = sum(r['Value'] for r in inr_debits)
-    txn_count = len(inr_debits)
-    merchants = len({r['Brand'] for r in inr_debits})
-    active_months = len({r['DateISO'][:7] for r in inr_debits if r['DateISO']})
-    denom = max(1, active_months)
-    avg_monthly_spend = spend_total / denom
-    avg_monthly_txns = txn_count / denom
+    orders = len(window)
+    prepaid = sum(1 for r in window if r.get('prepaid') or r.get('paymentMode') == 'prepaid')
+    cod = sum(1 for r in window if r.get('cod') or r.get('paymentMode') == 'cod')
+    returned = sum(1 for r in window if r.get('returned'))
+    refunded = sum(1 for r in window if r.get('refunded'))
+    rejected = sum(1 for r in window if r.get('rejected'))
+    failed = sum(1 for r in window if r.get('failed'))
 
-    methods = Counter(r['Method'] for r in inr_debits)
-    has_card = bool(bills) or methods.get('Card', 0) > 0
+    counted = [
+        r for r in window
+        if not (r.get('returned') or r.get('refunded') or r.get('rejected') or r.get('failed'))
+    ]
+    spend_total = sum(r['Value'] for r in counted)
+    avg_monthly_spend = spend_total / 6.0
+    merchants = len({r['Brand'] for r in counted})
+    methods = Counter(
+        'COD' if r.get('cod') else ('UPI' if r.get('prepaid') else 'Other')
+        for r in window
+    )
 
-    def spend_tier_score(avg):
-        if avg > 100000: return 100
-        if avg > 90000:  return 90
-        if avg > 80000:  return 80
-        if avg > 70000:  return 70
-        if avg > 60000:  return 60
-        if avg > 50000:  return 50
-        if avg > 40000:  return 40
-        if avg > 30000:  return 30
-        if avg >= 20000: return 20
-        return max(0, round(20 * avg / 20000))
-
-    total = spend_tier_score(avg_monthly_spend)
+    base = _spend_tier_score(avg_monthly_spend)
+    denom = max(1, orders)
+    bonus = min(8, orders // 8) + round(6 * prepaid / denom)
+    penalty = (
+        round(12 * cod / denom)
+        + min(16, returned * 2)
+        + min(16, refunded * 2)
+        + min(12, rejected * 3)
+        + min(12, failed * 3)
+    )
+    total = max(0, min(100, int(round(base + bonus - penalty))))
     decision = "Approved" if total >= 20 else "Rejected"
 
     return {
         "score": total,
         "decision": decision,
         "metrics": {
+            "window_months": 6,
+            "orders_6m": orders,
+            "prepaid_orders": prepaid,
+            "cod_orders": cod,
+            "returned_orders": returned,
+            "refunded_orders": refunded,
+            "rejected_payments": rejected,
+            "failed_orders": failed,
             "spend_total_inr": round(spend_total, 2),
             "avg_monthly_spend_inr": round(avg_monthly_spend, 2),
-            "active_months": denom,
-            "transactions": txn_count,
+            "spend_tier": base,
+            "bonus": bonus,
+            "penalty": penalty,
             "distinct_merchants": merchants,
-            "avg_monthly_txns": round(avg_monthly_txns, 2),
-            "has_credit_card": has_card,
+            "has_credit_card": bool(bills),
             "payment_methods": dict(methods),
         }
     }

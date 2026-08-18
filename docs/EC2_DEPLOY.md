@@ -1,7 +1,8 @@
 # EC2 all-in-one deploy (frontend + API)
 
 **Instance:** `i-0fc71adcbbce91e3e`  
-**Public IP:** `13.57.223.228` (use an **Elastic IP** so it doesn’t change on stop/start)
+**Public IP:** `13.57.223.228` (use an **Elastic IP** so it doesn’t change on stop/start)  
+**Temporary host:** `https://13-57-223-228.sslip.io`
 
 Express serves the Vite build (`dist/`) and `/api/*` on one process — no Netlify required.
 
@@ -13,20 +14,20 @@ Port 22 is reachable; the key must match the instance **Key pair name** in EC2.
 
 1. EC2 → Instances → `i-0fc71adcbbce91e3e` → **Details** → note **Key pair name**.
 2. That name must be the pair for `yureka.pem`. If you lost the key, you cannot SSH with a new `.pem` unless you:
-   - Use **EC2 Instance Connect** (browser) → connect as `ubuntu`, then paste your **public** key into `~/.ssh/authorized_keys`, or
+   - Use **EC2 Instance Connect** (browser) → connect as `ec2-user`, then paste your **public** key into `~/.ssh/authorized_keys`, or
    - Stop instance → **Actions → Instance settings → Edit user data** / replace root volume (last resort).
 
 Local test:
 
 ```bash
 chmod 400 yureka.pem
-ssh -i yureka.pem ubuntu@13.57.223.228
+ssh -i yureka.pem ec2-user@13.57.223.228
 ```
 
 Amazon Linux AMI uses `ec2-user` instead of `ubuntu`:
 
 ```bash
-EC2_USER=ec2-user ssh -i yureka.pem ec2-user@13.57.223.228
+ssh -i yureka.pem ec2-user@13.57.223.228
 ```
 
 **Never commit** `yureka.pem` (already in `.gitignore`).
@@ -63,7 +64,10 @@ Set in `.env` before `pnpm build`:
 
 - `NODE_ENV=production`
 - `PORT=3000`
-- `APP_ORIGIN=http://13.57.223.228` (or `https://yureka.one` later)
+- `APP_ORIGIN=https://13-57-223-228.sslip.io` (temporary) or `https://yureka.one` later
+- `FRONTEND_URL=https://13-57-223-228.sslip.io`
+- `PUBLIC_APP_URL=https://13-57-223-228.sslip.io`
+- `VITE_ADMIN_PORTAL_URL=https://13-57-223-228.sslip.io`
 - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` / publishable key
 - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 - `HUBBLE_*`, `GMAIL_*`, `ADMIN_*`, `GOOGLE_*`
@@ -75,32 +79,56 @@ Set in `.env` before `pnpm build`:
 ```bash
 cd Yureka.One
 # copy .env to server once:
-scp -i yureka.pem .env ubuntu@13.57.223.228:/opt/yureka-one/.env
+scp -i yureka.pem .env ec2-user@13.57.223.228:/opt/yureka-one/.env
 
 EC2_HOST=13.57.223.228 EC2_KEY=./yureka.pem ./scripts/ec2/deploy-from-local.sh
 ```
 
 ---
 
-## 5. HTTPS + domain
+## 5. HTTPS + domain (Cloudflare)
 
-1. Point DNS **A record** → Elastic IP (recommended) or `13.57.223.228`.
-2. On the server:
+Full Cloudflare DNS table + OAuth checklist: [`CLOUDFLARE_DNS.md`](./CLOUDFLARE_DNS.md)
+
+Host map:
+
+| Host | App surface |
+|------|-------------|
+| `yureka.one` / `www` | Landing |
+| `app.yureka.one` | Login / waitlist / dashboard |
+| `admin.yureka.one` | Admin panel |
+
+1. Add the A records in Cloudflare (DNS only while certs issue).
+2. On Amazon Linux:
 
 ```bash
-sudo apt install -y certbot python3-certbot-nginx
-sudo certbot --nginx -d yureka.one -d www.yureka.one
+sudo dnf install -y certbot python3-certbot-nginx
+sudo certbot --nginx \
+  -d yureka.one -d www.yureka.one -d app.yureka.one -d admin.yureka.one \
+  --non-interactive --agree-tos -m admin@yureka.one --redirect
 ```
 
-3. Update `APP_ORIGIN`, Google OAuth redirects, Supabase Auth URLs, Hubble webhooks to `https://yureka.one`.
+3. Set production env:
+
+```bash
+VITE_LANDING_URL=https://yureka.one
+VITE_APP_URL=https://app.yureka.one
+VITE_ADMIN_PORTAL_URL=https://admin.yureka.one
+APP_ORIGIN=https://app.yureka.one
+FRONTEND_URL=https://app.yureka.one
+PUBLIC_APP_URL=https://app.yureka.one
+```
+
+4. Update Google OAuth origins + Supabase Auth redirect URLs (see Cloudflare doc).
+5. Redeploy: `./deploy-ec2.sh`
 
 ---
 
 ## 6. Smoke tests
 
 ```bash
-curl -s http://13.57.223.228/api/health
-curl -s "http://13.57.223.228/api/v1/auth/status?email=you@gmail.com"
+curl -s https://13-57-223-228.sslip.io/api/health
+curl -s "https://13-57-223-228.sslip.io/api/v1/auth/status?email=you@gmail.com"
 ```
 
 Browser: `/`, `/login`, `/join-waitlist`, `/dashboard` (approved user).

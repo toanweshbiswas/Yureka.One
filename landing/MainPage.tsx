@@ -1,4 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import HeroCinematic from '@landing/home-v2/HeroCinematic';
+import HeroMobile from '@landing/home-v2/HeroMobile';
 import SEO from '@shared/SEO';
 import { SITE_URL, staticPageMeta } from '@backend/lib/seo/pageMeta';
 import { faqPageSchema } from '@backend/lib/seo/structuredData';
@@ -6,7 +8,6 @@ import { faqQuestions } from '@backend/lib/faq';
 
 import Loader from '@landing/home-v2/Loader';
 import Navbar from '@landing/home-v2/Navbar';
-import HeroCinematic from '@landing/home-v2/HeroCinematic';
 import ScrollDownCue from '@landing/home-v2/ScrollDownCue';
 import BrandsSection from '@landing/home-v2/BrandsSection';
 import MetricsTechnology from '@landing/home-v2/MetricsTechnology';
@@ -16,10 +17,27 @@ import YurekaCallout from '@landing/home-v2/YurekaCallout';
 import Footer from '@landing/home-v2/Footer';
 
 /**
- * Homepage composition matches the Yureka One landing reference:
- * Loader → gated Navbar → cinematic hero → sections → footer.
- * Own chrome (not the App shell navbar) so entrance can wait on fonts.
+ * Homepage composition:
+ * Loader → Navbar → hero (mobile stacked / desktop cinematic) → sections → footer.
+ *
+ * Mobile never mounts the 500vh+ pin-scrub cinematic — that path only runs at md+.
  */
+function useIsDesktopMd() {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
+  );
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onChange = () => setIsDesktop(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  return isDesktop;
+}
+
 const MainPage: React.FC = () => {
   const homeSchema = {
     '@context': 'https://schema.org',
@@ -30,17 +48,19 @@ const MainPage: React.FC = () => {
   };
 
   const [entranceComplete, setEntranceComplete] = useState(false);
+  const isDesktop = useIsDesktopMd();
 
   useEffect(() => {
     let cancelled = false;
 
-    // Gate entrance on real font readiness so scramble/metrics don't reflow mid-animation.
+    // Gate entrance on font readiness — short min delay so first paint feels
+    // instant (Apple: kill latency). Cap wait so a hung font CDN can't stall.
     const fontsReady =
       typeof document !== 'undefined' && 'fonts' in document
         ? document.fonts.ready
         : Promise.resolve();
-    const minDelay = new Promise((resolve) => setTimeout(resolve, 400));
-    const maxWait = new Promise((resolve) => setTimeout(resolve, 3000));
+    const minDelay = new Promise((resolve) => setTimeout(resolve, 120));
+    const maxWait = new Promise((resolve) => setTimeout(resolve, 1200));
 
     Promise.race([fontsReady, maxWait]).then(() =>
       minDelay.then(() => {
@@ -60,8 +80,13 @@ const MainPage: React.FC = () => {
       <div className="yureka-one-home bg-black min-h-screen text-white">
         <Loader show={!entranceComplete} />
         <Navbar entranceComplete={entranceComplete} />
-        <ScrollDownCue />
-        <HeroCinematic entranceComplete={entranceComplete} />
+        {/* Scroll cue is desktop cinematic-only */}
+        {isDesktop && <ScrollDownCue />}
+        {isDesktop ? (
+          <HeroCinematic entranceComplete={entranceComplete} />
+        ) : (
+          <HeroMobile />
+        )}
         <BrandsSection />
         <MetricsTechnology />
         <Architecture />

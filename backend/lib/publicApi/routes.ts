@@ -1,7 +1,19 @@
 import type { Express, Request, Response } from 'express'
+import { readLedgerCache, runGmailScanner, writeLedgerCache } from '../ledger/scannerRunner.js'
+import { consumeLedgerResync, getLedgerResyncQuota } from '../ledger/resyncQuota.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
   res.status(status).json({ data, status, timestamp: new Date().toISOString() })
+}
+
+function fail(res: Response, status: number, error: string, extra?: Record<string, unknown>) {
+  res.status(status).json({
+    data: null,
+    status,
+    error,
+    timestamp: new Date().toISOString(),
+    ...(extra || {}),
+  })
 }
 
 /**
@@ -35,24 +47,101 @@ export function registerPublicApiRoutes(app: Express) {
     ok(res, [])
   })
 
-  app.get('/api/v1/notifications', (_req, res) => {
-    ok(res, [])
+  app.get('/api/v1/ledger', async (req, res) => {
+    try {
+      const email = String(req.query.email || '').trim().toLowerCase()
+      const data = await readLedgerCache(email || null)
+      const resyncQuota = email ? await getLedgerResyncQuota(email) : null
+      ok(res, {
+        profile: data.profile || {},
+        transactions: Array.isArray(data.transactions) ? data.transactions : [],
+        score: data.score || null,
+        resyncQuota,
+      })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load ledger')
+    }
   })
 
-  app.get('/api/v1/notifications/interactions', (_req, res) => {
-    ok(res, [])
-  })
+  app.post('/api/v1/ledger/scan', async (req, res) => {
+    try {
+      const accessToken = String(req.body?.accessToken || '').trim()
+      const email = String(req.body?.email || req.body?.fallbackData?.email || '')
+        .trim()
+        .toLowerCase()
+      const fallbackData =
+        req.body?.fallbackData && typeof req.body.fallbackData === 'object'
+          ? req.body.fallbackData
+          : { email }
 
-  app.post('/api/v1/notifications/:id/interact', (req, res) => {
-    ok(res, { id: String(req.params.id), recorded: true })
-  })
+      if (!accessToken) {
+        return fail(res, 401, 'AUTH_EXPIRED', {
+          details: 'Gmail read-only access token is required to sync spending.',
+        })
+      }
 
-  app.get('/api/v1/ledger', (_req, res) => {
-    ok(res, { profile: {}, transactions: [] })
-  })
+      if (email) {
+        const quota = await getLedgerResyncQuota(email)
+        if (!quota.allowed) {
+          return fail(res, 429, 'RESYNC_LIMIT', {
+            details: `You can resync inbox twice every ${quota.windowDays} days.`,
+            resyncQuota: quota,
+          })
+        }
+      }
 
-  app.post('/api/v1/ledger/scan', (_req, res) => {
-    ok(res, { profile: {}, transactions: [] })
+      const result = await runGmailScanner({
+        accessToken,
+        fallbackData,
+        mode: 'full',
+        timeoutMs: 180_000,
+      })
+
+      if (result.error) {
+        const isAuth =
+          result.error === 'AUTH_EXPIRED' || String(result.error).includes('AUTH_EXPIRED')
+        return fail(res, isAuth ? 401 : 400, isAuth ? 'AUTH_EXPIRED' : result.error, {
+          details: result.details,
+        })
+      }
+
+      await writeLedgerCache(email || String((result.profile as any)?.email || ''), result)
+      const recipient = email || String((result.profile as any)?.email || '').trim().toLowerCase()
+      let resyncQuota = recipient ? await getLedgerResyncQuota(recipient) : null
+      if (recipient && result.score && Number.isFinite(Number(result.score.score))) {
+        const { persistScoreToWaitlist } = await import('../waitlist/score.js')
+        try {
+          await persistScoreToWaitlist({
+            email: recipient,
+            profile: result.profile as { name?: string } | undefined,
+            // Python scanner returns a loosely-typed JSON blob for `metrics`.
+            // Normalize it into the expected `Record<string, unknown>` shape.
+            score: {
+              ...(result.score as any),
+              metrics: (result.score as any)?.metrics as Record<string, unknown>,
+            } as any,
+            notify: true,
+          })
+        } catch (err) {
+          console.error('[ledger] persist score failed:', err)
+        }
+      }
+      if (recipient) {
+        try {
+          resyncQuota = await consumeLedgerResync(recipient)
+        } catch (err) {
+          console.error('[ledger] resync quota update failed:', err)
+        }
+      }
+      ok(res, {
+        profile: result.profile || {},
+        transactions: Array.isArray(result.transactions) ? result.transactions : [],
+        score: result.score || null,
+        resyncQuota,
+      })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Ledger scan failed')
+    }
   })
 
   app.get('/api/v1/users/cards', (_req, res) => {

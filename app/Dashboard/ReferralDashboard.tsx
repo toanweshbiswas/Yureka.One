@@ -8,6 +8,7 @@ import { useSupabase } from '@shared/SupabaseProvider';
 import { api, isApiError } from '@backend/lib/api/client';
 import { fromApiWaitlist } from '@backend/lib/api/mappers';
 import type { Waitlist as ApiWaitlist } from '@backend/lib/api/types';
+import { appUrl } from '@shared/hosts';
 
 const ReferralDashboard: React.FC = () => {
     const { user } = useSupabase();
@@ -50,7 +51,7 @@ const ReferralDashboard: React.FC = () => {
         }
     };
 
-    const shareLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/join-waitlist?ref=${personalCode}`;
+    const shareLink = `${appUrl('/join-waitlist')}?ref=${personalCode}`;
 
     const copyToClipboard = () => {
         navigator.clipboard.writeText(shareLink);

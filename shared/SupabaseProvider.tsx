@@ -4,7 +4,7 @@ import { Card, Blog, Review, WaitlistEntry } from '@/types';
 import { featuredCards } from '@landing/data';
 import { api, isApiError } from '@backend/lib/api/client';
 import { fromApiCard, fromApiBlog, fromApiReview, fromApiWaitlist } from '@backend/lib/api/mappers';
-import type { Card as ApiCard, Blog as ApiBlog, Review as ApiReview, Waitlist as ApiWaitlist } from '@backend/lib/api/types';
+import type { Card as ApiCard, Blog as ApiBlog, Review as ApiReview, Waitlist as ApiWaitlist, LedgerResyncQuota } from '@backend/lib/api/types';
 import {
   getSupabaseBrowser,
   setAuthTokenGetter,
@@ -14,6 +14,12 @@ import {
   type User,
   supabaseConfigured,
 } from '@shared/auth';
+import { cacheGet, cacheSet, CACHE_TTL, getLastAuthStatus, persistAuthSnapshot } from '@shared/dashboardCache';
+import {
+  clearStoredGmailAccessToken,
+  getStoredGmailAccessToken,
+  requestGmailReadonlyToken,
+} from '@shared/gmailConsent';
 
 export interface ParsedTransaction {
   brandName: string;
@@ -49,6 +55,7 @@ interface SupabaseContextType {
   ledgerLoading: boolean;
   ledgerError: string | null;
   scanProgress: number;
+  ledgerResyncQuota: LedgerResyncQuota | null;
   syncLedger: (forceSync?: boolean) => Promise<void>;
 }
 
@@ -129,9 +136,15 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [currentUserStatus, setCurrentUserStatus] = useState<AppUserStatus>('loading');
+  const [currentUserStatus, setCurrentUserStatus] = useState<AppUserStatus>(() => {
+    const restored = getLastAuthStatus()
+    return (restored as AppUserStatus) || 'loading'
+  });
   const [syncStatus, setSyncStatus] = useState<'connected' | 'reconnecting' | 'error'>('connected');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    const restored = getLastAuthStatus()
+    return restored !== 'accepted' && restored !== 'admin'
+  });
   const [isAdminDataLoaded, setIsAdminDataLoaded] = useState(false);
   const isInitialLoad = useRef(true);
   const publicDataLoaded = useRef(false);
@@ -142,16 +155,36 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [ledgerLoading, setLedgerLoading] = useState(false);
   const [ledgerError, setLedgerError] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
+  const [ledgerResyncQuota, setLedgerResyncQuota] = useState<LedgerResyncQuota | null>(null);
 
-  const applyStatusForEmail = useCallback(async (email: string | undefined | null) => {
+  const applyStatusForEmail = useCallback(async (
+    email: string | undefined | null,
+    opts?: { silent?: boolean; signedOut?: boolean }
+  ) => {
     const reqId = ++statusRequestId.current;
     if (!email) {
-      if (reqId === statusRequestId.current) setCurrentUserStatus('none');
+      if (reqId !== statusRequestId.current) return;
+      setCurrentUserStatus('none');
+      persistAuthSnapshot(null, 'none');
       return;
     }
-    setCurrentUserStatus('loading');
+    const statusKey = `auth:status:${email.toLowerCase()}`
+    const cached = cacheGet<AppUserStatus>(statusKey, CACHE_TTL.authStatus)
+
+    setCurrentUserStatus((prev) => {
+      if (prev === 'accepted' || prev === 'admin' || prev === 'pending' || prev === 'on-hold' || prev === 'rejected') {
+        return prev
+      }
+      if (cached?.data && cached.data !== 'loading') return cached.data
+      if (opts?.silent) return prev
+      return 'loading'
+    })
+
     const status = await resolveUserStatus(email);
-    if (reqId === statusRequestId.current) setCurrentUserStatus(status);
+    if (reqId !== statusRequestId.current) return;
+    setCurrentUserStatus(status);
+    cacheSet(statusKey, status);
+    persistAuthSnapshot(email, status);
   }, []);
 
   const refreshUserStatus = useCallback(async () => {
@@ -184,34 +217,83 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     try {
       if (forceSync) {
-        setScanProgress(15);
-        const scanRes = await api.post<{ profile: any; transactions: any[] }>(
+        if (ledgerResyncQuota && Number(ledgerResyncQuota.remaining) <= 0) {
+          setLedgerError('RESYNC_LIMIT');
+          setLedgerLoading(false);
+          return;
+        }
+        setScanProgress(10);
+        // Dashboard Supabase login does not include gmail.readonly — ask GIS for it.
+        let gmailToken = getStoredGmailAccessToken() || '';
+        if (!gmailToken) {
+          setScanProgress(20);
+          const consent = await requestGmailReadonlyToken({ forceConsent: true });
+          if (!consent.accessToken) {
+            setLedgerError(consent.error || 'AUTH_EXPIRED');
+            setScanProgress(0);
+            return;
+          }
+          gmailToken = consent.accessToken;
+        }
+
+        setScanProgress(35);
+        const scanRes = await api.post<{ profile: any; transactions: any[]; score?: any; resyncQuota?: LedgerResyncQuota }>(
           '/api/v1/ledger/scan',
-          { accessToken: sessionRef.current?.provider_token || '', email: userEmail, fallbackData: { email: userEmail } }
+          {
+            accessToken: gmailToken,
+            email: userEmail,
+            fallbackData: { email: userEmail },
+          },
+          { timeoutMs: 180_000 }
         );
-        setScanProgress(60);
-        if (!isApiError(scanRes) && scanRes.data?.transactions?.length) {
+        setScanProgress(75);
+
+        const quotaFromError = (scanRes as { resyncQuota?: LedgerResyncQuota }).resyncQuota
+        if (quotaFromError) setLedgerResyncQuota(quotaFromError)
+
+        if (!isApiError(scanRes) && Array.isArray(scanRes.data?.transactions)) {
           localStorage.setItem(cacheKey, JSON.stringify(scanRes.data));
           setLedgerTransactions(scanRes.data.transactions);
-        } else {
-          const dbRes = await api.get<{ profile: any; transactions: any[] }>(
-            `/api/v1/ledger?email=${encodeURIComponent(userEmail)}`
-          );
-          if (!isApiError(dbRes) && dbRes.data?.transactions) {
-            localStorage.setItem(cacheKey, JSON.stringify(dbRes.data));
-            setLedgerTransactions(dbRes.data.transactions);
+          if (scanRes.data.resyncQuota) setLedgerResyncQuota(scanRes.data.resyncQuota)
+          if (scanRes.data.score && Number.isFinite(Number(scanRes.data.score.score))) {
+            window.dispatchEvent(new CustomEvent('yureka-score-updated', { detail: scanRes.data.score }));
           }
-          if (isApiError(scanRes)) setLedgerError(scanRes.error ?? null);
+          setScanProgress(100);
+          return;
         }
+
+        if (isApiError(scanRes)) {
+          const err = scanRes.error || 'Ledger scan failed';
+          if (err === 'AUTH_EXPIRED' || /AUTH_EXPIRED|invalid_grant|invalid credentials/i.test(err)) {
+            clearStoredGmailAccessToken();
+            setLedgerError('AUTH_EXPIRED');
+          } else if (err === 'RESYNC_LIMIT') {
+            setLedgerError('RESYNC_LIMIT');
+          } else {
+            setLedgerError(err);
+          }
+        }
+
+        const dbRes = await api.get<{ profile: any; transactions: any[]; resyncQuota?: LedgerResyncQuota }>(
+          `/api/v1/ledger?email=${encodeURIComponent(userEmail)}`,
+          { timeoutMs: 15000 }
+        );
+        if (!isApiError(dbRes) && dbRes.data?.transactions?.length) {
+          localStorage.setItem(cacheKey, JSON.stringify(dbRes.data));
+          setLedgerTransactions(dbRes.data.transactions);
+        }
+        if (!isApiError(dbRes) && dbRes.data?.resyncQuota) setLedgerResyncQuota(dbRes.data.resyncQuota)
         setScanProgress(100);
       } else {
-        const res = await api.get<{ profile: any; transactions: any[] }>(
-          `/api/v1/ledger?email=${encodeURIComponent(userEmail)}`
+        const res = await api.get<{ profile: any; transactions: any[]; resyncQuota?: LedgerResyncQuota }>(
+          `/api/v1/ledger?email=${encodeURIComponent(userEmail)}`,
+          { timeoutMs: 15000 }
         );
         if (!isApiError(res) && res.data?.transactions) {
           localStorage.setItem(cacheKey, JSON.stringify(res.data));
           setLedgerTransactions(res.data.transactions);
         }
+        if (!isApiError(res) && res.data?.resyncQuota) setLedgerResyncQuota(res.data.resyncQuota)
       }
     } catch (err) {
       console.error("Ledger sync error:", err);
@@ -219,13 +301,14 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     } finally {
       setTimeout(() => setLedgerLoading(false), 500);
     }
-  }, []);
+  }, [ledgerResyncQuota]);
 
   useEffect(() => {
-    if (session?.user?.email) {
+    const email = session?.user?.email
+    if (email) {
       syncLedger(false);
     }
-  }, [session, syncLedger]);
+  }, [session?.user?.email, syncLedger]);
 
   // Real Supabase Auth — replaces demo stub
   useEffect(() => {
@@ -235,8 +318,8 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (!sb) {
       console.warn(
         supabaseConfigured
-          ? 'Supabase client failed to initialize'
-          : 'Supabase Auth not configured (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY). Gating will treat users as logged out.'
+          ? 'Auth client failed to initialize'
+          : 'Sign-in is not configured on this build. Gating will treat users as logged out.'
       );
       setUser(null);
       setSession(null);
@@ -248,36 +331,35 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     let cancelled = false;
 
-    const applySession = async (next: Session | null) => {
+    const applySession = async (
+      next: Session | null,
+      opts?: { silent?: boolean; signedOut?: boolean }
+    ) => {
       if (cancelled) return;
       sessionRef.current = next;
       setSession(next);
       setUser(next?.user ?? null);
-      await applyStatusForEmail(next?.user?.email);
+      await applyStatusForEmail(next?.user?.email, opts);
     };
 
     sb.auth.getSession().then(({ data }) => {
-      void applySession(data.session);
+      void applySession(data.session, { silent: true });
     });
 
-    const { data: sub } = sb.auth.onAuthStateChange((_event, next) => {
-      void applySession(next);
-    });
-
-    const onFocus = () => {
-      if (sessionRef.current?.user?.email) {
-        void applyStatusForEmail(sessionRef.current.user.email);
+    const { data: sub } = sb.auth.onAuthStateChange((event, next) => {
+      if (event === 'TOKEN_REFRESHED' && next?.user?.id && next.user.id === sessionRef.current?.user?.id) {
+        sessionRef.current = next;
+        return;
       }
-    };
-    window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') onFocus();
+      void applySession(next, {
+        silent: event !== 'SIGNED_IN',
+        signedOut: event === 'SIGNED_OUT',
+      });
     });
 
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
-      window.removeEventListener('focus', onFocus);
       setAuthTokenGetter(null);
     };
   }, [applyStatusForEmail]);
@@ -326,7 +408,9 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }, 12000);
 
     const setup = async () => {
-      if (isInitialLoad.current && cards.length === 0) {
+      const restored = getLastAuthStatus()
+      const dashboardReady = restored === 'accepted' || restored === 'admin'
+      if (isInitialLoad.current && cards.length === 0 && !dashboardReady) {
         setIsLoading(true);
       }
       try {
@@ -387,13 +471,13 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     cards, blogs, reviews, waitlist, team, logs,
     syncStatus, isLoading, isAdminDataLoaded, refreshAll, refreshUserStatus,
     setCards, setBlogs, setReviews, setWaitlist, setTeam,
-    ledgerTransactions, ledgerLoading, ledgerError, scanProgress, syncLedger,
+    ledgerTransactions, ledgerLoading, ledgerError, scanProgress, ledgerResyncQuota, syncLedger,
   }), [
     user, session, currentUserStatus,
     cards, blogs, reviews, waitlist, team, logs,
     syncStatus, isLoading, isAdminDataLoaded, refreshAll, refreshUserStatus,
     setCards, setBlogs, setReviews, setWaitlist, setTeam,
-    ledgerTransactions, ledgerLoading, ledgerError, scanProgress, syncLedger,
+    ledgerTransactions, ledgerLoading, ledgerError, scanProgress, ledgerResyncQuota, syncLedger,
   ]);
 
   return (

@@ -28,12 +28,23 @@ const GiftCardOrderPage: React.FC = () => {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       })
-      const json = await res.json()
+      const text = await res.text()
+      let json: any = {}
+      try {
+        json = text ? JSON.parse(text) : {}
+      } catch {
+        throw new Error(`Could not load order (server ${res.status})`)
+      }
       if (!res.ok || json.error) throw new Error(json.error || 'Failed to load order')
       setOrder(json.data)
       setError(null)
     } catch (e: any) {
-      setError(e?.message || 'Could not load order')
+      const msg = String(e?.message || 'Could not load order')
+      setError(
+        msg.includes('DOCTYPE') || msg.includes('Unexpected token')
+          ? 'Could not load this order. Please refresh and try again.'
+          : msg,
+      )
     } finally {
       setLoading(false)
     }
@@ -121,7 +132,9 @@ const GiftCardOrderPage: React.FC = () => {
         {processing && (
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/55">
             <Loader2 className="animate-spin text-clay shrink-0" size={18} />
-            Hubble is generating your voucher. This page refreshes automatically.
+            {order.paymentStatus === 'paid'
+              ? 'Payment received. Hubble is generating your voucher…'
+              : 'Waiting for payment / voucher. This page refreshes automatically.'}
           </div>
         )}
 

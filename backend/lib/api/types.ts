@@ -137,9 +137,21 @@ export interface Waitlist {
   personalReferralCode?: string
   sourceChannel?: string
   rank?: number
+  yurekaScore?: number
+  scoreDecision?: string
+  scoreMetrics?: Record<string, unknown>
   status: 'pending' | 'accepted' | 'rejected' | 'on_hold' | 'on-hold'
   joinedAt?: string
   createdAt?: string
+}
+
+export interface LedgerResyncQuota {
+  used: number
+  remaining: number
+  limit: number
+  windowDays: number
+  nextAvailableAt?: string | null
+  allowed?: boolean
 }
 
 export interface UserOwnedCard {

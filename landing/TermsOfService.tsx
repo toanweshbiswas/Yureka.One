@@ -28,7 +28,7 @@ const TermsOfService: React.FC = () => {
                         </p>
                         <div className="text-center md:text-right">
                             <p className="text-[10px] uppercase tracking-widest font-bold text-white/40">Last Updated</p>
-                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">7th April 2026</p>
+                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">12th August 2026</p>
                         </div>
                     </div>
                 </div>
@@ -50,6 +50,12 @@ const TermsOfService: React.FC = () => {
                     <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Use of the Yureka.One Platform</h2>
                     <p>
                         It is important that you spend time reading the terms as they constitute a legal agreement (Terms Of Use) between You and Jupyter Network Technologies Pvt Ltd. Please go through these terms carefully before registering, accessing or using the Yureka.One Services offered through the website, app or through any other medium. By using the platform, you agree and acknowledge that you have read and accept the terms and conditions set forth below. If you do not accept these Terms, you may not use the services and must immediately uninstall the app.
+                    </p>
+                    <p>
+                        Product account features (including waitlist, login, and dashboard) are primarily available at <span className="text-white font-bold">https://app.yureka.one</span>. The marketing site at <span className="text-white font-bold">https://yureka.one</span> provides information about Yureka. Our Privacy Policy at <a href="https://yureka.one/privacy-policy" className="text-clay underline">https://yureka.one/privacy-policy</a> forms part of these Terms.
+                    </p>
+                    <p>
+                        If you connect a Google account, you authorize us to receive the profile information Google shares with us for authentication. Optional Gmail inbox access, if granted by you, is used only as described in the Privacy Policy and may be revoked by you at any time.
                     </p>
                 </section>
 

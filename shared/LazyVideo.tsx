@@ -1,52 +1,34 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React from 'react';
+import ScrollVideo from '@shared/ScrollVideo';
 
 interface LazyVideoProps {
   src: string;
   /** Applied to the <video> element itself (e.g. object-cover/object-contain, positioning) */
   className?: string;
+  poster?: string;
+  /** Start loading immediately (above-fold) */
+  eager?: boolean;
 }
 
 /**
- * Autoplaying background video that defers mounting (and therefore loading)
- * until it's near the viewport (rootMargin: 300px), via IntersectionObserver.
- * Renders a same-sized placeholder div so layout doesn't shift once the
- * video mounts.
+ * Scroll-driven background video (kept as LazyVideo for existing imports).
+ * Defers load until near viewport; plays only while in view — no autoplay attr.
  */
-const LazyVideo: React.FC<LazyVideoProps> = ({ src, className = '' }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [shouldLoad, setShouldLoad] = useState(false);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const io = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setShouldLoad(true);
-          io.disconnect();
-        }
-      },
-      { rootMargin: '300px' }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
+const LazyVideo: React.FC<LazyVideoProps> = ({
+  src,
+  className = '',
+  poster,
+  eager = false,
+}) => {
   return (
-    <div ref={containerRef} className="absolute inset-0 w-full h-full">
-      {shouldLoad && (
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          className={className}
-          src={src}
-        />
-      )}
-    </div>
+    <ScrollVideo
+      src={src}
+      poster={poster}
+      eager={eager}
+      className="absolute inset-0 h-full w-full"
+      videoClassName={className}
+      rootMargin={eager ? '0px' : '400px 0px'}
+    />
   );
 };
 

@@ -5,11 +5,15 @@
   "description": "Product UI — dashboard, waitlist, admin",
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
+    "d3": "^7.9.0",
     "framer-motion": "^12.40.0",
     "lucide-react": "^0.563.0",
     "motion": "^12.38.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.13.0"
+  },
+  "devDependencies": {
+    "@types/d3": "^7.4.3"
   }
 }

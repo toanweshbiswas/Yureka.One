@@ -1,3 +1,4 @@
+import { resolveRemoteImageUrl } from '../media/offerImage.js'
 import type { CueLinksOffer, CueLinksRawOffer } from './types.js'
 
 const CACHE_TTL_MS = 10 * 60 * 1000
@@ -48,7 +49,11 @@ export function mapOffer(raw: CueLinksRawOffer): CueLinksOffer {
     title: raw.title || 'Offer',
     description: raw.description ? stripHtml(raw.description) : '',
     couponCode: raw.coupon_code?.trim() || null,
-    imageUrl: raw.image_url || null,
+    imageUrl: resolveRemoteImageUrl(
+      raw.image_url || raw.image || raw.logo || raw.banner || raw.merchant_logo,
+      raw.url || raw.affiliate_url,
+      raw.campaign || raw.merchant_name || raw.merchant,
+    ),
     type: raw.type || 'discount',
     status: raw.status || 'live',
     url: raw.url || '',
@@ -56,7 +61,7 @@ export function mapOffer(raw: CueLinksRawOffer): CueLinksOffer {
     startDate: raw.start_date || null,
     endDate: raw.end_date || null,
     categories: parseCategories(raw.categories),
-    source: 'cuelinks',
+    source: 'marketplace',
   }
 }
 
@@ -74,7 +79,7 @@ async function fetchPage(page: number, perPage: number): Promise<{ offers: CueLi
   })
 
   if (!res.ok) {
-    throw new Error(`CueLinks offers failed (${res.status})`)
+    throw new Error(`Marketplace offers failed (${res.status})`)
   }
 
   const data = (await res.json()) as any
@@ -123,6 +128,8 @@ export async function listCueLinksOffers(filters?: {
   q?: string
   category?: string
   type?: string
+  limit?: number
+  offset?: number
 }) {
   const snap = await fetchCueLinksOffers()
   let items = snap.offers
@@ -151,9 +158,20 @@ export async function listCueLinksOffers(filters?: {
     for (const c of o.categories) catSet.add(c)
   }
 
+  const offset = Math.max(0, Number(filters?.offset) || 0)
+  const limitRaw = filters?.limit
+  const limit =
+    limitRaw == null || Number.isNaN(Number(limitRaw))
+      ? items.length
+      : Math.min(100, Math.max(1, Number(limitRaw)))
+  const sliced = items.slice(offset, offset + limit)
+
   return {
-    items,
+    items: sliced,
     total: items.length,
+    hasMore: offset + sliced.length < items.length,
+    offset,
+    limit,
     catalogTotal: snap.totalCount,
     categories: Array.from(catSet).sort((a, b) => a.localeCompare(b)),
     fetchedAt: new Date(snap.fetchedAt).toISOString(),

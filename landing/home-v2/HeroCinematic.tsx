@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   motion,
   useMotionTemplate,
@@ -10,11 +10,11 @@ import ScrambleIn from './ScrambleIn';
 import { PhoneBubbleMockup, PhoneVaultMockup } from './YurekaMockups';
 import GlassLayer from './GlassLayer';
 import JoinWaitlistButton from './JoinWaitlistButton';
+import { useVideoScrub } from './useVideoScrub';
 
-// The full cinematic (vault scrub → hero → panels → crawl) runs on ALL
-// screen sizes. Mobile gets the same scroll-driven horizontal sequence and
-// the same vault video as desktop -- the only difference is responsive
-// sizing inside each panel handled via Tailwind breakpoint prefixes.
+// Desktop-only cinematic (vault scrub → hero → panels → crawl).
+// Mobile mounts HeroMobile from MainPage instead — this pin scrub is not
+// usable on touch and was the main responsive/video failure on phones.
 
 const VAULT_VIDEO_URL = '/vault.mp4';
 const VAULT_START_TIME = 2;
@@ -77,8 +77,6 @@ interface HeroCinematicProps {
 export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const vaultVideoRef = useRef<HTMLVideoElement>(null);
-  const vaultTargetTimeRef = useRef(VAULT_START_TIME);
-  const vaultIsSeekingRef = useRef(false);
   const cinematicPanelRef = useRef<HTMLDivElement>(null);
 
   const [viewportHeight, setViewportHeight] = useState(
@@ -141,7 +139,12 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
     target: wrapperRef,
     offset: ['start start', 'end end'],
   });
-  const smoothProgress = useSpring(scrollYProgress, { stiffness: 140, damping: 26, mass: 1 });
+  // Critically damped chrome spring — slower settle so ProMotion doesn't feel frantic.
+  const smoothProgress = useSpring(scrollYProgress, {
+    stiffness: 170,
+    damping: 32,
+    mass: 1,
+  });
 
   // Phase 1: zoom into the vault, only once the scrub is done. Raw
   // (unsmoothed) progress so the zoom tracks the scroll 1:1 -- clamped to
@@ -177,48 +180,41 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
   const crawlOpacity = useTransform(crawlProgress, [0.15, 0.35], [0, 1]);
   const crawlTransform = useMotionTemplate`rotateX(24deg) translateY(${crawlY}px) translateZ(15px)`;
 
-  // Vault video scroll-scrub (currentTime), smooth 60fps requestAnimationFrame
-  // loop that syncs currentTime to scroll position without dropping frames or
-  // locking out scroll events.
+  // Vault scrub: 1:1 with raw scroll (direct manipulation). Never spring the
+  // media time — spring lag reads as a dropped refresh rate.
+  const mapVaultTime = useCallback((progress: number, duration: number) => {
+    const clamped = Math.max(0, Math.min(1, progress));
+    const scrubProgress = Math.min(1, clamped / VAULT_SCRUB_END);
+    return VAULT_START_TIME + scrubProgress * (duration - VAULT_START_TIME);
+  }, []);
+
+  useVideoScrub({
+    videoRef: vaultVideoRef,
+    scrollProgress: scrollYProgress,
+    mapTime: mapVaultTime,
+    activeRef: isHeroNearRef,
+  });
+
   useEffect(() => {
     const video = vaultVideoRef.current;
     if (!video) return;
-
-    // Ensure the video initializes at VAULT_START_TIME (2.0s - terminal text)
     const initVideo = () => {
-      if (video.duration && Math.abs(video.currentTime - VAULT_START_TIME) > 0.1 && scrollYProgress.get() === 0) {
-        video.currentTime = VAULT_START_TIME;
+      if (
+        video.duration &&
+        Math.abs(video.currentTime - VAULT_START_TIME) > 0.1 &&
+        scrollYProgress.get() === 0
+      ) {
+        try {
+          video.currentTime = VAULT_START_TIME;
+        } catch {
+          /* ignore */
+        }
       }
     };
-
     video.addEventListener('loadedmetadata', initVideo);
     video.addEventListener('canplay', initVideo);
     if (video.readyState >= 1) initVideo();
-
-    let animationFrameId: number;
-    let lastTime = -1;
-
-    const renderLoop = () => {
-      if (video.duration && isHeroNearRef.current) {
-        const progress = scrollYProgress.get();
-        const clamped = Math.max(0, Math.min(1, progress));
-        const scrubProgress = Math.min(1, clamped / VAULT_SCRUB_END);
-        const targetTime = VAULT_START_TIME + scrubProgress * (video.duration - VAULT_START_TIME);
-
-        if (Math.abs(lastTime - targetTime) > 0.01) {
-          try {
-            video.currentTime = targetTime;
-            lastTime = targetTime;
-          } catch (_) {}
-        }
-      }
-      animationFrameId = requestAnimationFrame(renderLoop);
-    };
-
-    animationFrameId = requestAnimationFrame(renderLoop);
-
     return () => {
-      cancelAnimationFrame(animationFrameId);
       video.removeEventListener('loadedmetadata', initVideo);
       video.removeEventListener('canplay', initVideo);
     };
@@ -476,11 +472,15 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
                 {cinematicVideoEnabled && (
                   <video
                     src={CINEMATIC_VIDEO_URL}
-                    autoPlay
                     muted
                     loop
                     playsInline
-                    preload="auto"
+                    preload="metadata"
+                    onCanPlay={(e) => {
+                      // Scroll/intersection gated via cinematicVideoEnabled — no autoplay attr
+                      const p = e.currentTarget.play();
+                      if (p) p.catch(() => {});
+                    }}
                     className="absolute inset-0 h-full w-full object-cover"
                   />
                 )}
@@ -551,6 +551,19 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
               muted
               playsInline
               preload="auto"
+              onLoadedData={(e) => {
+                // Seed first frame so the card never sits black while scrub waits.
+                try {
+                  if (Math.abs(e.currentTarget.currentTime - VAULT_START_TIME) > 0.15) {
+                    e.currentTarget.currentTime = VAULT_START_TIME;
+                  }
+                } catch {
+                  /* ignore */
+                }
+              }}
+              onError={(e) => {
+                e.currentTarget.style.opacity = '0';
+              }}
             />
           </div>
         </motion.div>

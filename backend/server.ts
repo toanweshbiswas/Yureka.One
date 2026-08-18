@@ -14,7 +14,7 @@ import { registerCuelinksRoutes } from './lib/cuelinks/routes';
 import { registerWaitlistRoutes } from './lib/waitlist/routes';
 import { registerAuthRoutes } from './lib/auth/routes';
 import { registerPublicApiRoutes } from './lib/publicApi/routes';
-import { upsertWaitlistJoin } from './lib/admin/store';
+import { registerNotificationRoutes } from './lib/notifications/routes';
 
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 
@@ -119,6 +119,7 @@ async function startServer() {
   registerCuelinksRoutes(app);
   registerAuthRoutes(app);
   registerWaitlistRoutes(app);
+  registerNotificationRoutes(app);
   registerPublicApiRoutes(app);
 
 
@@ -223,19 +224,21 @@ async function startServer() {
           JSON.stringify(result, null, 2)
         );
 
-        res.json(result);
-
         const recipient = email || result.profile?.email;
         if (recipient && result.score?.score != null) {
-          persistScoreToWaitlist(recipient, result.profile, result.score).catch(err =>
-            console.error("Failed to persist score to waitlist:", err)
-          );
+          const { persistScoreToWaitlist } = await import('./lib/waitlist/score.js');
+          try {
+            await persistScoreToWaitlist({
+              email: recipient,
+              profile: result.profile,
+              score: result.score,
+              notify: true,
+            });
+          } catch (err) {
+            console.error("Failed to persist score to waitlist:", err);
+          }
         }
-        if (recipient && result.score) {
-          sendScoreEmail(recipient, result.profile, result.score).catch(err =>
-            console.error("Failed to send Yureka Score email:", err)
-          );
-        }
+        res.json(result);
       } catch (err: any) {
         console.error("Failed to parse Python deep scanner JSON response:", err, output);
         res.status(500).json({ error: "Invalid JSON output from deep scanner script", raw: output });
@@ -243,63 +246,9 @@ async function startServer() {
     });
   });
 
-  /** Persist computed score onto waitlist row (create/update). */
-  async function persistScoreToWaitlist(email: string, profile: any, score: any) {
-    const scoreNum = Number(score?.score);
-    if (!email || !Number.isFinite(scoreNum)) return;
-    await upsertWaitlistJoin({
-      email,
-      fullName: profile?.name || null,
-      yurekaScore: scoreNum,
-      meta: {
-        scoreDecision: score?.decision,
-        scoreMetrics: score?.metrics || null,
-        scoredAt: new Date().toISOString(),
-      },
-    });
-    console.log(`Persisted Yureka Score ${scoreNum} for ${email}`);
-  }
-
-  async function sendScoreEmail(recipient: string, profile: any, score: any) {
-    const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env;
-    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-      console.warn("Skipping Yureka Score email — GMAIL_USER/GMAIL_APP_PASSWORD not configured.");
-      return;
-    }
-    const nodemailer = await import("nodemailer");
-    const transporter = nodemailer.default.createTransport({
-      service: 'gmail',
-      auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD }
-    });
-    const firstName = (profile?.name || '').split(' ')[0] || 'there';
-    await transporter.sendMail({
-      from: `"Yureka One" <${GMAIL_USER}>`,
-      to: recipient,
-      subject: `Your Yureka Score is ready: ${score.score}/100`,
-      text: `Hi ${firstName},\n\nWe finished analysing your inbox. Your Yureka Score is ${score.score}/100 (${score.decision}).\n\nLog in to yureka.one to see your full spending breakdown.\n\n— Team Yureka`,
-      html: `
-        <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <p>Hi ${firstName},</p>
-          <p>We finished analysing your inbox. Your <strong>Yureka Score</strong> is <strong>${score.score}/100</strong> (${score.decision}).</p>
-          <p>Log in to <a href="https://yureka.one">yureka.one</a> to see your full spending breakdown.</p>
-          <p>— Team Yureka</p>
-        </div>
-      `
-    });
-    console.log(`Yureka Score email sent to ${recipient}`);
-  }
-
-
-
   // Email Notification API
   app.post("/api/notify-team-member", async (req, res) => {
     const { email, role, firstName } = req.body;
-    const { GMAIL_USER, GMAIL_APP_PASSWORD } = process.env;
-
-    if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
-        console.error("Email configuration error: GMAIL_USER or GMAIL_APP_PASSWORD not found in environment.");
-        return res.status(500).json({ error: "Email configuration missing on server" });
-    }
 
     if (!email) {
         return res.status(400).json({ error: "Missing recipient email" });
@@ -307,40 +256,32 @@ async function startServer() {
 
     console.log(`Attempting to send onboarding email to: ${email}`);
 
-    const nodemailer = await import("nodemailer");
-    const transporter = nodemailer.default.createTransport({
-      service: 'gmail',
-      auth: {
-        user: GMAIL_USER,
-        pass: GMAIL_APP_PASSWORD
-      }
-    });
+    const { sendMail } = await import("./lib/mail/transport.js");
 
-    const portalLink = "https://yureka.one/admin";
-    const mailOptions = {
-      from: `"Yureka One" <${GMAIL_USER}>`,
+    const portalLink = process.env.VITE_ADMIN_PORTAL_URL?.replace(/\/$/, '') || 'https://admin.yureka.one';
+    const adminLogin = `${portalLink}/admin`;
+    const result = await sendMail({
       to: email,
       subject: "Welcome to Yureka One Admin Dashboard",
-      text: `Hi ${firstName || 'there'},\n\nAnwesh has added you as ${role}, to yureka.one, you can access the same using ${portalLink}, make sure due to nature of security you will get automatically logged out of the admin dashboard within 15 minutes of inactivity`,
+      text: `Hi ${firstName || 'there'},\n\nAnwesh has added you as ${role}, to yureka.one, you can access the same using ${adminLogin}, make sure due to nature of security you will get automatically logged out of the admin dashboard within 15 minutes of inactivity`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333;">
           <p>Hi ${firstName || 'there'},</p>
           <p>Anwesh has added you as <strong>${role}</strong>, to <a href="https://yureka.one">yureka.one</a>.</p>
-          <p>You can access the portal here: <a href="${portalLink}">${portalLink}</a></p>
+          <p>You can access the portal here: <a href="${adminLogin}">${adminLogin}</a></p>
           <p style="color: #666; font-size: 0.9em;">Important: For security purposes, you will be automatically logged out of the admin dashboard after 15 minutes of inactivity.</p>
           <p>Welcome aboard!</p>
         </div>
       `
-    };
+    });
 
-    try {
-      const info = await transporter.sendMail(mailOptions);
-      console.log("Email sent successfully:", info.messageId);
-      res.json({ success: true, messageId: info.messageId });
-    } catch (error: any) {
-      console.error("CRITICAL: Onboarding Email delivery failed:", error);
-      res.status(500).json({ error: error.message, code: error.code });
+    if (!result.sent) {
+      console.error("CRITICAL: Onboarding Email delivery failed:", result.skipped || result.error);
+      return res.status(500).json({ error: result.skipped || result.error });
     }
+
+    console.log("Email sent successfully:", result.messageId);
+    res.json({ success: true, messageId: result.messageId });
   });
 
   // --- Vite / Frontend Handling ---
@@ -359,13 +300,34 @@ async function startServer() {
     // below ever runs, silently skipping meta injection on the homepage only.
     app.use(express.static(distPath, {
       index: false,
-      maxAge: '1y',
-      immutable: true,
+      // Default short; hashed /assets/* get immutable below.
+      maxAge: '1h',
       setHeaders(res, filePath) {
-        // index.html must never be cached — it contains the runtime script tags
-        if (filePath.endsWith('index.html')) {
-          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        const base = path.basename(filePath);
+        const rel = path.relative(distPath, filePath).split(path.sep).join('/');
+
+        // HTML entry must always revalidate — it points at hashed chunks.
+        if (base === 'index.html' || base.endsWith('.html')) {
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+          res.setHeader('CDN-Cache-Control', 'no-store');
+          res.setHeader('Pragma', 'no-cache');
+          return;
         }
+
+        // Vite content-hashed bundles — safe to cache forever.
+        if (rel.startsWith('assets/')) {
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          return;
+        }
+
+        // Unhashed media (videos/images) — cache a day, revalidate in background.
+        // Avoids year-long stale vault/rewards after content updates.
+        if (/\.(mp4|mov|webm|jpg|jpeg|png|webp|gif|svg|ico|woff2?)$/i.test(base)) {
+          res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+          return;
+        }
+
+        res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
       },
     }));
 
@@ -374,11 +336,30 @@ async function startServer() {
     // get a correct unique <title>/description/OG image/JSON-LD per URL.
     const indexTemplate = fs.readFileSync(path.resolve(distPath, 'index.html'), 'utf-8');
 
+    // Unmatched API methods must stay JSON (never fall through to SPA HTML).
+    app.all('/api/{*splat}', (req, res) => {
+      res.status(404).json({
+        data: null,
+        status: 404,
+        error: `API not found: ${req.method} ${req.path}`,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
     // Express 5 requires named wildcard params — bare '*' is no longer valid
     app.get('/{*splat}', async (req, res) => {
       if (req.url.startsWith('/api')) {
         return res.status(404).json({ error: 'API not found' });
       }
+
+      // Never let browsers / Cloudflare cache the SPA shell — stale HTML
+      // references deleted chunk hashes and looks like a "cache loading" hang.
+      res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+        'CDN-Cache-Control': 'no-store',
+        'Pragma': 'no-cache',
+        'Content-Type': 'text/html; charset=utf-8',
+      });
 
       try {
         const resolved = await resolveRouteMeta(req.path);
@@ -388,7 +369,7 @@ async function startServer() {
         }
 
         const html = injectHtml(indexTemplate, resolved.meta, req.path, resolved.schemas);
-        res.status(resolved.status).set('Content-Type', 'text/html; charset=utf-8').send(html);
+        res.status(resolved.status).send(html);
       } catch (err) {
         console.warn('SEO meta injection failed, serving plain index.html:', err);
         res.sendFile(path.resolve(distPath, 'index.html'));

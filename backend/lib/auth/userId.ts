@@ -46,6 +46,27 @@ export function resolveProductUserId(req: Request): string | null {
   return null
 }
 
+/** Email from a verified JWT only — never from query/body (avoids inbox spoofing). */
+export function resolveRequestEmail(req: Request): string | null {
+  const auth = (req.header('authorization') || '').trim()
+  if (auth.toLowerCase().startsWith('bearer ')) {
+    const payload = decodeJwtPayload(auth.slice(7).trim())
+    if (payload) {
+      const email =
+        typeof payload.email === 'string'
+          ? payload.email.trim().toLowerCase()
+          : typeof (payload as any).user_metadata?.email === 'string'
+            ? String((payload as any).user_metadata.email).trim().toLowerCase()
+            : ''
+      if (email && email.includes('@')) return email
+    }
+  }
+
+  const userId = resolveProductUserId(req)
+  if (userId && userId.includes('@')) return userId.toLowerCase()
+  return null
+}
+
 export function productUserIdOrFail(req: Request): { userId: string } | { error: string } {
   const userId = resolveProductUserId(req)
   if (userId) return { userId }

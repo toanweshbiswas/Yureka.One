@@ -2,7 +2,13 @@ import type { Express, Request, Response, NextFunction } from 'express'
 import {
   adminPasswordOk,
   createAdminToken,
+  hashInviteToken,
+  hashPassword,
+  inviteTtlHours,
+  newInviteToken,
+  passwordMeetsPolicy,
   verifyAdminToken,
+  verifyPassword,
   type AdminRole,
 } from './auth.js'
 import {
@@ -11,12 +17,21 @@ import {
   createWaitlistEntry,
   deleteAdmin,
   findAdminByEmail,
+  findAdminByInviteHash,
+  findWaitlistByEmail,
+  getAdminAuth,
   listAdmins,
   listWaitlist,
+  saveAdminInvite,
+  setAdminPassword,
   updateWaitlistStatus,
   upsertAdmin,
 } from './store.js'
-import { sendApprovalEmail } from '../mail/approval.js'
+import { sendApprovalEmail, sendAdminInviteEmail, sendWaitlistRejectedEmail, sendUserInviteEmail, sendAccountReadyEmail } from '../mail/appEmails.js'
+import { notifyWaitlistAccepted, notifyWaitlistRejected } from '../notifications/notify.js'
+import { normalizeEmail } from '../mail/emailAddress.js'
+import { createAppAuthUser } from '../auth/supabaseAdmin.js'
+import { mailUrls } from '../mail/layout.js'
 import {
   deleteOffer,
   goldbackBackendMode,
@@ -55,8 +70,9 @@ function requireRole(...roles: AdminRole[]) {
 export function registerAdminRoutes(app: Express) {
   app.get('/api/admin/health', (_req, res) => {
     ok(res, {
-      adminStore: adminBackendMode(),
-      goldbackStore: goldbackBackendMode(),
+      ok: true,
+      waitlist: adminBackendMode() === 'supabase' ? 'primary' : 'local',
+      goldback: goldbackBackendMode() === 'supabase' ? 'primary' : 'local',
     })
   })
 
@@ -65,9 +81,28 @@ export function registerAdminRoutes(app: Express) {
       const email = String(req.body?.email || '').trim().toLowerCase()
       const password = String(req.body?.password || '')
       if (!email || !password) return fail(res, 400, 'email and password required')
-      if (!adminPasswordOk(password)) return fail(res, 401, 'Invalid credentials')
       const admin = await findAdminByEmail(email)
       if (!admin) return fail(res, 401, 'This account is not authorized for admin access')
+
+      const auth = await getAdminAuth(email)
+      const bootstrap = (process.env.ADMIN_EMAILS || '')
+        .split(',')
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean)
+      const invitePending = Boolean(
+        auth.inviteTokenHash && auth.inviteExpiresAt && new Date(auth.inviteExpiresAt).getTime() > Date.now()
+      )
+
+      let passwordOk = false
+      if (auth.passwordHash) {
+        passwordOk = verifyPassword(password, auth.passwordHash)
+      } else if (invitePending) {
+        return fail(res, 401, 'Open the invite link in your email to set a password first')
+      } else if (bootstrap.includes(email) || !auth.passwordHash) {
+        passwordOk = adminPasswordOk(password)
+      }
+
+      if (!passwordOk) return fail(res, 401, 'Invalid credentials')
       const token = createAdminToken(admin.email, admin.role)
       ok(res, { token, role: admin.role, email: admin.email, fullName: admin.fullName })
     } catch (e: any) {
@@ -121,6 +156,14 @@ export function registerAdminRoutes(app: Express) {
         if (!emailResult.sent) {
           console.warn('[admin] approval email not sent:', emailResult.skipped || emailResult.error)
         }
+        await notifyWaitlistAccepted({ email: row.email, fullName: row.fullName })
+      }
+      if (status === 'rejected' && row.email) {
+        emailResult = await sendWaitlistRejectedEmail({ to: row.email, fullName: row.fullName })
+        if (!emailResult.sent) {
+          console.warn('[admin] rejection email not sent:', emailResult.skipped || emailResult.error)
+        }
+        await notifyWaitlistRejected({ email: row.email, fullName: row.fullName })
       }
 
       ok(res, { ...row, approvalEmail: emailResult })
@@ -140,12 +183,20 @@ export function registerAdminRoutes(app: Express) {
       await bulkUpdateWaitlistStatus(ids, status)
 
       let emailsSent = 0
-      if (status === 'accepted') {
+      if (status === 'accepted' || status === 'rejected') {
         const rows = await listWaitlist({ status: 'all' })
         const idSet = new Set(ids)
         for (const row of rows) {
           if (!idSet.has(row.id) || !row.email) continue
-          const result = await sendApprovalEmail({ to: row.email, fullName: row.fullName })
+          const result =
+            status === 'accepted'
+              ? await sendApprovalEmail({ to: row.email, fullName: row.fullName })
+              : await sendWaitlistRejectedEmail({ to: row.email, fullName: row.fullName })
+          if (status === 'accepted') {
+            await notifyWaitlistAccepted({ email: row.email, fullName: row.fullName })
+          } else {
+            await notifyWaitlistRejected({ email: row.email, fullName: row.fullName })
+          }
           if (result.sent) emailsSent += 1
         }
       }
@@ -153,6 +204,85 @@ export function registerAdminRoutes(app: Express) {
       ok(res, { updated: ids.length, emailsSent })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Bulk update failed')
+    }
+  })
+
+  app.post('/api/admin/users/invite', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const email = normalizeEmail(String(req.body?.email || ''))
+      const fullName = String(req.body?.fullName || '').trim() || undefined
+      if (!email) return fail(res, 400, 'Valid email required')
+
+      const existing = await findWaitlistByEmail(email)
+      const row = existing
+        ? (existing.status === 'accepted'
+            ? existing
+            : (await updateWaitlistStatus(existing.id, 'accepted')) || existing)
+        : await createWaitlistEntry({ email, fullName, status: 'accepted' })
+
+      const inviteEmail = await sendUserInviteEmail({
+        to: email,
+        fullName: fullName || row.fullName,
+        invitedBy: (req as any).admin?.email,
+      })
+      if (!inviteEmail.sent) {
+        console.warn('[admin] user invite email not sent:', inviteEmail.skipped || inviteEmail.error)
+      }
+      await notifyWaitlistAccepted({ email, fullName: fullName || row.fullName })
+
+      ok(res, { ...row, status: 'accepted', inviteEmail }, existing ? 200 : 201)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to invite user')
+    }
+  })
+
+  app.post('/api/admin/users/create', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const email = normalizeEmail(String(req.body?.email || ''))
+      const password = String(req.body?.password || '')
+      const fullName = String(req.body?.fullName || '').trim() || undefined
+      const sendEmail = req.body?.sendEmail !== false
+      if (!email) return fail(res, 400, 'Valid email required')
+      const policy = passwordMeetsPolicy(password)
+      if (policy) return fail(res, 400, policy)
+
+      const authUser = await createAppAuthUser({ email, password, fullName })
+
+      const existing = await findWaitlistByEmail(email)
+      const row = existing
+        ? (existing.status === 'accepted'
+            ? existing
+            : (await updateWaitlistStatus(existing.id, 'accepted')) || existing)
+        : await createWaitlistEntry({ email, fullName, status: 'accepted' })
+
+      let accountEmail: { sent: boolean; skipped?: string; error?: string } | null = null
+      if (sendEmail) {
+        accountEmail = await sendAccountReadyEmail({
+          to: email,
+          fullName: fullName || row.fullName,
+          invitedBy: (req as any).admin?.email,
+        })
+        if (!accountEmail.sent) {
+          console.warn('[admin] account-ready email not sent:', accountEmail.skipped || accountEmail.error)
+        }
+      }
+
+      await notifyWaitlistAccepted({ email, fullName: fullName || row.fullName })
+
+      ok(
+        res,
+        {
+          ...row,
+          status: 'accepted',
+          authUserId: authUser.userId,
+          created: authUser.created,
+          passwordUpdated: authUser.passwordUpdated,
+          accountEmail,
+        },
+        authUser.created ? 201 : 200,
+      )
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to create user')
     }
   })
 
@@ -167,14 +297,68 @@ export function registerAdminRoutes(app: Express) {
 
   app.post('/api/admin/team', requireAdmin, requireRole('superadmin'), async (req, res) => {
     try {
-      const email = String(req.body?.email || '').trim()
+      const email = normalizeEmail(String(req.body?.email || ''))
       const role = (req.body?.role || 'admin') as AdminRole
-      if (!email) return fail(res, 400, 'email required')
+      if (!email) return fail(res, 400, 'Valid email required')
       if (!['viewer', 'admin', 'superadmin'].includes(role)) return fail(res, 400, 'Invalid role')
       const row = await upsertAdmin({ email, role, fullName: req.body?.fullName })
-      ok(res, row, 201)
+      const rawToken = newInviteToken()
+      const ttl = inviteTtlHours()
+      const expiresAt = new Date(Date.now() + ttl * 3600_000).toISOString()
+      await saveAdminInvite({
+        email,
+        tokenHash: hashInviteToken(rawToken),
+        expiresAt,
+      })
+
+      const inviteUrl = `${mailUrls().admin}/admin?token=${encodeURIComponent(rawToken)}`
+      const inviteEmail = await sendAdminInviteEmail({
+        to: email,
+        role,
+        inviteUrl,
+        firstName: req.body?.fullName,
+        invitedBy: (req as any).admin?.email,
+        expiresHours: ttl,
+      })
+      if (!inviteEmail.sent) {
+        console.warn('[admin] invite email not sent:', inviteEmail.skipped || inviteEmail.error)
+      }
+
+      ok(res, { ...row, invitePending: true, inviteEmail, expiresAt }, 201)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to add admin')
+    }
+  })
+
+  app.get('/api/admin/invites/preview', async (req, res) => {
+    try {
+      const token = String(req.query.token || '').trim()
+      if (!token) return fail(res, 400, 'token required')
+      const found = await findAdminByInviteHash(hashInviteToken(token))
+      if (!found) return fail(res, 404, 'Invite is invalid or expired')
+      ok(res, { email: found.admin.email, role: found.admin.role, fullName: found.admin.fullName })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load invite')
+    }
+  })
+
+  app.post('/api/admin/invites/accept', async (req, res) => {
+    try {
+      const token = String(req.body?.token || '').trim()
+      const password = String(req.body?.password || '')
+      if (!token || !password) return fail(res, 400, 'token and password required')
+      const policy = passwordMeetsPolicy(password)
+      if (policy) return fail(res, 400, policy)
+
+      const found = await findAdminByInviteHash(hashInviteToken(token))
+      if (!found) return fail(res, 400, 'Invite is invalid or expired')
+
+      const admin = await setAdminPassword(found.admin.email, hashPassword(password))
+      if (!admin) return fail(res, 500, 'Could not save password')
+      const session = createAdminToken(admin.email, admin.role)
+      ok(res, { token: session, role: admin.role, email: admin.email, fullName: admin.fullName })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to accept invite')
     }
   })
 
@@ -235,8 +419,20 @@ export function registerAdminRoutes(app: Express) {
 
   app.delete('/api/admin/offers/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
     try {
-      const deleted = await deleteOffer(String(req.params.id))
-      if (!deleted) return fail(res, 404, 'Not found')
+      const id = decodeURIComponent(String(req.params.id || '')).trim()
+      const deleted = await deleteOffer(id)
+      if (!deleted) return ok(res, { deleted: true, missing: true })
+      ok(res, { deleted: true })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to delete offer')
+    }
+  })
+
+  app.post('/api/admin/offers/:id/delete', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const id = decodeURIComponent(String(req.params.id || '')).trim()
+      const deleted = await deleteOffer(id)
+      if (!deleted) return ok(res, { deleted: true, missing: true })
       ok(res, { deleted: true })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to delete offer')
@@ -256,6 +452,15 @@ export function registerAdminRoutes(app: Express) {
       ok(res, await listAllAccounts())
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to load accounts')
+    }
+  })
+
+  app.get('/api/admin/overview', requireAdmin, async (_req, res) => {
+    try {
+      const { buildAdminOverview } = await import('./overview.js')
+      ok(res, await buildAdminOverview())
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load overview')
     }
   })
 }

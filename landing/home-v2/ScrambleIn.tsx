@@ -7,65 +7,82 @@ function randomChar() {
   return CHARS[Math.floor(Math.random() * CHARS.length)];
 }
 
-// How long the fully-revealed text holds before the scramble replays.
-const LOOP_PAUSE_MS = 3000;
-
 interface ScrambleInProps {
   text: string;
   delay: number;
   triggered: boolean;
+  /** When false (default), reveal once and hold — looping scramble reads as broken text. */
+  loop?: boolean;
 }
 
-export default function ScrambleIn({ text, delay, triggered }: ScrambleInProps) {
-  const [display, setDisplay] = useState('');
+/**
+ * One-shot (by default) scramble reveal.
+ * Always renders the full string length so mid-frames never collapse to
+ * garbage like "uHP" / "Uptw )" (previous bug skipped trailing chars).
+ * Cadence is capped ~24fps so 120Hz displays don't look frantic.
+ */
+export default function ScrambleIn({ text, delay, triggered, loop = false }: ScrambleInProps) {
+  const [display, setDisplay] = useState(text);
   const [started, setStarted] = useState(false);
-  const revealRef = useRef(0);
+  const reduceMotion =
+    typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
   useEffect(() => {
     if (!triggered) return;
+    if (reduceMotion) {
+      setDisplay(text);
+      setStarted(false);
+      return;
+    }
     const timeout = setTimeout(() => setStarted(true), delay);
     return () => clearTimeout(timeout);
-  }, [triggered, delay]);
+  }, [triggered, delay, reduceMotion, text]);
 
   useEffect(() => {
-    if (!started) return;
+    if (!started || reduceMotion) return;
 
-    // rAF instead of setInterval: stays frame-synced (no jank from timer
-    // drift competing with scroll/paint work) and, unlike setInterval,
-    // automatically pauses while the tab is backgrounded.
     let raf = 0;
     let pauseTimeout: ReturnType<typeof setTimeout> | undefined;
-    let lastTick = performance.now();
+    let lastTick = 0;
+    let reveal = 0;
+    const TICK_MS = 42; // ~24fps — calm on ProMotion / 120Hz
 
-    // Runs one scramble-in pass, then schedules the next one after a pause
-    // once the text has fully resolved -- looping for as long as this
-    // header stays mounted.
+    const paint = (revealCount: number) => {
+      let out = '';
+      for (let i = 0; i < text.length; i++) {
+        const char = text[i];
+        if (char === ' ') {
+          out += ' ';
+        } else if (i < revealCount) {
+          out += char;
+        } else if (i < revealCount + 3) {
+          out += randomChar();
+        } else {
+          // Keep slot occupied with a quiet placeholder so width never collapses
+          out += char === '%' || char === '.' ? char : '·';
+        }
+      }
+      setDisplay(out);
+    };
+
     const runReveal = () => {
-      revealRef.current = 0;
-      lastTick = performance.now();
+      reveal = 0;
+      lastTick = 0;
 
       const tick = (now: number) => {
-        if (now - lastTick >= 25) {
+        if (!lastTick) lastTick = now;
+        if (now - lastTick >= TICK_MS) {
           lastTick = now;
-          revealRef.current += 0.5;
-          const revealCount = Math.floor(revealRef.current);
-
-          let out = '';
-          for (let i = 0; i < text.length; i++) {
-            const char = text[i];
-            if (char === ' ') {
-              out += ' ';
-            } else if (i < revealCount) {
-              out += char;
-            } else if (i < revealCount + 3) {
-              out += randomChar();
-            }
-          }
-          setDisplay(out);
+          reveal += 0.55;
+          const revealCount = Math.floor(reveal);
+          paint(revealCount);
 
           if (revealCount >= text.length) {
             setDisplay(text);
-            pauseTimeout = setTimeout(runReveal, LOOP_PAUSE_MS);
+            if (loop) {
+              pauseTimeout = setTimeout(runReveal, 4000);
+            }
             return;
           }
         }
@@ -81,11 +98,11 @@ export default function ScrambleIn({ text, delay, triggered }: ScrambleInProps) 
       cancelAnimationFrame(raf);
       clearTimeout(pauseTimeout);
     };
-  }, [started, text]);
+  }, [started, text, loop, reduceMotion]);
 
   if (!triggered) {
-    return <span dangerouslySetInnerHTML={{ __html: '&nbsp;' }} />;
+    return <span className="invisible">{text}</span>;
   }
 
-  return <span>{display || ' '}</span>;
+  return <span>{display}</span>;
 }

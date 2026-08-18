@@ -123,6 +123,9 @@ export interface StoredOrder {
   customerName: string | null
   customerEmail: string | null
   customerPhone: string | null
+  paymentStatus: 'unpaid' | 'paid' | 'failed' | 'refunded'
+  razorpayOrderId: string | null
+  razorpayPaymentId: string | null
   vouchers: StoredVoucher[]
   createdAt: string
   updatedAt: string

@@ -15,7 +15,7 @@ export interface CueLinksOffer {
   startDate: string | null
   endDate: string | null
   categories: string[]
-  source: 'cuelinks'
+  source: 'marketplace' | string
 }
 
 export interface CueLinksRawOffer {
@@ -30,6 +30,10 @@ export interface CueLinksRawOffer {
   terms_and_condition?: string
   coupon_code?: string
   image_url?: string
+  image?: string
+  logo?: string
+  banner?: string
+  merchant_logo?: string
   type?: string
   status?: string
   url?: string

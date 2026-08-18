@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSupabase } from '@shared/SupabaseProvider';
+import { appUrl, goExternal, isSplitHostsEnabled } from '@shared/hosts';
 import YurekaLogo from './YurekaLogo';
 import SquashHamburger from './SquashHamburger';
 import ScrambleText from './ScrambleText';
@@ -74,15 +75,36 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
 
   const closeMenu = () => setMenuOpen(false);
 
+  const goApp = (path: string) => {
+    if (isSplitHostsEnabled()) {
+      goExternal(appUrl(path));
+      return;
+    }
+    navigate(path);
+  };
+
   // Route CTA by membership status so returning users don't restart join.
+  // Mobile gets a shorter label so the pill doesn't overflow narrow widths.
   const cta =
     currentUserStatus === 'accepted' || currentUserStatus === 'admin'
-      ? { label: 'Open Dashboard', onClick: () => navigate('/dashboard') }
+      ? {
+          label: 'Open Dashboard',
+          mobileLabel: 'Dashboard',
+          onClick: () => goApp('/dashboard'),
+        }
       : currentUserStatus === 'pending' ||
           currentUserStatus === 'on-hold' ||
           currentUserStatus === 'rejected'
-        ? { label: 'Waiting Room', onClick: () => navigate(user ? '/waiting' : '/login') }
-        : { label: 'Join Waitlist', onClick: () => navigate('/join-waitlist') };
+        ? {
+            label: 'Waiting Room',
+            mobileLabel: 'Waiting',
+            onClick: () => goApp(user ? '/waiting' : '/login'),
+          }
+        : {
+            label: 'Join Waitlist',
+            mobileLabel: 'Join',
+            onClick: () => goApp('/join-waitlist'),
+          };
 
   return (
     <>
@@ -175,19 +197,23 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
           </Link>
 
           <button
+            type="button"
             onClick={() => setMenuOpen(true)}
-            className="flex h-9 w-9 items-center justify-center shrink-0 rounded-[10px] bg-white/15 backdrop-blur-md ml-auto mr-2"
+            aria-label="Open menu"
+            className="ml-auto mr-2 flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-[10px] bg-white/15 backdrop-blur-md active:scale-[0.97]"
           >
             <SquashHamburger isOpen={menuOpen} variant="mobile" />
           </button>
 
           <motion.button
-            className="h-9 px-3.5 bg-white rounded-full flex items-center gap-1.5 text-black shrink-0"
+            type="button"
+            className="h-9 shrink-0 touch-manipulation rounded-full bg-white px-3.5 text-black active:scale-[0.97]"
             onClick={cta.onClick}
             whileHover={{ scale: 1.03, backgroundColor: '#e2e2e6' }}
             whileTap={{ scale: 0.97 }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
           >
-            <span className="text-[13px]">{cta.label}</span>
+            <span className="text-[13px] font-medium">{cta.mobileLabel}</span>
           </motion.button>
         </div>
       </motion.nav>

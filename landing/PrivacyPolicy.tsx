@@ -30,7 +30,7 @@ const PrivacyPolicy: React.FC = () => {
                         </p>
                         <div className="text-center md:text-right">
                             <p className="text-[10px] uppercase tracking-widest font-bold text-white/40">Last Updated</p>
-                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">7th April 2026</p>
+                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">12th August 2026</p>
                         </div>
                     </div>
                 </div>
@@ -61,10 +61,31 @@ const PrivacyPolicy: React.FC = () => {
                             <span className="absolute left-0 top-1 text-clay font-bold">&bull;</span>
                             <strong className="text-white tracking-tight uppercase text-sm mr-2">Information from Third Parties:</strong> With your explicit consent, we may obtain information from third parties to authenticate your identity, provide specific services, or personalize your experience.
                         </li>
+                        <li className="pl-6 relative">
+                            <span className="absolute left-0 top-1 text-clay font-bold">&bull;</span>
+                            <strong className="text-white tracking-tight uppercase text-sm mr-2">Google Account Information:</strong> If you sign in with Google, we receive basic profile information such as your name and email address (and profile picture if provided by Google) to create and authenticate your Yureka account.
+                        </li>
+                        <li className="pl-6 relative">
+                            <span className="absolute left-0 top-1 text-clay font-bold">&bull;</span>
+                            <strong className="text-white tracking-tight uppercase text-sm mr-2">Gmail Data (Optional, Explicit Consent):</strong> If you choose to connect Gmail for spending insights or Yureka Score, we request read-only access to your Gmail inbox solely to identify purchase, bill, and payment-related messages. We do not send email as you, modify your mail, or use inbox content for advertising.
+                        </li>
                     </ul>
                     <p className="italic text-base text-white/40 border-l-2 border-clay/30 pl-4 mt-6">
                         The nature and amount of information collected depends upon the type of interaction between the company and the user.
                     </p>
+                </section>
+
+                <section className="space-y-6">
+                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Google / Gmail Access</h2>
+                    <p>
+                        Yureka uses Google OAuth for sign-in on <span className="text-white font-bold">app.yureka.one</span>. Separately, and only when you opt in, we may request Gmail read-only permission to analyse transaction and billing emails for spend insights, waitlist scoring, and related product features.
+                    </p>
+                    <ul className="list-disc pl-8 space-y-4 text-white/70">
+                        <li>Gmail access is optional. You can use core account features without granting inbox access.</li>
+                        <li>We process only what is needed to extract merchant, amount, date, and similar transaction metadata from relevant messages.</li>
+                        <li>We do not sell your Gmail content. Access tokens are used to run analysis and are not used to send mail on your behalf.</li>
+                        <li>You may revoke Google access at any time in your Google Account permissions, and/or email <a href="mailto:contact@yureka.one" className="text-clay underline">contact@yureka.one</a> to request deletion of derived spending data.</li>
+                    </ul>
                 </section>
 
                 <section className="space-y-6">

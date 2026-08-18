@@ -32,7 +32,7 @@ export const ScannerProgress: React.FC<{ progress: number }> = ({ progress }) =>
                     }
                     return prev;
                 });
-            }, 600);
+            }, 900);
             return () => clearInterval(interval);
         } else if (progress === 60) {
              setDisplayProgress(90);
@@ -70,7 +70,7 @@ export const ScannerProgress: React.FC<{ progress: number }> = ({ progress }) =>
                 <div className="flex-1 w-full">
                     <div className="flex items-center justify-between text-xs mb-3">
                         <div className="flex items-center gap-3">
-                            <span className="w-2 h-2 bg-clay rounded-full animate-ping" />
+                            <span className="w-2 h-2 bg-clay rounded-full" />
                             <span className="text-clay/90 font-mono tracking-widest uppercase">
                                 {statusText}
                             </span>

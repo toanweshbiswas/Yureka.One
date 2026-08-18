@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { api, isApiError } from '@backend/lib/api/client';
+import { cacheGet, cacheSet, CACHE_TTL } from '@shared/dashboardCache';
 import type { UserOwnedCard as ApiUserOwnedCard } from '@backend/lib/api/types';
 
 const BANK_LOGOS: Record<string, string> = {
@@ -49,8 +50,10 @@ const toSnakeCard = (c: ApiUserOwnedCard) => ({
 
 const MyCards: React.FC = () => {
     const { user, cards: allCards } = useSupabase();
-    const [ownedCards, setOwnedCards] = useState<any[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    const cardsKey = user?.email ? `mycards:${user.email.toLowerCase()}` : 'mycards'
+    const cached = cacheGet<any[]>(cardsKey, CACHE_TTL.myCards)
+    const [ownedCards, setOwnedCards] = useState<any[]>(() => cached?.data ?? []);
+    const [isLoading, setIsLoading] = useState(!cached?.data);
     const [isAdding, setIsAdding] = useState(false);
     const [selectedBank, setSelectedBank] = useState('');
     const [selectedCardId, setSelectedCardId] = useState('');
@@ -58,20 +61,32 @@ const MyCards: React.FC = () => {
     const [openBankDropdown, setOpenBankDropdown] = useState(false);
     const [priorityUpdating, setPriorityUpdating] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (user) loadCards();
-    }, [user]);
-
-    const loadCards = async () => {
+    const loadCards = async (opts?: { silent?: boolean }) => {
         try {
             const res = await api.get<ApiUserOwnedCard[]>('/api/v1/users/cards');
-            if (!isApiError(res)) setOwnedCards((res.data ?? []).map(toSnakeCard));
+            if (!isApiError(res)) {
+                const rows = (res.data ?? []).map(toSnakeCard)
+                setOwnedCards(rows);
+                cacheSet(cardsKey, rows)
+            }
         } catch (err) {
             console.error("Failed to load cards:", err);
         } finally {
             setIsLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (!user) return;
+        const hit = cacheGet<any[]>(cardsKey, CACHE_TTL.myCards)
+        if (hit) {
+            setOwnedCards(hit.data)
+            setIsLoading(false)
+            if (hit.stale) void loadCards({ silent: true })
+            return
+        }
+        void loadCards();
+    }, [user?.email]);
 
     const handleAddCard = async () => {
         if (!selectedBank || !selectedCardId) return;
@@ -103,7 +118,11 @@ const MyCards: React.FC = () => {
         try {
             const res = await api.delete(`/api/v1/users/cards/${id}`);
             if (isApiError(res)) throw new Error(res.error);
-            setOwnedCards(prev => prev.filter(c => c.id !== id));
+            setOwnedCards(prev => {
+                const next = prev.filter(c => c.id !== id)
+                cacheSet(cardsKey, next)
+                return next
+            });
         } catch (err) {
             alert("Failed to delete card.");
         }
@@ -196,10 +215,10 @@ const MyCards: React.FC = () => {
 
             {/* Primary & Secondary Role Legend */}
             {ownedCards.length > 0 && (
-                <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest text-white/30">
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 text-[10px] font-black uppercase tracking-widest text-white/30">
                     <div className="flex items-center gap-2"><Star size={12} className="text-yellow-400" /> Primary Card</div>
                     <div className="flex items-center gap-2"><Shield size={12} className="text-blue-400" /> Secondary Card</div>
-                    <div className="flex items-center gap-2 ml-auto"><CheckCircle size={12} className="text-clay" /> Synced from Waitlist</div>
+                    <div className="flex items-center gap-2 sm:ml-auto"><CheckCircle size={12} className="text-clay" /> Synced from Waitlist</div>
                 </div>
             )}
 
@@ -316,7 +335,7 @@ const MyCards: React.FC = () => {
             {/* Add Card Modal */}
             <AnimatePresence>
                 {isAdding && (
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6">
                         <motion.div 
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                             className="absolute inset-0 bg-black/80 backdrop-blur-3xl"
@@ -326,7 +345,7 @@ const MyCards: React.FC = () => {
                             initial={{ opacity: 0, scale: 0.95, y: 40 }}
                             animate={{ opacity: 1, scale: 1, y: 0 }}
                             exit={{ opacity: 0, scale: 0.95, y: 40 }}
-                            className="glass-dark border border-white/10 w-full max-w-xl rounded-[3rem] p-12 relative z-10 shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden"
+                            className="glass-dark border border-white/10 w-full max-w-xl rounded-t-[2rem] sm:rounded-[3rem] p-6 sm:p-12 relative z-10 shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-y-auto max-h-[92dvh]"
                         >
                             <div className="absolute top-0 left-0 w-full h-1.5 bg-white/5">
                                 <motion.div initial={{ width: 0 }} animate={{ width: '100%' }} className="h-full bg-clay shadow-[0_0_20px_rgba(0,147,59,1)]" />
@@ -338,7 +357,7 @@ const MyCards: React.FC = () => {
                                 </div>
                                 <div>
                                     <p className="text-[10px] font-black uppercase tracking-[0.5em] text-clay mb-1">Authorization Phase</p>
-                                    <h3 className="text-4xl italic tracking-tighter text-white font-black leading-none">Register Asset</h3>
+                                    <h3 className="text-2xl sm:text-4xl italic tracking-tighter text-white font-black leading-none">Register Asset</h3>
                                 </div>
                             </div>
 

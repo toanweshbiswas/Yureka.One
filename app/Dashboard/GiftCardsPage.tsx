@@ -4,6 +4,7 @@ import { Gift, Loader2, Search, X, RefreshCw, ExternalLink } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { getAuthAccessToken } from '@shared/auth'
+import { cacheGet, cacheSet, CACHE_TTL } from '@shared/dashboardCache'
 import type { GiftCard } from '@backend/lib/hubble/types'
 
 const formatInr = (n: number) =>
@@ -16,13 +17,74 @@ const prettyCategory = (c: string) =>
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
 
+function GiftCardImg({
+  src,
+  alt,
+  className,
+}: {
+  src?: string | null
+  alt: string
+  className?: string
+}) {
+  const [broken, setBroken] = useState(false)
+  if (!src || broken) {
+    return (
+      <div className="h-full w-full flex items-center justify-center text-clay/40">
+        <Gift size={36} />
+      </div>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      referrerPolicy="no-referrer"
+      onError={() => setBroken(true)}
+    />
+  )
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: Record<string, unknown>) => { open: () => void }
+  }
+}
+
+function loadRazorpayScript(): Promise<boolean> {
+  if (typeof window === 'undefined') return Promise.resolve(false)
+  if (window.Razorpay) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const existing = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')
+    if (existing) {
+      if (window.Razorpay) return resolve(true)
+      existing.addEventListener('load', () => resolve(true))
+      existing.addEventListener('error', () => resolve(false))
+      return
+    }
+    const script = document.createElement('script')
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js'
+    script.async = true
+    script.onload = () => resolve(true)
+    script.onerror = () => resolve(false)
+    document.body.appendChild(script)
+  })
+}
+
+type GiftCache = { items: GiftCard[]; categories: string[]; total: number }
+
+const giftCacheKey = (category: string, query: string) =>
+  `giftcards:catalog:${category}:${query.trim().toLowerCase()}`
+
 const GiftCardsPage: React.FC = () => {
   const navigate = useNavigate()
   const { user } = useSupabase()
-  const [items, setItems] = useState<GiftCard[]>([])
-  const [categories, setCategories] = useState<string[]>([])
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const initialCatalog = cacheGet<GiftCache>(giftCacheKey('all', ''), CACHE_TTL.giftcards)
+  const [items, setItems] = useState<GiftCard[]>(() => initialCatalog?.data.items ?? [])
+  const [categories, setCategories] = useState<string[]>(() => initialCatalog?.data.categories ?? [])
+  const [total, setTotal] = useState(() => initialCatalog?.data.total ?? 0)
+  const [loading, setLoading] = useState(() => !initialCatalog?.data)
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
@@ -31,12 +93,46 @@ const GiftCardsPage: React.FC = () => {
   const [amount, setAmount] = useState<number | null>(null)
   const [buying, setBuying] = useState(false)
   const [buyError, setBuyError] = useState<string | null>(null)
+  const [checkoutEnabled, setCheckoutEnabled] = useState(false)
+  const [checkoutMode, setCheckoutMode] = useState<'razorpay' | 'direct_wallet' | 'disabled'>('disabled')
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
 
   const userId = user?.id || user?.email || ''
 
+  useEffect(() => {
+    fetch('/api/giftcards/health')
+      .then((r) => r.json())
+      .then((json) => {
+        const mode = (json?.data?.checkout || 'disabled') as 'razorpay' | 'direct_wallet' | 'disabled'
+        setCheckoutMode(mode)
+        setCheckoutEnabled(Boolean(json?.data?.checkoutEnabled) && mode !== 'disabled')
+      })
+      .catch(() => {
+        setCheckoutEnabled(false)
+        setCheckoutMode('disabled')
+      })
+  }, [])
+
+  const applyCatalog = useCallback((payload: GiftCache) => {
+    setItems(payload.items)
+    setCategories(payload.categories)
+    setTotal(payload.total)
+  }, [])
+
   const load = useCallback(async (opts?: { refresh?: boolean }) => {
+    const key = giftCacheKey(category, query)
+    if (!opts?.refresh) {
+      const hit = cacheGet<GiftCache>(key, CACHE_TTL.giftcards)
+      if (hit) {
+        applyCatalog(hit.data)
+        setLoading(false)
+        if (!hit.stale) return
+      }
+    }
+
     if (opts?.refresh) setRefreshing(true)
-    else setLoading(true)
+    else if (items.length === 0) setLoading(true)
     setError(null)
     try {
       if (opts?.refresh) {
@@ -48,17 +144,21 @@ const GiftCardsPage: React.FC = () => {
       const res = await fetch(`/api/giftcards?${params}`)
       const json = await res.json()
       if (!res.ok || json.error) throw new Error(json.error || 'Failed to load gift cards')
-      setItems(json.data.items || [])
-      setCategories(json.data.categories || [])
-      setTotal(json.data.total || 0)
+      const payload: GiftCache = {
+        items: json.data.items || [],
+        categories: json.data.categories || [],
+        total: json.data.total || 0,
+      }
+      applyCatalog(payload)
+      cacheSet(key, payload)
     } catch (e: any) {
       setError(e?.message || 'Could not load gift cards')
-      setItems([])
+      if (!items.length) setItems([])
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [category, query])
+  }, [category, query, applyCatalog])
 
   useEffect(() => {
     const t = setTimeout(() => load(), query ? 280 : 0)
@@ -79,7 +179,12 @@ const GiftCardsPage: React.FC = () => {
       setAmount(null)
     }
     setBuyError(null)
-  }, [selected])
+    setCustomerName(
+      String(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || ''),
+    )
+    const existingPhone = String(user?.user_metadata?.phone || user?.phone || '').replace(/\D/g, '')
+    setCustomerPhone(existingPhone.slice(-10))
+  }, [selected, user])
 
   const chips = useMemo(() => ['all', ...categories], [categories])
 
@@ -90,41 +195,143 @@ const GiftCardsPage: React.FC = () => {
     (selected.minAmount == null || amount >= selected.minAmount) &&
     (selected.maxAmount == null || amount <= selected.maxAmount)
 
+  const phoneDigits = customerPhone.replace(/\D/g, '').slice(-10)
   const canBuy =
+    checkoutEnabled &&
     !!selected &&
     amount != null &&
     amount > 0 &&
     (selected.denominations.length ? selected.denominations.includes(amount) : openVariableOk) &&
+    customerName.trim().length >= 2 &&
+    phoneDigits.length === 10 &&
     !buying
 
   const placeOrder = async () => {
-    if (!selected || amount == null || !canBuy) return
+    if (!checkoutEnabled) {
+      setBuyError('Gift card checkout is currently disabled.')
+      return
+    }
+    if (!selected || amount == null) return
+    if (phoneDigits.length !== 10) {
+      setBuyError('Enter a valid 10-digit mobile number.')
+      return
+    }
     setBuying(true)
     setBuyError(null)
-    try {
-      const token = getAuthAccessToken()
-      const res = await fetch('/api/giftcards/orders', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-user-id': userId,
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          productId: selected.id,
-          denomination: amount,
-          quantity: 1,
-          customerName: user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Yureka User',
-          customerEmail: user?.email || 'noreply@yureka.one',
-          customerPhone: user?.user_metadata?.phone || '',
-        }),
-      })
-      const json = await res.json()
+    const token = getAuthAccessToken()
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-user-id': userId,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    }
+    const payload = {
+      productId: selected.id,
+      denomination: amount,
+      quantity: 1,
+      customerName: customerName.trim(),
+      customerEmail: user?.email || 'noreply@yureka.one',
+      customerPhone: phoneDigits,
+    }
+
+    const parseJson = async (res: Response) => {
+      const text = await res.text()
+      let json: any = {}
+      try {
+        json = text ? JSON.parse(text) : {}
+      } catch {
+        throw new Error(
+          res.status === 401
+            ? 'Please sign in again to buy gift cards'
+            : `Could not place order (server ${res.status}). Try again in a moment.`,
+        )
+      }
       if (!res.ok || json.error) throw new Error(json.error || 'Order failed')
+      return json
+    }
+
+    try {
+      if (checkoutMode === 'razorpay') {
+        const ready = await loadRazorpayScript()
+        if (!ready || !window.Razorpay) {
+          throw new Error('Could not load Razorpay checkout. Check your connection and try again.')
+        }
+        const json = await parseJson(
+          await fetch('/api/giftcards/checkout', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify(payload),
+          }),
+        )
+        const data = json.data || {}
+        await new Promise<void>((resolve, reject) => {
+          const rzp = new window.Razorpay!({
+            key: data.keyId,
+            amount: data.amountPaise,
+            currency: data.currency || 'INR',
+            name: 'Yureka One',
+            description: data.productTitle || selected.title,
+            order_id: data.razorpayOrderId,
+            prefill: data.prefill || {
+              name: customerName.trim(),
+              email: user?.email || '',
+              contact: phoneDigits,
+            },
+            theme: { color: '#34d399' },
+            handler: async (response: {
+              razorpay_payment_id: string
+              razorpay_order_id: string
+              razorpay_signature: string
+            }) => {
+              try {
+                const verified = await parseJson(
+                  await fetch('/api/giftcards/checkout/verify', {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify({
+                      orderId: data.orderId,
+                      razorpay_payment_id: response.razorpay_payment_id,
+                      razorpay_order_id: response.razorpay_order_id,
+                      razorpay_signature: response.razorpay_signature,
+                    }),
+                  }),
+                )
+                const statusUrl =
+                  verified.data?.statusUrl || `/dashboard/giftcards/orders/${verified.data?.order?.id || data.orderId}`
+                resolve()
+                navigate(statusUrl)
+              } catch (err: any) {
+                reject(err)
+              }
+            },
+            modal: {
+              ondismiss: () => reject(new Error('Payment cancelled')),
+            },
+          })
+          rzp.open()
+        })
+        return
+      }
+
+      const json = await parseJson(
+        await fetch('/api/giftcards/orders', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        }),
+      )
       const statusUrl = json.data?.statusUrl || `/dashboard/giftcards/orders/${json.data?.order?.id}`
       navigate(statusUrl)
     } catch (e: any) {
-      setBuyError(e?.message || 'Could not place order')
+      const msg = String(e?.message || 'Could not place order')
+      if (msg === 'Payment cancelled') {
+        setBuyError('Payment was cancelled. No charge was made.')
+      } else {
+        setBuyError(
+          msg.includes('DOCTYPE') || msg.includes('Unexpected token')
+            ? 'Could not place order — the payment service returned an unexpected response. Please try again.'
+            : msg,
+        )
+      }
     } finally {
       setBuying(false)
     }
@@ -147,7 +354,7 @@ const GiftCardsPage: React.FC = () => {
         <div className="max-w-2xl">
           <h2 className="text-2xl font-black tracking-tight text-white mb-2">Gift cards</h2>
           <p className="text-white/45 text-[15px] leading-relaxed">
-            {total.toLocaleString('en-IN')} active brands via Hubble — pick an amount and buy. Payment settles on Hubble&apos;s partner wallet.
+            {total.toLocaleString('en-IN')} active brands — pay with Razorpay, then Hubble issues the voucher.
           </p>
         </div>
         <button
@@ -206,18 +413,11 @@ const GiftCardsPage: React.FC = () => {
             className="group text-left rounded-[1.5rem] border border-white/[0.08] bg-[#0d0d0d] overflow-hidden hover:border-white/20 transition"
           >
             <div className="aspect-[16/10] bg-white/[0.03] relative overflow-hidden">
-              {card.imageUrl ? (
-                <img
-                  src={card.imageUrl}
-                  alt={card.title}
-                  className="h-full w-full object-cover group-hover:scale-[1.03] transition duration-500"
-                  loading="lazy"
-                />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center text-clay/40">
-                  <Gift size={36} />
-                </div>
-              )}
+              <GiftCardImg
+                src={card.imageUrl || card.logoUrl}
+                alt={card.title}
+                className="h-full w-full object-cover group-hover:scale-[1.03] transition duration-500"
+              />
               {card.categories[0] && (
                 <span className="absolute left-3 top-3 rounded-lg bg-black/70 backdrop-blur px-2 py-1 text-[9px] font-black uppercase tracking-widest text-white/80">
                   {prettyCategory(card.categories[0])}
@@ -280,7 +480,11 @@ const GiftCardsPage: React.FC = () => {
               </div>
               <div className="p-5 space-y-6">
                 {selected.imageUrl && (
-                  <img src={selected.imageUrl} alt="" className="w-full rounded-2xl object-cover aspect-video bg-white/5" />
+                  <GiftCardImg
+                    src={selected.imageUrl}
+                    alt={selected.title}
+                    className="w-full rounded-2xl object-cover aspect-video bg-white/5"
+                  />
                 )}
                 {selected.description && (
                   <p className="text-white/55 text-sm leading-relaxed">{selected.description}</p>
@@ -346,28 +550,62 @@ const GiftCardsPage: React.FC = () => {
                   </a>
                 )}
 
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">Your name</p>
+                    <input
+                      type="text"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                      className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white focus:outline-none focus:border-clay/40"
+                      placeholder="Name on the voucher"
+                      autoComplete="name"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">Mobile number</p>
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      maxLength={10}
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                      className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white focus:outline-none focus:border-clay/40"
+                      placeholder="10-digit mobile"
+                      autoComplete="tel"
+                    />
+                  </div>
+                </div>
+
                 {buyError && (
                   <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-xs text-red-200">
                     {buyError}
                   </div>
                 )}
 
+                {!checkoutEnabled && (
+                  <div className="rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2.5 text-xs text-amber-100/90 leading-relaxed">
+                    Gift card checkout is temporarily disabled.
+                  </div>
+                )}
+
                 <button
                   type="button"
                   disabled={!canBuy}
-                  onClick={placeOrder}
+                  onClick={() => void placeOrder()}
                   className="w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-clay text-black font-black uppercase tracking-[0.18em] text-[11px] py-3.5 disabled:opacity-40 hover:brightness-110 transition active:scale-[0.98]"
                 >
                   {buying ? (
                     <>
-                      <Loader2 size={14} className="animate-spin" /> Placing order…
+                      <Loader2 size={14} className="animate-spin" />{' '}
+                      {checkoutMode === 'razorpay' ? 'Opening payment…' : 'Placing order…'}
                     </>
                   ) : (
-                    <>Buy {amount != null ? formatInr(amount) : ''} via Hubble</>
+                    <>Pay {amount != null ? formatInr(amount) : ''}</>
                   )}
                 </button>
                 <p className="text-[11px] text-white/30 leading-relaxed">
-                  Hubble issues the voucher against Yureka&apos;s partner wallet. You&apos;ll see codes on the order page when ready.
+                  You pay on Razorpay first. After the payment succeeds, Hubble generates the gift card code on the next page.
                 </p>
               </div>
             </motion.aside>

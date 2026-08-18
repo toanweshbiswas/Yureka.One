@@ -61,7 +61,7 @@ async function apiFetch<T>(
     const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 120)
     const hint =
       res.status === 504 || res.status === 502
-        ? 'API timed out — Render may be cold or unreachable'
+        ? 'API timed out — please try again in a moment'
         : snippet
           ? `Invalid response from server (${res.status}): ${snippet}`
           : `Invalid response from server (${res.status})`

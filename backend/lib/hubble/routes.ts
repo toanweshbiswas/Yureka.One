@@ -5,27 +5,38 @@ import {
   fetchAllGiftCards,
   getGiftCard,
   getHubbleOrder,
-  getHubbleOrderByReference,
+  giftcardCheckoutEnabled,
+  giftcardCheckoutMode,
+  giftcardDirectIssueEnabled,
   hubbleConfigured,
   listGiftCards,
-  placeHubbleOrder,
 } from './client.js'
 import {
   applyHubbleOrderResult,
+  claimWebhookEvent,
   createLocalOrder,
   getOrderById,
-  hubbleOrdersBackendMode,
+  getOrderByRazorpayOrderId,
   listOrdersForUser,
+  patchLocalOrder,
 } from './store.js'
+import { fulfillGiftCardWithHubble } from './fulfill.js'
 import {
   handleBrandDiscountWebhook,
   handleBrandUpdatedWebhook,
   handleOrderTerminalWebhook,
   handleWalletLowWebhook,
-  hubbleWebhookSecret,
   requireHubbleWebhookSignature,
 } from './webhooks.js'
 import { productUserIdOrFail } from '../auth/userId.js'
+import {
+  createRazorpayOrder,
+  getRazorpayPayment,
+  publicRazorpayKeyId,
+  razorpayConfigured,
+  verifyRazorpayCheckoutSignature,
+  verifyRazorpayWebhookSignature,
+} from '../razorpay/client.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
   res.status(status).json({
@@ -65,22 +76,24 @@ function sanitizeName(name: string): string {
 function sanitizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   if (digits.length >= 10) return digits.slice(-10)
-  return '9999999999'
+  return ''
 }
 
 export function registerGiftcardRoutes(app: Express) {
   app.get('/api/giftcards/health', (_req, res) => {
     ok(res, {
       configured: hubbleConfigured(),
-      base: process.env.HUBBLE_API_BASE || null,
-      ordersStore: hubbleOrdersBackendMode(),
-      webhookSecretConfigured: Boolean(hubbleWebhookSecret()),
+      razorpay: razorpayConfigured(),
+      checkoutEnabled: giftcardCheckoutEnabled(),
+      checkout: giftcardCheckoutMode(),
+      keyId: giftcardCheckoutMode() === 'razorpay' ? publicRazorpayKeyId() : null,
+      directIssue: giftcardDirectIssueEnabled(),
     })
   })
 
   app.get('/api/giftcards', async (req, res) => {
     if (!hubbleConfigured()) {
-      return fail(res, 503, 'Hubble credentials not configured')
+      return fail(res, 503, 'Gift cards are temporarily unavailable')
     }
     try {
       const status = typeof req.query.status === 'string' ? req.query.status : 'ACTIVE'
@@ -90,13 +103,13 @@ export function registerGiftcardRoutes(app: Express) {
       ok(res, result)
     } catch (e: any) {
       console.error('[giftcards] list failed:', e?.message || e)
-      fail(res, 502, e?.message || 'Failed to load gift cards from Hubble')
+      fail(res, 502, 'Failed to load gift cards')
     }
   })
 
   app.post('/api/giftcards/refresh', async (_req, res) => {
     if (!hubbleConfigured()) {
-      return fail(res, 503, 'Hubble credentials not configured')
+      return fail(res, 503, 'Gift cards are temporarily unavailable')
     }
     try {
       clearHubbleCaches()
@@ -106,7 +119,7 @@ export function registerGiftcardRoutes(app: Express) {
         active: all.filter((c) => c.status === 'ACTIVE').length,
       })
     } catch (e: any) {
-      fail(res, 502, e?.message || 'Refresh failed')
+      fail(res, 502, 'Failed to refresh gift cards')
     }
   })
 
@@ -147,110 +160,271 @@ export function registerGiftcardRoutes(app: Express) {
     }
   })
 
-  app.post('/api/giftcards/orders', async (req, res) => {
+  async function buildCheckoutDraft(req: Request, res: Response) {
+    const userId = userIdFrom(req, res)
+    if (!userId) return null
+    const productId = String(req.body?.productId || '').trim()
+    const denomination = Number(req.body?.denomination)
+    const quantity = Math.max(1, Number(req.body?.quantity) || 1)
+    if (!productId) {
+      fail(res, 400, 'productId is required')
+      return null
+    }
+    if (!Number.isFinite(denomination) || denomination <= 0) {
+      fail(res, 400, 'denomination must be a positive number')
+      return null
+    }
+
+    const card = await getGiftCard(productId)
+    if (!card || card.status !== 'ACTIVE') {
+      fail(res, 404, 'Gift card not available')
+      return null
+    }
+    if (card.denominations.length && !card.denominations.includes(denomination)) {
+      fail(res, 400, 'Denomination not allowed for this brand')
+      return null
+    }
+    if (card.minAmount != null && denomination < card.minAmount) {
+      fail(res, 400, `Minimum amount is ${card.minAmount}`)
+      return null
+    }
+    if (card.maxAmount != null && denomination > card.maxAmount) {
+      fail(res, 400, `Maximum amount is ${card.maxAmount}`)
+      return null
+    }
+
+    const amount = denomination * quantity
+    const customerName = sanitizeName(String(req.body?.customerName || req.body?.name || 'Yureka User'))
+    const customerEmail = String(req.body?.customerEmail || req.body?.email || 'noreply@yureka.one')
+      .trim()
+      .slice(0, 120)
+    const customerPhone = sanitizePhone(String(req.body?.customerPhone || req.body?.phone || ''))
+    if (!/^\d{10}$/.test(customerPhone)) {
+      fail(res, 400, 'Enter a valid 10-digit mobile number to receive the voucher')
+      return null
+    }
+
+    return {
+      userId,
+      card,
+      amount,
+      denomination,
+      quantity,
+      customerName,
+      customerEmail,
+      customerPhone,
+    }
+  }
+
+  /** Step 1: create a Razorpay order. Hubble is called only after payment is verified. */
+  app.post('/api/giftcards/checkout', async (req, res) => {
     if (!hubbleConfigured()) {
-      return fail(res, 503, 'Hubble credentials not configured')
+      return fail(res, 503, 'Gift cards are temporarily unavailable')
+    }
+    if (giftcardCheckoutMode() !== 'razorpay') {
+      return fail(res, 402, 'Razorpay checkout is not configured')
+    }
+    try {
+      const draft = await buildCheckoutDraft(req, res)
+      if (!draft) return
+      const referenceId = makeReferenceId()
+      const local = await createLocalOrder({
+        userId: draft.userId,
+        referenceId,
+        productId: draft.card.id,
+        productTitle: draft.card.title,
+        amountInr: draft.amount,
+        denomination: draft.denomination,
+        quantity: draft.quantity,
+        customerName: draft.customerName,
+        customerEmail: draft.customerEmail,
+        customerPhone: draft.customerPhone,
+        paymentStatus: 'unpaid',
+      })
+
+      const rzp = await createRazorpayOrder({
+        amountPaise: Math.round(draft.amount * 100),
+        receipt: referenceId,
+        notes: {
+          yurekaOrderId: local.id,
+          productId: draft.card.id,
+          userId: draft.userId,
+        },
+      })
+
+      await patchLocalOrder(local.id, { razorpayOrderId: rzp.id })
+
+      ok(
+        res,
+        {
+          orderId: local.id,
+          keyId: publicRazorpayKeyId(),
+          razorpayOrderId: rzp.id,
+          amountPaise: rzp.amount,
+          currency: rzp.currency || 'INR',
+          productTitle: draft.card.title,
+          prefill: {
+            name: draft.customerName,
+            email: draft.customerEmail,
+            contact: draft.customerPhone,
+          },
+          statusUrl: `/dashboard/giftcards/orders/${local.id}`,
+        },
+        201,
+      )
+    } catch (e: any) {
+      console.error('[giftcards] checkout failed:', e?.message || e)
+      fail(res, 502, e?.message || 'Failed to start checkout')
+    }
+  })
+
+  /** Step 2: verify Razorpay signature, then issue the Hubble voucher. */
+  app.post('/api/giftcards/checkout/verify', async (req, res) => {
+    if (!hubbleConfigured() || !razorpayConfigured()) {
+      return fail(res, 503, 'Gift cards are temporarily unavailable')
     }
     try {
       const userId = userIdFrom(req, res)
       if (!userId) return
-      const productId = String(req.body?.productId || '').trim()
-      const denomination = Number(req.body?.denomination)
-      const quantity = Math.max(1, Number(req.body?.quantity) || 1)
-      if (!productId) return fail(res, 400, 'productId is required')
-      if (!Number.isFinite(denomination) || denomination <= 0) {
-        return fail(res, 400, 'denomination must be a positive number')
+      const localId = String(req.body?.orderId || req.body?.localOrderId || '').trim()
+      const razorpayOrderId = String(req.body?.razorpay_order_id || req.body?.razorpayOrderId || '').trim()
+      const razorpayPaymentId = String(req.body?.razorpay_payment_id || req.body?.razorpayPaymentId || '').trim()
+      const signature = String(req.body?.razorpay_signature || req.body?.razorpaySignature || '').trim()
+      if (!localId || !razorpayOrderId || !razorpayPaymentId || !signature) {
+        return fail(res, 400, 'Missing Razorpay payment details')
       }
 
-      const card = await getGiftCard(productId)
-      if (!card || card.status !== 'ACTIVE') {
-        return fail(res, 404, 'Gift card not available')
-      }
-      if (card.denominations.length && !card.denominations.includes(denomination)) {
-        return fail(res, 400, 'Denomination not allowed for this brand')
-      }
-      if (card.minAmount != null && denomination < card.minAmount) {
-        return fail(res, 400, `Minimum amount is ${card.minAmount}`)
-      }
-      if (card.maxAmount != null && denomination > card.maxAmount) {
-        return fail(res, 400, `Maximum amount is ${card.maxAmount}`)
+      const order = await getOrderById(localId, userId)
+      if (!order) return fail(res, 404, 'Order not found')
+      if (order.razorpayOrderId && order.razorpayOrderId !== razorpayOrderId) {
+        return fail(res, 400, 'Payment does not match this order')
       }
 
-      const amount = denomination * quantity
-      const referenceId = makeReferenceId()
-      const customerName = sanitizeName(
-        String(req.body?.customerName || req.body?.name || 'Yureka User'),
-      )
-      const customerEmail = String(req.body?.customerEmail || req.body?.email || 'noreply@yureka.one')
-        .trim()
-        .slice(0, 120)
-      const customerPhone = sanitizePhone(
-        String(req.body?.customerPhone || req.body?.phone || ''),
-      )
+      const valid = verifyRazorpayCheckoutSignature({
+        orderId: razorpayOrderId,
+        paymentId: razorpayPaymentId,
+        signature,
+      })
+      if (!valid) return fail(res, 400, 'Payment signature could not be verified')
 
-      const local = await createLocalOrder({
-        userId,
-        referenceId,
-        productId,
-        productTitle: card.title,
-        amountInr: amount,
-        denomination,
-        quantity,
-        customerName,
-        customerEmail,
-        customerPhone,
+      const payment = await getRazorpayPayment(razorpayPaymentId)
+      if (payment.order_id !== razorpayOrderId) {
+        return fail(res, 400, 'Payment does not belong to this Razorpay order')
+      }
+      const expectedPaise = Math.round(order.amountInr * 100)
+      if (Number(payment.amount) !== expectedPaise) {
+        return fail(res, 400, 'Paid amount does not match the gift card value')
+      }
+      if (!['captured', 'authorized'].includes(String(payment.status || '').toLowerCase())) {
+        await patchLocalOrder(order.id, { paymentStatus: 'failed', razorpayPaymentId })
+        return fail(res, 402, 'Payment was not captured')
+      }
+
+      await patchLocalOrder(order.id, {
+        paymentStatus: 'paid',
+        razorpayOrderId,
+        razorpayPaymentId,
       })
 
-      let remote
-      try {
-        remote = await placeHubbleOrder({
-          productId,
-          referenceId,
-          amount,
-          denominationDetails: [{ denomination, quantity }],
-          customerDetails: {
-            name: customerName,
-            phoneNumber: customerPhone,
-            email: customerEmail,
-          },
-        })
-      } catch (e: any) {
-        // Timeout / uncertain — try by-reference lookup once.
-        try {
-          remote = await getHubbleOrderByReference(referenceId)
-        } catch {
-          await applyHubbleOrderResult(local.id, {
-            id: '',
-            referenceId,
-            status: 'FAILED',
-            vouchers: [],
-            failureReason: e?.message || 'Order placement failed',
+      const paid = (await getOrderById(order.id, userId)) || order
+      const fulfilled = await fulfillGiftCardWithHubble(paid)
+      ok(res, {
+        order: fulfilled,
+        statusUrl: `/dashboard/giftcards/orders/${order.id}`,
+      })
+    } catch (e: any) {
+      console.error('[giftcards] verify failed:', e?.message || e)
+      fail(res, 502, e?.message || 'Failed to confirm payment')
+    }
+  })
+
+  app.post('/api/razorpay/webhooks', async (req, res) => {
+    const raw =
+      typeof (req as any).rawBody === 'string' ? (req as any).rawBody : JSON.stringify(req.body ?? {})
+    const sig = (req.header('x-razorpay-signature') || '').trim()
+    if (!verifyRazorpayWebhookSignature(raw, sig)) {
+      return res.status(401).json({ ok: false, error: 'Invalid signature' })
+    }
+    try {
+      const event = String(req.body?.event || '')
+      const payment = req.body?.payload?.payment?.entity
+      const paymentId = String(payment?.id || '')
+      const razorpayOrderId = String(payment?.order_id || '')
+      const eventKey = `razorpay:${event}:${paymentId || razorpayOrderId}`
+      const claimed = await claimWebhookEvent(eventKey, event || 'razorpay', req.body)
+      if (!claimed) return res.status(200).json({ ok: true, duplicate: true })
+
+      if (event === 'payment.captured' && razorpayOrderId) {
+        const local = await getOrderByRazorpayOrderId(razorpayOrderId)
+        if (local && local.paymentStatus !== 'paid') {
+          await patchLocalOrder(local.id, {
+            paymentStatus: 'paid',
+            razorpayPaymentId: paymentId || local.razorpayPaymentId,
           })
-          return fail(res, 502, e?.message || 'Failed to place order with Hubble')
+        }
+        const latest = local ? await getOrderById(local.id) : null
+        if (latest && latest.paymentStatus === 'paid' && !latest.hubbleOrderId) {
+          await fulfillGiftCardWithHubble(latest)
         }
       }
+      if (event === 'payment.failed' && razorpayOrderId) {
+        const local = await getOrderByRazorpayOrderId(razorpayOrderId)
+        if (local && local.paymentStatus === 'unpaid') {
+          await patchLocalOrder(local.id, { paymentStatus: 'failed', status: 'FAILED', failureReason: 'Payment failed' })
+        }
+      }
+      res.status(200).json({ ok: true })
+    } catch (e: any) {
+      console.error('[razorpay webhook]', e?.message || e)
+      res.status(500).json({ ok: false, error: e?.message || 'handler failed' })
+    }
+  })
 
-      const updated = await applyHubbleOrderResult(local.id, remote)
-      const order = updated || (await getOrderById(local.id))
+  /** Direct wallet issue — only when GIFTCARD_DIRECT_ISSUE=true (no Razorpay). */
+  app.post('/api/giftcards/orders', async (req, res) => {
+    if (!hubbleConfigured()) {
+      return fail(res, 503, 'Gift cards are temporarily unavailable')
+    }
+    if (giftcardCheckoutMode() === 'razorpay') {
+      return fail(res, 400, 'Pay with Razorpay checkout first')
+    }
+    if (!giftcardDirectIssueEnabled()) {
+      return fail(res, 402, 'Gift card checkout is currently disabled.')
+    }
+    try {
+      const draft = await buildCheckoutDraft(req, res)
+      if (!draft) return
+      const local = await createLocalOrder({
+        userId: draft.userId,
+        referenceId: makeReferenceId(),
+        productId: draft.card.id,
+        productTitle: draft.card.title,
+        amountInr: draft.amount,
+        denomination: draft.denomination,
+        quantity: draft.quantity,
+        customerName: draft.customerName,
+        customerEmail: draft.customerEmail,
+        customerPhone: draft.customerPhone,
+        paymentStatus: 'paid',
+      })
+      const fulfilled = await fulfillGiftCardWithHubble(local)
       ok(
         res,
         {
-          order,
-          // Local status page (Hubble Partner API has no hosted checkout URL —
-          // payment settles against the partner wallet on Hubble).
+          order: fulfilled,
           statusUrl: `/dashboard/giftcards/orders/${local.id}`,
         },
         201,
       )
     } catch (e: any) {
       console.error('[giftcards] place order failed:', e?.message || e)
-      fail(res, 502, e?.message || 'Failed to place order')
+      fail(res, 502, 'Failed to place gift card order')
     }
   })
 
   app.get('/api/giftcards/:id', async (req, res) => {
     if (!hubbleConfigured()) {
-      return fail(res, 503, 'Hubble credentials not configured')
+      return fail(res, 503, 'Gift cards are temporarily unavailable')
     }
     try {
       const card = await getGiftCard(String(req.params.id))
@@ -258,7 +432,7 @@ export function registerGiftcardRoutes(app: Express) {
       ok(res, card)
     } catch (e: any) {
       console.error('[giftcards] get failed:', e?.message || e)
-      fail(res, 502, e?.message || 'Failed to load gift card')
+      fail(res, 502, 'Failed to load gift card')
     }
   })
 

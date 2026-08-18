@@ -7,7 +7,8 @@ import {
   listOffers,
   recordClick,
 } from './store.js'
-import { productUserIdOrFail } from '../auth/userId.js'
+import { productUserIdOrFail, resolveRequestEmail } from '../auth/userId.js'
+import { notifyGoldbackEarn } from '../notifications/notify.js'
 
 function requireUserId(req: Request, res: Response): string | null {
   const result = productUserIdOrFail(req)
@@ -94,9 +95,21 @@ export function registerGoldbackRoutes(app: Express) {
       const userId = requireUserId(req, res)
       if (!userId) return
       const offerId = String(req.body?.offerId || '')
-      const idempotencyKey = String(req.body?.idempotencyKey || `earn:${userId}:${offerId}:${Date.now()}`)
+      const idempotencyKey = String(req.body?.idempotencyKey || `earn:${userId}:${offerId}`)
       if (!offerId) return fail(res, 400, 'offerId is required')
       const result = await creditEarn(userId, offerId, idempotencyKey)
+      if (result.created) {
+        const merchant = String(result.entry.meta?.merchant || '')
+        const title = String(result.entry.meta?.title || '')
+        await notifyGoldbackEarn({
+          userId,
+          email: resolveRequestEmail(req),
+          merchant,
+          title,
+          amountPaise: result.entry.amountPaise,
+          offerId: result.entry.offerId || offerId,
+        })
+      }
       ok(res, result)
     } catch (e: any) {
       fail(res, 400, e?.message || 'Failed to credit earn')

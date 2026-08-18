@@ -119,6 +119,11 @@ export const staticPageMeta: Record<string, PageMeta> = {
     description: 'Sign in to your Yureka.One account to track Goldback rewards, manage your AI concierge, and access your personalized dashboard.',
     robots: 'noindex, follow',
   },
+  '/reset-password': {
+    title: 'Reset Password | Yureka.One',
+    description: 'Reset your password for Yureka.One.',
+    robots: 'noindex, follow',
+  },
   '/waiting': {
     title: 'Waitlist Status | Yureka.One',
     description: 'Check the status of your Yureka.One waitlist application.',

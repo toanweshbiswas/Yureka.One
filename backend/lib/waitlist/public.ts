@@ -30,7 +30,9 @@ export function toPublicWaitlistEntry(row: WaitlistRow, meta?: Record<string, an
       | 'rejected'
       | 'on-hold'
       | 'on_hold',
-    yurekaScore: row.yurekaScore ?? undefined,
+    yurekaScore: row.yurekaScore ?? m.yurekaScore ?? undefined,
+    scoreDecision: row.scoreDecision || m.scoreDecision || undefined,
+    scoreMetrics: m.scoreMetrics && typeof m.scoreMetrics === 'object' ? m.scoreMetrics : undefined,
     joinedAt: row.createdAt,
     createdAt: row.createdAt,
   }

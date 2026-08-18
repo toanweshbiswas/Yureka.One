@@ -7,6 +7,8 @@ import {
 import { useSupabase } from '@shared/SupabaseProvider';
 import { api, isApiError } from '@backend/lib/api/client';
 import type { Waitlist as ApiWaitlist } from '@backend/lib/api/types';
+import AddToHomeScreen from '@shared/AddToHomeScreen';
+import { googleAvatarUrl, prettyGender } from '@shared/userProfile';
 
 const AccountSettings: React.FC = () => {
     const { user } = useSupabase();
@@ -23,10 +25,24 @@ const AccountSettings: React.FC = () => {
         dateOfBirth: '',
         gender: ''
     });
+    const [yurekaScore, setYurekaScore] = useState<number | null>(null);
+    const [scoreDecision, setScoreDecision] = useState<string | null>(null);
 
     useEffect(() => {
         if (user) loadAccountData();
     }, [user]);
+
+    useEffect(() => {
+        const onScore = (event: Event) => {
+            const detail = (event as CustomEvent).detail || {}
+            const next = Number(detail.score)
+            if (!Number.isFinite(next)) return
+            setYurekaScore(next)
+            setScoreDecision(typeof detail.decision === 'string' ? detail.decision : null)
+        }
+        window.addEventListener('yureka-score-updated', onScore)
+        return () => window.removeEventListener('yureka-score-updated', onScore)
+    }, []);
 
     const loadAccountData = async () => {
         try {
@@ -34,14 +50,28 @@ const AccountSettings: React.FC = () => {
             if (!isApiError(res) && res.data) {
                 const entry = res.data;
                 setWaitlistId(entry.id ?? null);
+                const googleName = String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim()
+                const fullName = String(entry.name || googleName).trim()
+                const parts = fullName.split(/\s+/).filter(Boolean)
                 setFormData({
-                    firstName: entry.firstName || '',
-                    lastName: entry.lastName || '',
-                    email: entry.email || '',
+                    firstName: entry.firstName || parts[0] || '',
+                    lastName: entry.lastName || parts.slice(1).join(' ') || '',
+                    email: entry.email || user?.email || '',
                     mobileNumber: entry.mobileNumber || '',
                     dateOfBirth: entry.dateOfBirth || '',
-                    gender: entry.gender || ''
+                    gender: entry.gender || '',
                 });
+                setYurekaScore(entry.yurekaScore ?? null);
+                setScoreDecision(entry.scoreDecision ?? null);
+            } else if (user) {
+                const googleName = String(user.user_metadata?.full_name || user.user_metadata?.name || '').trim()
+                const parts = googleName.split(/\s+/).filter(Boolean)
+                setFormData((prev) => ({
+                    ...prev,
+                    firstName: parts[0] || prev.firstName,
+                    lastName: parts.slice(1).join(' ') || prev.lastName,
+                    email: user.email || prev.email,
+                }))
             }
         } catch (err) {
             console.error("Failed to load account:", err);
@@ -79,20 +109,27 @@ const AccountSettings: React.FC = () => {
         </div>
     );
 
+    const avatarUrl = googleAvatarUrl(user);
+    const initials = `${formData.firstName?.[0] || ''}${formData.lastName?.[0] || ''}`.toUpperCase() || 'U';
+
     return (
-        <div className="max-w-4xl space-y-16">
+        <div className="max-w-4xl space-y-10 md:space-y-16">
             <motion.div 
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="glass-card rounded-[3rem] p-12 relative overflow-hidden"
+                className="glass-card rounded-[2rem] md:rounded-[3rem] p-6 sm:p-8 md:p-12 relative overflow-hidden"
             >
                 <div className="absolute top-0 right-0 w-64 h-64 bg-clay/5 blur-[100px] rounded-full -mr-32 -mt-32" />
                 
-                <div className="relative z-10 space-y-12">
-                    <div className="flex flex-col md:flex-row items-center gap-10">
+                <div className="relative z-10 space-y-10 md:space-y-12">
+                    <div className="flex flex-col md:flex-row items-center gap-6 md:gap-10">
                         <div className="relative group">
-                            <div className="w-28 h-28 bg-clay text-black rounded-3xl flex items-center justify-center font-black text-3xl shadow-[0_20px_40px_rgba(0,147,59,0.3)] group-hover:scale-105 transition-transform duration-500">
-                                {formData.firstName?.[0] || 'U'}
+                            <div className="w-24 h-24 md:w-28 md:h-28 bg-clay text-black rounded-3xl overflow-hidden flex items-center justify-center font-black text-3xl shadow-[0_20px_40px_rgba(0,147,59,0.3)] group-hover:scale-105 transition-transform duration-500">
+                                {avatarUrl ? (
+                                    <img src={avatarUrl} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                                ) : (
+                                    initials
+                                )}
                             </div>
                             <div className="absolute -bottom-2 -right-2 w-10 h-10 glass-dark border border-white/10 rounded-xl flex items-center justify-center text-clay shadow-xl">
                                 <ShieldCheck size={20} />
@@ -103,10 +140,41 @@ const AccountSettings: React.FC = () => {
                                 <div className="w-2 h-2 bg-clay rounded-full animate-pulse shadow-[0_0_10px_rgba(0,147,59,0.8)]" />
                                 <p className="text-[10px] font-black uppercase tracking-[0.5em] text-clay">Identity Confirmed</p>
                             </div>
-                            <h3 className="text-5xl font-black italic tracking-tighter text-white leading-none">
+                            <h3 className="text-3xl sm:text-4xl md:text-5xl font-black italic tracking-tighter text-white leading-none">
                                 {formData.firstName} {formData.lastName}
                             </h3>
                             <p className="text-white/30 text-sm font-serif italic mt-3">Authorized explorer within the Yureka intelligence network.</p>
+                            <div className="mt-5 flex justify-center md:justify-start">
+                                <AddToHomeScreen mode="button" />
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="rounded-2xl border border-clay/20 bg-clay/10 px-5 py-4">
+                            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-clay/80 mb-1">Yureka Score</p>
+                            {yurekaScore != null ? (
+                                <>
+                                    <p className="text-3xl font-black text-white tabular-nums leading-none">
+                                        {yurekaScore}<span className="text-base text-white/35">/100</span>
+                                    </p>
+                                    {scoreDecision && (
+                                        <p className="text-[11px] text-white/45 mt-2 capitalize">{scoreDecision}</p>
+                                    )}
+                                </>
+                            ) : (
+                                <p className="text-sm text-white/40">Not scored yet</p>
+                            )}
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+                            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-white/35 mb-1">Gender</p>
+                            <p className="text-xl font-black text-white">{prettyGender(formData.gender)}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4">
+                            <p className="text-[9px] font-black uppercase tracking-[0.25em] text-white/35 mb-1">Google photo</p>
+                            <p className="text-sm font-bold text-white/70">
+                                {avatarUrl ? 'Linked from Gmail' : 'Sign in with Google to sync photo'}
+                            </p>
                         </div>
                     </div>
 

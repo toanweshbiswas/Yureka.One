@@ -6,12 +6,13 @@ import {
     Mail, RefreshCw, CheckCircle, TrendingUp, Users, ShieldCheck,
     ChevronRight, Zap, X
 } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { api, isApiError } from '@backend/lib/api/client';
 import { fromApiWaitlist } from '@backend/lib/api/mappers';
 import type { Waitlist as ApiWaitlist, RankResult as ApiRankResult } from '@backend/lib/api/types';
 import { WaitlistEntry } from '@/types';
+import { appUrl, landingUrl } from '@shared/hosts';
 
 const RANK_BOOST_PER_REFERRAL = 15;
 const RANK_BOOST_PER_APPROVAL = 35;
@@ -40,9 +41,10 @@ const GmailModal: React.FC<{
     >
         <div className="absolute inset-0 bg-black/70 backdrop-blur-2xl" onClick={onClose} />
         <motion.div
-            initial={{ scale: 0.9, y: 30 }}
+            initial={{ scale: 0.97, y: 16 }}
             animate={{ scale: 1, y: 0 }}
-            exit={{ scale: 0.9, y: 30 }}
+            exit={{ scale: 0.97, y: 16 }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
             className="relative z-10 w-full max-w-md bg-[#111111] border border-white/10 rounded-[2.5rem] p-10 shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden"
         >
             {/* Top accent bar */}
@@ -105,7 +107,7 @@ const AnimatedRank: React.FC<{ rank: number | string; isHighlighted?: boolean }>
         key={String(rank)}
         initial={{ scale: 1.4, opacity: 0, y: -10 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+        transition={{ type: 'spring', stiffness: 180, damping: 28, mass: 1 }}
         className={`font-black text-5xl tracking-tighter ${isHighlighted ? 'text-clay' : 'text-white'}`}
     >
         #{rank}
@@ -170,7 +172,7 @@ const WaitingPage: React.FC = () => {
         }
     }, [user]);
 
-    const shareLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/join-waitlist?ref=${entry?.personal_referral_code || 'YRKMNY'}`;
+    const shareLink = `${appUrl('/join-waitlist')}?ref=${entry?.personal_referral_code || 'YRKMNY'}`;
     const shareText = "I'm moving up the Yureka.One waitlist! Join using my link and we both climb faster.";
 
     const copyToClipboard = () => {
@@ -184,10 +186,10 @@ const WaitingPage: React.FC = () => {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-cream flex items-center justify-center">
+            <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
                 <motion.div
                     animate={{ rotate: 360 }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: 'linear' }}
+                    transition={{ duration: 2.2, repeat: Infinity, ease: 'linear' }}
                     className="w-14 h-14 border-2 border-clay/30 border-t-clay rounded-full"
                 />
             </div>
@@ -219,7 +221,7 @@ const WaitingPage: React.FC = () => {
             <motion.div
                 initial={{ opacity: 0, y: 40 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8 }}
+                transition={{ type: 'spring', bounce: 0, duration: 0.55 }}
                 className="max-w-3xl w-full relative z-10 space-y-8"
             >
                 {/* ── Status Header ─────────────────────────────────── */}
@@ -248,9 +250,9 @@ const WaitingPage: React.FC = () => {
                                     <Clock size={36} className="text-clay animate-pulse" />
                                 </div>
                                 <motion.div
-                                    animate={{ scale: [1, 1.2, 1] }}
-                                    transition={{ duration: 2, repeat: Infinity }}
-                                    className="absolute -top-2 -right-2 w-8 h-8 bg-clay rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(0,147,59,0.6)]"
+                                    animate={{ scale: [1, 1.06, 1], opacity: [0.85, 1, 0.85] }}
+                                    transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+                                    className="absolute -top-2 -right-2 w-8 h-8 bg-clay rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(0,147,59,0.45)]"
                                 >
                                     <Sparkles size={16} className="text-black" />
                                 </motion.div>
@@ -430,10 +432,10 @@ const WaitingPage: React.FC = () => {
 
                 {/* ── Footer ────────────────────────────────────────── */}
                 <div className="text-center">
-                    <Link to="/" className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.5em] text-white/20 hover:text-clay transition-all group">
+                    <a href={landingUrl('/')} className="inline-flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.5em] text-white/20 hover:text-clay transition-all group">
                         <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
                         Back to Home
-                    </Link>
+                    </a>
                 </div>
             </motion.div>
         </div>

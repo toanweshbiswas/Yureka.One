@@ -25,7 +25,26 @@ async function goldbackFetch<T>(
         ...(init?.headers || {}),
       },
     })
-    return (await res.json()) as Envelope<T>
+    let json: any = null
+    try {
+      json = await res.json()
+    } catch {
+      return {
+        data: null,
+        status: res.status || 502,
+        error: res.ok ? 'Invalid Goldback response' : `Goldback API error (${res.status})`,
+        timestamp: new Date().toISOString(),
+      }
+    }
+    if (!res.ok) {
+      return {
+        data: null,
+        status: res.status,
+        error: json?.error || `Goldback API error (${res.status})`,
+        timestamp: json?.timestamp || new Date().toISOString(),
+      }
+    }
+    return json as Envelope<T>
   } catch {
     return {
       data: null,
@@ -40,6 +59,11 @@ export function formatPaise(paise: number): string {
   return `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 }
 
+/** Stable earn key — one credit per user+offer (prevents Date.now() double credits). */
+export function goldbackEarnKey(userId: string, offerId: string) {
+  return `earn:${userId}:${offerId}`
+}
+
 export const goldbackApi = {
   offers: (userId: string) => goldbackFetch<GoldbackOffer[]>('/api/goldback/offers', userId),
   balance: (userId: string) =>
@@ -51,13 +75,17 @@ export const goldbackApi = {
       method: 'POST',
       body: JSON.stringify({ offerId, userId }),
     }),
-  earn: (userId: string, offerId: string, idempotencyKey: string) =>
+  earn: (userId: string, offerId: string, idempotencyKey?: string) =>
     goldbackFetch<{
       entry: GoldbackLedgerEntry
       balance: GoldbackBalance
       created: boolean
     }>('/api/goldback/earn', userId, {
       method: 'POST',
-      body: JSON.stringify({ offerId, userId, idempotencyKey }),
+      body: JSON.stringify({
+        offerId,
+        userId,
+        idempotencyKey: idempotencyKey || goldbackEarnKey(userId, offerId),
+      }),
     }),
 }

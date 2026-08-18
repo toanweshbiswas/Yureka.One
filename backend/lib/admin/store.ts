@@ -11,6 +11,8 @@ export interface WaitlistRow {
   mobileNumber: string | null
   status: 'pending' | 'accepted' | 'rejected' | 'on_hold'
   yurekaScore: number | null
+  scoreDecision: string | null
+  scoreMetrics: Record<string, unknown> | null
   monthlySpend: string | null
   topCategory: string | null
   notes: string | null
@@ -24,6 +26,15 @@ export interface AdminUserRow {
   fullName: string | null
   role: AdminRole
   createdAt: string
+  hasPassword?: boolean
+  invitePending?: boolean
+}
+
+export interface AdminAuthState {
+  passwordHash: string | null
+  inviteTokenHash: string | null
+  inviteExpiresAt: string | null
+  passwordSetAt: string | null
 }
 
 interface AdminFileStore {
@@ -33,6 +44,10 @@ interface AdminFileStore {
 
 function filePath() {
   return path.join(process.cwd(), 'data', 'admin_store.json')
+}
+
+function authFilePath() {
+  return path.join(process.cwd(), 'data', 'admin_auth.json')
 }
 
 function getSupabase(): SupabaseClient | null {
@@ -63,11 +78,22 @@ async function withTimeout<T>(promise: PromiseLike<T>, ms: number, label: string
 /** Skip Supabase briefly after failures so waitlist join stays fast under Netlify proxy limits. */
 let supabaseCircuitOpenUntil = 0
 let supabaseFailStreak = 0
+let supabaseSchemaUnavailable = false
 const SUPABASE_WAITLIST_TIMEOUT_MS = Number(process.env.SUPABASE_WAITLIST_TIMEOUT_MS || 10000)
 const SUPABASE_CIRCUIT_MS = Number(process.env.SUPABASE_CIRCUIT_MS || 20000)
 
 function supabaseWaitlistAllowed() {
-  return Date.now() >= supabaseCircuitOpenUntil
+  return !supabaseSchemaUnavailable && Date.now() >= supabaseCircuitOpenUntil
+}
+
+function isMissingSchemaError(message: string | undefined) {
+  const text = String(message || '').toLowerCase()
+  return text.includes("could not find the table") || text.includes('schema cache')
+}
+
+function disableSupabaseSchema(reason: unknown) {
+  supabaseSchemaUnavailable = true
+  console.warn('[waitlist] supabase schema unavailable, falling back to file store:', (reason as Error)?.message || reason)
 }
 
 function tripSupabaseCircuit(reason: unknown) {
@@ -119,6 +145,8 @@ function seedStore(): AdminFileStore {
         mobileNumber: '+91 98xxx',
         status: 'pending',
         yurekaScore: 72,
+        scoreDecision: 'accept',
+        scoreMetrics: null,
         monthlySpend: '₹40k–60k',
         topCategory: 'shopping',
         notes: null,
@@ -132,6 +160,8 @@ function seedStore(): AdminFileStore {
         mobileNumber: null,
         status: 'accepted',
         yurekaScore: 88,
+        scoreDecision: 'accept',
+        scoreMetrics: null,
         monthlySpend: '₹80k+',
         topCategory: 'travel',
         notes: null,
@@ -165,17 +195,161 @@ function writeFile(s: AdminFileStore) {
   fs.writeFileSync(filePath(), JSON.stringify(s, null, 2))
 }
 
+function readAuthMap(): Record<string, AdminAuthState> {
+  try {
+    if (!fs.existsSync(authFilePath())) return {}
+    return JSON.parse(fs.readFileSync(authFilePath(), 'utf-8')) as Record<string, AdminAuthState>
+  } catch {
+    return {}
+  }
+}
+
+function writeAuthMap(map: Record<string, AdminAuthState>) {
+  fs.mkdirSync(path.dirname(authFilePath()), { recursive: true })
+  fs.writeFileSync(authFilePath(), JSON.stringify(map, null, 2))
+}
+
+function emptyAuth(): AdminAuthState {
+  return { passwordHash: null, inviteTokenHash: null, inviteExpiresAt: null, passwordSetAt: null }
+}
+
+function publicAdmin(row: AdminUserRow, auth?: AdminAuthState | null): AdminUserRow {
+  const invitePending = Boolean(
+    auth?.inviteTokenHash && auth.inviteExpiresAt && new Date(auth.inviteExpiresAt).getTime() > Date.now()
+  )
+  return {
+    id: row.id,
+    email: row.email,
+    fullName: row.fullName,
+    role: row.role,
+    createdAt: row.createdAt,
+    hasPassword: Boolean(auth?.passwordHash),
+    invitePending,
+  }
+}
+
+export async function getAdminAuth(email: string): Promise<AdminAuthState> {
+  const normalized = email.toLowerCase().trim()
+  const fromFile = readAuthMap()[normalized]
+  const sb = getSupabase()
+  if (sb) {
+    const { data, error } = await sb
+      .from('admin_users')
+      .select('password_hash, invite_token_hash, invite_expires_at, password_set_at')
+      .eq('email', normalized)
+      .maybeSingle()
+    if (!error && data) {
+      return {
+        passwordHash: data.password_hash || fromFile?.passwordHash || null,
+        inviteTokenHash: data.invite_token_hash || fromFile?.inviteTokenHash || null,
+        inviteExpiresAt: data.invite_expires_at || fromFile?.inviteExpiresAt || null,
+        passwordSetAt: data.password_set_at || fromFile?.passwordSetAt || null,
+      }
+    }
+  }
+  return fromFile || emptyAuth()
+}
+
+async function persistAdminAuth(email: string, auth: AdminAuthState) {
+  const normalized = email.toLowerCase().trim()
+  const map = readAuthMap()
+  map[normalized] = auth
+  writeAuthMap(map)
+
+  const sb = getSupabase()
+  if (!sb) return
+  await sb
+    .from('admin_users')
+    .update({
+      password_hash: auth.passwordHash,
+      invite_token_hash: auth.inviteTokenHash,
+      invite_expires_at: auth.inviteExpiresAt,
+      password_set_at: auth.passwordSetAt,
+    })
+    .eq('email', normalized)
+}
+
+export async function saveAdminInvite(opts: {
+  email: string
+  tokenHash: string
+  expiresAt: string
+}): Promise<void> {
+  const current = await getAdminAuth(opts.email)
+  await persistAdminAuth(opts.email, {
+    ...current,
+    inviteTokenHash: opts.tokenHash,
+    inviteExpiresAt: opts.expiresAt,
+  })
+}
+
+export async function findAdminByInviteHash(
+  tokenHash: string
+): Promise<{ admin: AdminUserRow; auth: AdminAuthState } | null> {
+  const map = readAuthMap()
+  const now = Date.now()
+  for (const [email, auth] of Object.entries(map)) {
+    if (auth.inviteTokenHash !== tokenHash) continue
+    if (!auth.inviteExpiresAt || new Date(auth.inviteExpiresAt).getTime() < now) return null
+    const admin = await findAdminByEmail(email)
+    if (!admin) return null
+    return { admin, auth }
+  }
+
+  const sb = getSupabase()
+  if (sb) {
+    const { data, error } = await sb
+      .from('admin_users')
+      .select('*')
+      .eq('invite_token_hash', tokenHash)
+      .maybeSingle()
+    if (!error && data) {
+      const auth = await getAdminAuth(data.email)
+      if (!auth.inviteExpiresAt || new Date(auth.inviteExpiresAt).getTime() < now) return null
+      return { admin: mapAdmin(data), auth }
+    }
+  }
+  return null
+}
+
+export async function setAdminPassword(email: string, passwordHash: string): Promise<AdminUserRow | null> {
+  const admin = await findAdminByEmail(email)
+  if (!admin) return null
+  await persistAdminAuth(email, {
+    passwordHash,
+    inviteTokenHash: null,
+    inviteExpiresAt: null,
+    passwordSetAt: new Date().toISOString(),
+  })
+  return admin
+}
+
+function parseNotes(notes: string | null | undefined): Record<string, any> {
+  try {
+    return notes ? JSON.parse(notes) : {}
+  } catch {
+    return {}
+  }
+}
+
 function mapWaitlist(row: any): WaitlistRow {
+  const notes = row.notes ?? null
+  const meta = parseNotes(notes)
+  const raw = row.yureka_score ?? row.yurekaScore ?? meta.yurekaScore ?? meta.score
+  const score = raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null
+  const decision = meta.scoreDecision || meta.decision || null
+  const metrics = meta.scoreMetrics && typeof meta.scoreMetrics === 'object' ? meta.scoreMetrics : null
   return {
     id: row.id,
     email: row.email,
     fullName: row.full_name ?? row.fullName ?? null,
     mobileNumber: row.mobile_number ?? row.mobileNumber ?? null,
     status: row.status,
-    yurekaScore: row.yureka_score ?? row.yurekaScore ?? null,
+    yurekaScore: score,
+    scoreDecision: typeof decision === 'string' ? decision : null,
+    scoreMetrics: metrics,
     monthlySpend: row.monthly_spend ?? row.monthlySpend ?? null,
     topCategory: row.top_category ?? row.topCategory ?? null,
-    notes: row.notes ?? null,
+    notes,
     createdAt: row.created_at ?? row.createdAt,
     updatedAt: row.updated_at ?? row.updatedAt,
   }
@@ -205,6 +379,9 @@ export async function findAdminByEmail(email: string): Promise<AdminUserRow | nu
   const sb = getSupabase()
   if (sb) {
     const { data, error } = await sb.from('admin_users').select('*').eq('email', normalized).maybeSingle()
+    if (error && isMissingSchemaError(error.message)) {
+      disableSupabaseSchema(error)
+    }
     if (!error && data) return mapAdmin(data)
     if (!error && !data && bootstrap.includes(normalized)) {
       return {
@@ -241,6 +418,9 @@ export async function listWaitlist(filters: {
     let q = sb.from('waitlist').select('*').order('created_at', { ascending: false })
     if (filters.status && filters.status !== 'all') q = q.eq('status', filters.status)
     const { data, error } = await q
+    if (error && isMissingSchemaError(error.message)) {
+      disableSupabaseSchema(error)
+    }
     if (!error && data) {
       let rows = data.map(mapWaitlist)
       if (filters.search) {
@@ -255,7 +435,15 @@ export async function listWaitlist(filters: {
     }
   }
 
-  let rows = readFile().waitlist
+  let rows = readFile().waitlist.map((row) => {
+    if (row.scoreMetrics) return row
+    const meta = parseNotes(row.notes)
+    return {
+      ...row,
+      scoreMetrics: meta.scoreMetrics && typeof meta.scoreMetrics === 'object' ? meta.scoreMetrics : null,
+      scoreDecision: row.scoreDecision || (typeof meta.scoreDecision === 'string' ? meta.scoreDecision : null),
+    }
+  })
   if (filters.status && filters.status !== 'all') {
     rows = rows.filter((r) => r.status === filters.status)
   }
@@ -278,6 +466,9 @@ export async function updateWaitlistStatus(id: string, status: WaitlistRow['stat
       .eq('id', id)
       .select('*')
       .single()
+    if (error && isMissingSchemaError(error.message)) {
+      disableSupabaseSchema(error)
+    }
     if (!error && data) return mapWaitlist(data)
   }
   const store = readFile()
@@ -294,11 +485,16 @@ export async function bulkUpdateWaitlistStatus(ids: string[], status: WaitlistRo
 
 export async function listAdmins(): Promise<AdminUserRow[]> {
   const sb = getSupabase()
+  let rows: AdminUserRow[] = []
   if (sb) {
     const { data, error } = await sb.from('admin_users').select('*').order('created_at', { ascending: false })
-    if (!error && data?.length) return data.map(mapAdmin)
+    if (error && isMissingSchemaError(error.message)) {
+      disableSupabaseSchema(error)
+    }
+    if (!error && data?.length) rows = data.map(mapAdmin)
   }
-  return readFile().admins
+  if (!rows.length) rows = readFile().admins
+  return Promise.all(rows.map(async (row) => publicAdmin(row, await getAdminAuth(row.email))))
 }
 
 export async function upsertAdmin(input: {
@@ -317,6 +513,9 @@ export async function upsertAdmin(input: {
         .eq('id', existing.id)
         .select('*')
         .single()
+      if (error && isMissingSchemaError(error.message)) {
+        disableSupabaseSchema(error)
+      }
       if (!error && data) return mapAdmin(data)
     } else {
       const { data, error } = await sb
@@ -324,6 +523,9 @@ export async function upsertAdmin(input: {
         .insert({ email, role: input.role, full_name: input.fullName || null })
         .select('*')
         .single()
+      if (error && isMissingSchemaError(error.message)) {
+        disableSupabaseSchema(error)
+      }
       if (!error && data) return mapAdmin(data)
     }
   }
@@ -355,6 +557,9 @@ export async function deleteAdmin(id: string): Promise<boolean> {
   const sb = getSupabase()
   if (sb) {
     const { error } = await sb.from('admin_users').delete().eq('id', id)
+    if (error && isMissingSchemaError(error.message)) {
+      disableSupabaseSchema(error)
+    }
     if (!error) return true
   }
   const store = readFile()
@@ -377,6 +582,8 @@ export async function createWaitlistEntry(input: {
     mobileNumber: null,
     status: input.status || 'pending',
     yurekaScore: null,
+    scoreDecision: null,
+    scoreMetrics: null,
     monthlySpend: null,
     topCategory: null,
     notes: null,
@@ -394,6 +601,9 @@ export async function createWaitlistEntry(input: {
       })
       .select('*')
       .single()
+    if (error && isMissingSchemaError(error.message)) {
+      disableSupabaseSchema(error)
+    }
     if (!error && data) return mapWaitlist(data)
   }
   const store = readFile()
@@ -416,6 +626,9 @@ export async function findWaitlistByEmail(email: string): Promise<WaitlistRow | 
         clearSupabaseCircuit()
         return data ? mapWaitlist(data) : null
       }
+      if (isMissingSchemaError(error.message)) {
+        disableSupabaseSchema(error)
+      }
       console.warn('[waitlist] supabase find error:', error.message)
     } catch (e) {
       tripSupabaseCircuit(e)
@@ -433,6 +646,9 @@ export async function countWaitlist(): Promise<number> {
         SUPABASE_WAITLIST_TIMEOUT_MS,
         'supabase countWaitlist'
       )
+      if (error && isMissingSchemaError(error.message)) {
+        disableSupabaseSchema(error)
+      }
       if (!error && typeof count === 'number') return count
     } catch (e) {
       tripSupabaseCircuit(e)
@@ -477,6 +693,8 @@ function writeJoinToFile(
         mobileNumber: payload.mobile_number,
         status: payload.status as WaitlistRow['status'],
         yurekaScore: payload.yureka_score,
+        scoreDecision: typeof meta.scoreDecision === 'string' ? meta.scoreDecision : store.waitlist[idx].scoreDecision,
+        scoreMetrics: meta.scoreMetrics && typeof meta.scoreMetrics === 'object' ? meta.scoreMetrics : store.waitlist[idx].scoreMetrics,
         monthlySpend: payload.monthly_spend,
         topCategory: payload.top_category,
         notes: payload.notes,
@@ -493,6 +711,8 @@ function writeJoinToFile(
     mobileNumber: payload.mobile_number,
     status: payload.status as WaitlistRow['status'],
     yurekaScore: payload.yureka_score,
+    scoreDecision: typeof meta.scoreDecision === 'string' ? meta.scoreDecision : null,
+    scoreMetrics: meta.scoreMetrics && typeof meta.scoreMetrics === 'object' ? meta.scoreMetrics : null,
     monthlySpend: payload.monthly_spend,
     topCategory: payload.top_category,
     notes: payload.notes,
@@ -547,6 +767,9 @@ export async function upsertWaitlistJoin(
           clearSupabaseCircuit()
           return { row: mapWaitlist(data), meta }
         }
+        if (error && isMissingSchemaError(error.message)) {
+          disableSupabaseSchema(error)
+        }
         console.warn('[waitlist] supabase update failed:', error?.message)
       } else {
         const { data, error } = await withTimeout(
@@ -557,6 +780,9 @@ export async function upsertWaitlistJoin(
         if (!error && data) {
           clearSupabaseCircuit()
           return { row: mapWaitlist(data), meta }
+        }
+        if (error && isMissingSchemaError(error.message)) {
+          disableSupabaseSchema(error)
         }
         if (error) console.warn('[waitlist] supabase insert failed:', error.message)
       }
@@ -577,6 +803,9 @@ export async function findWaitlistById(id: string): Promise<WaitlistRow | null> 
         SUPABASE_WAITLIST_TIMEOUT_MS,
         'supabase findWaitlistById'
       )
+      if (error && isMissingSchemaError(error.message)) {
+        disableSupabaseSchema(error)
+      }
       if (!error && data) return mapWaitlist(data)
     } catch (e) {
       tripSupabaseCircuit(e)
@@ -610,6 +839,9 @@ export async function patchWaitlistMetadata(
         SUPABASE_WAITLIST_TIMEOUT_MS,
         'supabase patchWaitlistMetadata'
       )
+      if (error && isMissingSchemaError(error.message)) {
+        disableSupabaseSchema(error)
+      }
       if (!error && data) return { row: mapWaitlist(data), meta }
     } catch (e) {
       tripSupabaseCircuit(e)

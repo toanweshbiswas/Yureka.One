@@ -1,21 +1,42 @@
 {
-  "name": "Yureka Money | India's AI-Native Wealth Operating System",
+  "id": "/",
+  "name": "Yureka",
   "short_name": "Yureka",
-  "description": "Compare 200+ Indian credit cards, earn assured Goldback on every spend, and grow your rewards in the Yureka Vault.",
-  "start_url": "/",
+  "description": "Earn Goldback on everyday spends. Track offers, gift cards, and rewards in one place.",
+  "start_url": "/?source=pwa",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#0a0a0a",
-  "theme_color": "#0a0a0a",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait-primary",
+  "background_color": "#070707",
+  "theme_color": "#070707",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "categories": ["finance", "lifestyle"],
   "icons": [
     {
       "src": "/logos/yureka-logo-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/logos/yureka-logo-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logos/yureka-logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/logos/yureka-logo-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

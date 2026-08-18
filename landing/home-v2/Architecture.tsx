@@ -61,7 +61,7 @@ export default function Architecture() {
                 type="button"
                 onClick={() => setOpen(isOpen ? null : i)}
                 aria-expanded={isOpen}
-                className={`w-full max-w-md rounded-lg border px-6 text-left transition-colors duration-300 ${
+                className={`w-full max-w-md touch-manipulation rounded-lg border px-6 text-left transition-colors duration-200 active:scale-[0.99] ${
                   isOpen ? 'border-white/25 bg-white/[0.03]' : 'border-white/10 hover:border-white/20'
                 }`}
               >

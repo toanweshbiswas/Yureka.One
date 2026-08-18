@@ -29,8 +29,8 @@ In **EC2 → Key pairs**, open the key pair attached to the instance and compare
 
 1. **EC2 → Instances → select instance → Connect**
 2. Tab **EC2 Instance Connect** → User name:
-   - **`ubuntu`** for Ubuntu AMI
-   - **`ec2-user`** for Amazon Linux
+   - **`ec2-user`** for Amazon Linux (current Yureka instance)
+   - **`ubuntu`** only if you launch an Ubuntu AMI later
 3. **Connect** (browser terminal opens)
 
 Note which username worked — use that for SSH later.
@@ -45,7 +45,7 @@ Note which username worked — use that for SSH later.
 ssh-keygen -y -f yureka.pem
 ```
 
-**In the Instance Connect terminal** (as `ubuntu` or `ec2-user`):
+**In the Instance Connect terminal** (as `ec2-user` on the current instance):
 
 ```bash
 mkdir -p ~/.ssh
@@ -68,8 +68,6 @@ chmod 600 ~/.ssh/authorized_keys
 
 ```bash
 chmod 400 yureka.pem
-ssh -i yureka.pem ubuntu@13.57.223.228
-# if Instance Connect used ec2-user:
 ssh -i yureka.pem ec2-user@13.57.223.228
 ```
 
@@ -90,13 +88,11 @@ ssh -i yureka.pem ec2-user@13.57.223.228
 ## Step 6 — Bootstrap Yureka (after SSH works)
 
 ```bash
-ssh -i yureka.pem ubuntu@13.57.223.228
-
 sudo git clone https://github.com/Sakshikhade/Yureka.One.git /opt/yureka-one
 sudo chown -R $USER:$USER /opt/yureka-one
 cd /opt/yureka-one
 cp .env.example .env
-nano .env   # paste production secrets; set APP_ORIGIN=http://13.57.223.228
+nano .env   # paste production secrets; set APP_ORIGIN=https://13-57-223-228.sslip.io
 bash scripts/ec2/bootstrap.sh
 curl -s http://127.0.0.1/api/health
 ```
@@ -104,7 +100,7 @@ curl -s http://127.0.0.1/api/health
 Or from Mac (once SSH works):
 
 ```bash
-scp -i yureka.pem .env ubuntu@13.57.223.228:/opt/yureka-one/.env
+scp -i yureka.pem .env ec2-user@13.57.223.228:/opt/yureka-one/.env
 EC2_HOST=13.57.223.228 EC2_KEY=./yureka.pem ./scripts/ec2/deploy-from-local.sh
 ```
 

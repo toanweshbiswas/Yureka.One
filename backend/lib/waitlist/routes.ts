@@ -70,8 +70,29 @@ export function registerWaitlistRoutes(app: Express) {
       const mobile = String(body.mobile_number || body.phone || '').trim() || null
       const existing = await findWaitlistByEmail(email)
 
-      // Idempotent: accepted / rejected / on_hold — never re-run intake or wipe status.
+      // Idempotent resume: anyone already on the waitlist should not be treated as a new join.
+      // Accepted / rejected / on_hold never re-run intake. Pending can optionally patch
+      // profile fields, but still returns alreadyExists so the UI does not say "newly added".
       if (existing && existing.status !== 'pending') {
+        return ok(res, {
+          data: toPublicWaitlistEntry(existing, parseWaitlistMeta(existing)),
+          alreadyExists: true,
+        })
+      }
+
+      // Soft resume: if they already applied as pending and this request has no new profile
+      // fields (status-check style), return the existing row without rewriting it.
+      const hasProfilePatch = Boolean(
+        name ||
+          mobile ||
+          body.yureka_score != null ||
+          body.monthly_spend != null ||
+          body.most_used_for != null ||
+          body.source_channel != null ||
+          body.date_of_birth != null ||
+          body.gender != null
+      )
+      if (existing && existing.status === 'pending' && !hasProfilePatch) {
         return ok(res, {
           data: toPublicWaitlistEntry(existing, parseWaitlistMeta(existing)),
           alreadyExists: true,
@@ -97,8 +118,8 @@ export function registerWaitlistRoutes(app: Express) {
         email,
         fullName: name || null,
         mobileNumber: mobile,
-        // Never demote accepted; pending stays pending on re-submit.
-        status: existing?.status === 'accepted' ? 'accepted' : existing?.status || 'pending',
+        // Never demote accepted / rejected / on_hold — preserve existing terminal status.
+        status: existing?.status && existing.status !== 'pending' ? existing.status : 'pending',
         yurekaScore:
           body.yureka_score != null && Number.isFinite(Number(body.yureka_score))
             ? Number(body.yureka_score)
@@ -117,6 +138,13 @@ export function registerWaitlistRoutes(app: Express) {
       }
 
       const { row, meta } = await upsertWaitlistJoin(input)
+      if (!alreadyExists) {
+        const { sendWaitlistReceivedEmail } = await import('../mail/appEmails.js')
+        const mail = await sendWaitlistReceivedEmail({ to: email, fullName: name || row.fullName })
+        if (!mail.sent) {
+          console.warn('[waitlist] received email not sent:', mail.skipped || mail.error)
+        }
+      }
       ok(res, {
         data: toPublicWaitlistEntry(row, meta),
         alreadyExists,

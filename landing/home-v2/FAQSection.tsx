@@ -64,7 +64,7 @@ function FAQItem({
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center justify-between gap-6 text-left"
+        className="flex w-full touch-manipulation items-center justify-between gap-6 text-left active:opacity-80"
       >
         <span style={{ fontFamily: 'Inter, sans-serif' }} className="text-[16px] text-white sm:text-[18px]">
           {q}

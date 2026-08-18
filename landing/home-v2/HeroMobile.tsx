@@ -1,31 +1,15 @@
 import { motion } from 'framer-motion';
-import { useInView } from './useInView';
 import GlassLayer from './GlassLayer';
 import JoinWaitlistButton from './JoinWaitlistButton';
-import { useState } from 'react';
+import ScrollVideo from '@shared/ScrollVideo';
 
-// Mobile-only stacked version of the hero cinematic. The desktop experience
-// (components/home-v2/HeroCinematic.tsx) is a pinned, scroll-scrubbed,
-// horizontally-sliding sequence that does not translate to touch/mobile —
-// videos never load and the panels collapse. This renders the exact same
-// four panels' content as plain, vertically-stacked, fully responsive
-// sections with normally-autoplaying inline videos. Only mounted below the
-// `md` breakpoint (see HeroCinematic's isDesktop branch), so desktop is
-// completely unaffected.
+// Mobile-only stacked hero. Desktop uses HeroCinematic (pin scrub).
+// Mounted only below `md` via MainPage.
 
-// The cinematic green video and the phone-rewards demo both show real content
-// from the first frame; vault.mp4 is intentionally black for its first ~7s
-// (it's built to be scrubbed, not looped), so it's not used on mobile.
 const CINEMATIC_VIDEO_URL = '/rewards-desktop-final.mp4';
 const REWARDS_VIDEO_URL = '/rewards.mp4';
 
-// Lazily mount each video only once it nears the viewport, then autoplay it
-// inline+muted (the combination iOS/Android require for unattended playback).
-// Shows a branded dark gradient placeholder until video data is loaded —
-// prevents blank/black boxes if the browser hasn't buffered any frames yet.
-// rootMargin bumped to 1000px so videos start loading well before they enter
-// the viewport — reducing the chance of a black box on slow connections.
-function LazyVideo({
+function MobileVideo({
   src,
   fit = 'cover',
   className = '',
@@ -36,56 +20,15 @@ function LazyVideo({
   className?: string;
   eager?: boolean;
 }) {
-  const { ref, inView } = useInView<HTMLDivElement>('1000px');
-  const show = eager || inView;
-  const [loaded, setLoaded] = useState(false);
   return (
-    <div
-      ref={ref}
-      className={`relative overflow-hidden shadow-2xl shadow-black/40 backdrop-blur-xl ${className}`}
-      style={{
-        // Branded gradient placeholder shown until video has frames.
-        // Prevents the pure-black empty box on iOS/Android.
-        background: loaded
-          ? '#0a0a0a'
-          : 'linear-gradient(135deg, #0d1a0f 0%, #0a0a0a 50%, #0d1209 100%)',
-      }}
-    >
-      {/* Green accent glow shown while loading */}
-      {!loaded && (
-        <div
-          className="absolute inset-0 flex items-center justify-center"
-          style={{ opacity: 0.18 }}
-        >
-          <div
-            style={{
-              width: '60%',
-              height: '60%',
-              borderRadius: '50%',
-              background: 'radial-gradient(circle, #5fae52 0%, transparent 70%)',
-              filter: 'blur(32px)',
-            }}
-          />
-        </div>
-      )}
-      {show && (
-        <video
-          src={src}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-          onCanPlay={(e) => {
-            const p = e.currentTarget.play();
-            if (p) p.catch(() => {});
-          }}
-          onLoadedData={() => setLoaded(true)}
-          className={`absolute inset-0 h-full w-full transition-opacity duration-500 ${
-            fit === 'cover' ? 'object-cover' : 'object-contain'
-          } ${loaded ? 'opacity-100' : 'opacity-0'}`}
-        />
-      )}
+    <div className={`relative ${className}`}>
+      <ScrollVideo
+        src={src}
+        fit={fit}
+        eager={eager}
+        className="absolute inset-0 h-full w-full"
+        rootMargin={eager ? '0px' : '320px 0px'}
+      />
       <GlassLayer />
     </div>
   );
@@ -93,12 +36,9 @@ function LazyVideo({
 
 export default function HeroMobile() {
   return (
-    <div className="w-full bg-black px-5 pb-16 pt-24">
-
-      {/* ---------- 0. Cinematic First Screen ---------- */}
-      {/* Breaks out of px-5 and pt-24 padding to be truly full-screen */}
-      <section className="relative -mx-5 -mt-24 flex h-[100dvh] w-screen flex-col items-center justify-center overflow-hidden">
-        {/* Dot grid — same pattern as the desktop vault overlay */}
+    <div className="w-full overflow-x-hidden bg-black">
+      {/* Full-bleed first screen — no w-screen / negative margins (avoids iOS horizontal scroll) */}
+      <section className="relative flex h-[100dvh] w-full flex-col items-center justify-center overflow-hidden">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
@@ -108,20 +48,16 @@ export default function HeroMobile() {
           }}
         />
 
-        {/* Ambient green glow behind the text */}
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div
+            className="h-1/2 w-4/5 rounded-full"
             style={{
-              width: '80%',
-              height: '50%',
-              borderRadius: '50%',
               background: 'radial-gradient(ellipse, rgba(95,174,82,0.08) 0%, transparent 70%)',
               filter: 'blur(60px)',
             }}
           />
         </div>
 
-        {/* Cinematic headline — matches the vault video's green crawl text */}
         <motion.p
           className="relative z-10 px-8 text-center font-bold uppercase leading-[1.9] tracking-[0.2em]"
           style={{
@@ -132,7 +68,7 @@ export default function HeroMobile() {
           }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 2.2, ease: 'easeOut', delay: 0.5 }}
+          transition={{ type: 'spring', bounce: 0, duration: 0.8, delay: 0.35 }}
         >
           The Wealthiest Few Know
           <br />
@@ -141,27 +77,26 @@ export default function HeroMobile() {
           Never Will_
         </motion.p>
 
-        {/* Scroll-down cue — bottom center */}
-        <div className="absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2">
+        <div className="absolute bottom-10 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 motion-reduce:hidden">
           <motion.div
             className="h-10 w-px origin-top bg-white/30"
             initial={{ scaleY: 0, opacity: 0 }}
             animate={{ scaleY: [0, 1, 1, 0], opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut', delay: 1.6 }}
           />
           <motion.span
             className="text-[10px] uppercase tracking-[0.3em] text-white/35"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 1, delay: 2.5 }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.5, delay: 2 }}
           >
             Keep Scrolling
           </motion.span>
         </div>
       </section>
 
-      {/* ---------- 1. Hero ---------- */}
-      <section className="relative mt-4">
+      <div className="px-5 pb-16 pt-4">
+      <section className="relative">
         <div
           className="pointer-events-none absolute inset-0 -z-0"
           style={{
@@ -170,10 +105,10 @@ export default function HeroMobile() {
             opacity: 0.05,
           }}
         />
-        <LazyVideo
+        <MobileVideo
           src={CINEMATIC_VIDEO_URL}
           eager
-          className="relative z-10 mb-8 aspect-[4/3] w-full rounded-2xl border border-white/10"
+          className="relative z-10 mb-8 aspect-[4/3] w-full min-h-[220px] rounded-2xl border border-white/10"
         />
         <div className="relative z-10 flex flex-col gap-5">
           <h1 className="text-[clamp(44px,13vw,72px)] font-light leading-[0.95] tracking-[-0.03em] text-white">
@@ -196,7 +131,6 @@ export default function HeroMobile() {
         </div>
       </section>
 
-      {/* ---------- 2. Meet Yureka ---------- */}
       <section className="mt-20" style={{ fontFamily: 'Inter, sans-serif' }}>
         <div className="flex items-baseline gap-2">
           <span
@@ -221,12 +155,11 @@ export default function HeroMobile() {
         </p>
 
         <div className="mt-6 grid grid-cols-1 gap-4">
-          <LazyVideo
+          <MobileVideo
             src={REWARDS_VIDEO_URL}
             className="min-h-[340px] rounded-2xl border border-white/10"
           />
 
-          {/* Shop Across 700+ Brands */}
           <div className="relative flex flex-col overflow-hidden rounded-2xl border border-white/20 bg-[#0a0a0a]/80 p-5">
             <h3 className="text-[18px] font-extrabold uppercase leading-tight text-white">
               Shop Across <span className="text-[#5fae52]">700+</span> Brands
@@ -250,7 +183,6 @@ export default function HeroMobile() {
             </ul>
           </div>
 
-          {/* Not Just One Time Saving */}
           <div className="relative flex flex-col overflow-hidden rounded-2xl border border-white/20 bg-[#0a0a0a]/80 p-5">
             <h3
               style={{ fontFamily: '"Playfair Display", serif' }}
@@ -276,7 +208,6 @@ export default function HeroMobile() {
         </div>
       </section>
 
-      {/* ---------- 3. We Hate Gatekeeping ---------- */}
       <section className="mt-20" style={{ fontFamily: 'Inter, sans-serif' }}>
         <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-white">
           Yureka is your new age Ai backed SavingOs
@@ -298,28 +229,28 @@ export default function HeroMobile() {
           If you are a #Power Shopper then Yureka is for you
         </p>
         <JoinWaitlistButton className="mt-8" />
-        <LazyVideo
+        <MobileVideo
           src={REWARDS_VIDEO_URL}
           fit="contain"
           className="mt-6 min-h-[300px] rounded-2xl border border-white/10"
         />
       </section>
 
-      {/* ---------- 4. Cinematic Text ---------- */}
       <section className="mt-20">
-        <LazyVideo
+        <MobileVideo
           src={CINEMATIC_VIDEO_URL}
-          className="aspect-video w-full rounded-2xl border border-white/20"
+          className="aspect-video w-full min-h-[200px] rounded-2xl border border-white/20"
         />
         <p className="mt-6 px-1 text-center font-sans text-[16px] leading-[1.5] tracking-[-0.01em] text-white/90">
           Experience the future of financial intelligence with Yureka, the premier AI-native
-          Wealth Operating System built for India's digital economy. Yureka functions as a
+          Wealth Operating System built for India&apos;s digital economy. Yureka functions as a
           neural-AI interface that bridges the gap between daily consumer behavior and automated
           wealth accumulation. Whether you are seeking to maximize returns through gold-backed
           investments or build a high-fidelity alternative credit profile, Yureka filters out
           digital noise to deliver precision financial insights.
         </p>
       </section>
+      </div>
     </div>
   );
 }

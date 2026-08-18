@@ -27,6 +27,36 @@ export function hubbleConfigured(): boolean {
   return Boolean(baseUrl && clientId && clientSecret)
 }
 
+/**
+ * Checkout is enabled when Hubble is configured AND either Razorpay is configured
+ * or GIFTCARD_DIRECT_ISSUE=true (wallet debit without collecting user payment).
+ */
+export function giftcardDirectIssueEnabled(): boolean {
+  return String(process.env.GIFTCARD_DIRECT_ISSUE || '').trim().toLowerCase() === 'true'
+}
+
+export function giftcardCheckoutEnabled(): boolean {
+  const raw = String(process.env.GIFTCARD_CHECKOUT_ENABLED || '').trim().toLowerCase()
+  if (raw === 'false' || raw === '0' || raw === 'off') return false
+  if (!hubbleConfigured()) return false
+  const razorpayOn = Boolean(
+    (process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_API_KEY || process.env.RAZORPAY_API_KEY || '').trim() &&
+      (process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET || process.env.RAZORPAY_SECRET || '').trim(),
+  )
+  return razorpayOn || giftcardDirectIssueEnabled()
+}
+
+export function giftcardCheckoutMode(): 'razorpay' | 'direct_wallet' | 'disabled' {
+  if (!giftcardCheckoutEnabled()) return 'disabled'
+  const razorpayOn = Boolean(
+    (process.env.RAZORPAY_KEY_ID || process.env.RAZORPAY_LIVE_API_KEY || process.env.RAZORPAY_API_KEY || '').trim() &&
+      (process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_LIVE_KEY_SECRET || process.env.RAZORPAY_SECRET || '').trim(),
+  )
+  if (razorpayOn) return 'razorpay'
+  if (giftcardDirectIssueEnabled()) return 'direct_wallet'
+  return 'disabled'
+}
+
 function normalizeCategories(raw: HubbleProductRaw['category']): string[] {
   if (!raw) return []
   if (Array.isArray(raw)) return raw.filter(Boolean).map(String)
@@ -67,7 +97,7 @@ export function mapProduct(raw: HubbleProductRaw): GiftCard {
 async function getAccessToken(): Promise<string> {
   const { baseUrl, clientId, clientSecret } = config()
   if (!clientId || !clientSecret) {
-    throw new Error('Hubble credentials missing (HUBBLE_CLIENT_ID / HUBBLE_CLIENT_SECRET)')
+    throw new Error('Gift card service credentials are missing')
   }
 
   if (tokenCache && Date.now() < tokenCache.expiresAt - TOKEN_SKEW_MS) {
@@ -83,14 +113,20 @@ async function getAccessToken(): Promise<string> {
     body: JSON.stringify({ clientId, clientSecret }),
   })
 
-  const body = (await res.json().catch(() => ({}))) as {
-    token?: string
-    expiresInSecs?: number
-    message?: string
+  const raw = await res.text()
+  let body: { token?: string; expiresInSecs?: number; message?: string } = {}
+  try {
+    body = raw ? (JSON.parse(raw) as typeof body) : {}
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'Gift card service returned an unexpected response'
+        : `Gift card authentication failed (${res.status})`,
+    )
   }
 
   if (!res.ok || !body.token) {
-    throw new Error(body.message || `Hubble auth failed (${res.status})`)
+    throw new Error(body.message || `Gift card authentication failed (${res.status})`)
   }
 
   tokenCache = {
@@ -124,10 +160,22 @@ async function hubbleRequest<T>(
     body: opts?.body != null ? JSON.stringify(opts.body) : undefined,
   })
 
-  const body = await res.json().catch(() => ({}))
+  const raw = await res.text()
+  let body: unknown = {}
+  if (raw) {
+    try {
+      body = JSON.parse(raw)
+    } catch {
+      throw new Error(
+        res.ok
+          ? 'Gift card service returned an unexpected response'
+          : `Gift card request failed (${res.status})`,
+      )
+    }
+  }
   if (!res.ok) {
     const msg =
-      (body as any)?.message || (body as any)?.error || `Hubble request failed (${res.status})`
+      (body as any)?.message || (body as any)?.error || `Gift card request failed (${res.status})`
     throw new Error(typeof msg === 'string' ? msg : JSON.stringify(msg))
   }
   return body as T

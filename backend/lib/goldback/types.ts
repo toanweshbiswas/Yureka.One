@@ -8,6 +8,7 @@ export interface GoldbackOffer {
   category: string
   description: string
   url: string
+  imageUrl?: string | null
   rewardPaise: number
   rewardLabel: string
   active: boolean
@@ -36,4 +37,6 @@ export interface GoldbackStoreSnapshot {
   offers: GoldbackOffer[]
   ledger: GoldbackLedgerEntry[]
   clicks: { id: string; userId: string; offerId: string; createdAt: string }[]
+  /** After an admin deletes an offer, do not auto-insert seed catalog rows. */
+  offerSeedLocked?: boolean
 }

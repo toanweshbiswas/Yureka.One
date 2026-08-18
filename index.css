@@ -43,6 +43,86 @@
   text-transform: none !important;
 }
 
+/* ── Product app + admin ──
+   Marketing pages need the a11y opacity/type bumps below. Product UI relies on
+   true white/opacity hierarchy and designed micro-labels — those globals flatten
+   contrast and crush badges/CTAs. Opt out via `.yureka-product` on the shell. */
+.yureka-product h1,
+.yureka-product h2,
+.yureka-product h3,
+.yureka-product h4,
+.yureka-product h5,
+.yureka-product h6,
+.yureka-product .font-heading {
+  color: inherit !important;
+  text-transform: none !important;
+}
+
+.yureka-product .text-white\/20 { color: rgba(255, 255, 255, 0.2) !important; }
+.yureka-product .text-white\/25 { color: rgba(255, 255, 255, 0.25) !important; }
+.yureka-product .text-white\/30 { color: rgba(255, 255, 255, 0.3) !important; }
+.yureka-product .text-white\/35 { color: rgba(255, 255, 255, 0.35) !important; }
+.yureka-product .text-white\/40 { color: rgba(255, 255, 255, 0.4) !important; }
+.yureka-product .text-white\/45 { color: rgba(255, 255, 255, 0.45) !important; }
+.yureka-product .text-white\/50 { color: rgba(255, 255, 255, 0.5) !important; }
+.yureka-product .text-white\/60 { color: rgba(255, 255, 255, 0.6) !important; }
+.yureka-product .text-white\/70 { color: rgba(255, 255, 255, 0.7) !important; }
+.yureka-product .text-white\/80 { color: rgba(255, 255, 255, 0.8) !important; }
+
+.yureka-product .text-gray-400,
+.yureka-product .text-neutral-400,
+.yureka-product .text-zinc-400 { color: rgb(156 163 175) !important; }
+.yureka-product .text-gray-500,
+.yureka-product .text-neutral-500,
+.yureka-product .text-zinc-500 { color: rgb(107 114 128) !important; }
+
+.yureka-product .text-\[8px\] { font-size: 8px !important; letter-spacing: inherit !important; }
+.yureka-product .text-\[9px\] { font-size: 9px !important; letter-spacing: inherit !important; }
+.yureka-product .text-\[10px\] { font-size: 10px !important; letter-spacing: inherit !important; }
+.yureka-product .text-\[11px\] { font-size: 11px !important; letter-spacing: inherit !important; }
+.yureka-product .text-xs { font-size: 0.75rem !important; }
+
+/* Product shell — notch / home-indicator safe areas */
+.safe-area-x {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+.yureka-product {
+  min-height: 100dvh;
+}
+@supports (padding: max(0px)) {
+  .yureka-product .safe-pt {
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  }
+  .yureka-product .safe-pb {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 480px) {
+  .yureka-product h1,
+  .yureka-product h2,
+  .yureka-product h3 {
+    font-size: unset !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .yureka-product [class*="backdrop-blur"] {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background-color: rgba(10, 10, 10, 0.96) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .yureka-product .active\:scale-\[0\.97\]:active,
+  .yureka-product .active\:scale-\[0\.96\]:active,
+  .yureka-product .active\:scale-\[0\.98\]:active {
+    transform: none !important;
+  }
+}
+
 /* Entrance animations here can be interrupted by app-level re-renders (data
    refetch), freezing framer-motion mid-fade and leaving content invisible.
    Force the animated wrappers to their visible end-state (opacity 1, no
@@ -519,8 +599,12 @@
   .yureka-one-home * {
     scroll-behavior: auto !important;
   }
+  /* Keep video boxes for layout; freeze motion instead of hiding media. */
   .yureka-one-home video {
-    display: none !important;
+    animation: none !important;
+  }
+  .yureka-one-home [style*='home-v2-marquee'] {
+    animation: none !important;
   }
 }
 

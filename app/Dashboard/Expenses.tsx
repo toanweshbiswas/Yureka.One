@@ -23,7 +23,8 @@ const Expenses: React.FC = () => {
         ledgerLoading: loading, 
         ledgerError: error, 
         scanProgress, 
-        syncLedger 
+        syncLedger,
+        ledgerResyncQuota,
     } = useSupabase();
     
     const [searchQuery, setSearchQuery] = useState('');
@@ -35,7 +36,14 @@ const Expenses: React.FC = () => {
         });
     }, [ledgerTransactions]);
 
+    const remaining = ledgerResyncQuota?.remaining
+    const resyncBlocked = remaining === 0
+    const nextResync = ledgerResyncQuota?.nextAvailableAt
+        ? new Date(ledgerResyncQuota.nextAvailableAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
+        : null
+
     const triggerSync = () => {
+        if (resyncBlocked) return
         syncLedger(true);
     };
 
@@ -90,14 +98,21 @@ const Expenses: React.FC = () => {
                         className="w-full pl-12 pr-6 py-4 bg-white/[0.02] border border-white/5 rounded-2xl text-white placeholder-white/30 text-sm focus:outline-none focus:border-clay/50 transition-all font-sans"
                     />
                 </div>
+                <div className="w-full sm:w-auto flex flex-col items-stretch sm:items-end gap-2">
                 <button
-                    disabled={loading}
+                    disabled={loading || resyncBlocked}
                     onClick={triggerSync}
-                    className="w-full sm:w-auto px-6 py-4 bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl flex items-center justify-center gap-3 text-white/70 hover:text-white transition-all text-xs uppercase tracking-[0.2em] font-black group cursor-pointer"
+                    className="w-full sm:w-auto px-6 py-4 bg-white/[0.02] border border-white/5 hover:border-white/10 rounded-2xl flex items-center justify-center gap-3 text-white/70 hover:text-white transition-all text-xs uppercase tracking-[0.2em] font-black group cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <RefreshCw size={14} className={`${loading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-                    {loading ? 'Analyzing...' : 'Resync Inbox'}
+                    {loading ? 'Analyzing...' : resyncBlocked ? 'Resync used' : 'Resync Inbox'}
                 </button>
+                <p className="text-[10px] text-white/35 uppercase tracking-widest text-center sm:text-right">
+                    {resyncBlocked
+                        ? `Next resync ${nextResync || 'after 15 days'}`
+                        : `${remaining ?? 2} of 2 resyncs left · 15 days`}
+                </p>
+                </div>
             </div>
 
             {/* Error Notification Alert */}
@@ -115,16 +130,27 @@ const Expenses: React.FC = () => {
                             </div>
                             <div className="text-left">
                                 <h4 className="text-white font-bold text-sm">
-                                    {error === "AUTH_EXPIRED" ? "Google Ledger Session Expired" : "Synchronisation Failed"}
+                                    {error === "AUTH_EXPIRED" ? "Gmail inbox access needed" : error === "RESYNC_LIMIT" ? "Resync limit reached" : "Synchronisation Failed"}
                                 </h4>
                                 <p className="text-white/40 text-xs mt-1">
                                     {error === "AUTH_EXPIRED" 
-                                        ? "Your secure read-only authorization session has expired. Please re-link your Google account to synchronize your ledger."
+                                        ? "Grant read-only Gmail access so we can pull purchase and bill emails for your spending ledger."
+                                        : error === "RESYNC_LIMIT"
+                                        ? `You can resync inbox twice every 15 days. Next available ${nextResync || 'soon'}.`
                                         : error
                                     }
                                 </p>
                             </div>
                         </div>
+                        {error === "AUTH_EXPIRED" && (
+                            <button
+                                type="button"
+                                onClick={triggerSync}
+                                className="px-5 py-3 rounded-2xl bg-clay text-black text-[10px] font-black uppercase tracking-[0.2em] inline-flex items-center gap-2"
+                            >
+                                <LogIn size={14} /> Connect Gmail
+                            </button>
+                        )}
                     </motion.div>
                 )}
             </AnimatePresence>
