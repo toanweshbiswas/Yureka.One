@@ -10,12 +10,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "one.yureka.app",
-      "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Yureka does not need the camera.",
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "associatedDomains": ["applinks:app.yureka.one"]
+      }
     },
     "android": {
       "package": "one.yureka.app",
@@ -47,7 +45,6 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-apple-authentication",
       "expo-web-browser",
       [
         "expo-splash-screen",
@@ -73,6 +70,9 @@
       "supportUrl": "https://yureka.one/contact",
       "supportEmail": "support@yureka.one"
     },
-    "owner": "yureka"
+    "owner": "yureka",
+    "autolinking": {
+      "exclude": ["expo-apple-authentication"]
+    }
   }
 }

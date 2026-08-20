@@ -6,7 +6,7 @@ import { hapticError, hapticLight } from '@/lib/haptics'
 import { colors, space } from '@/lib/theme'
 import * as AppleAuthentication from 'expo-apple-authentication'
 import { Link, Redirect } from 'expo-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   ActivityIndicator,
   Image,
@@ -27,6 +27,12 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState<'apple' | 'google' | 'email' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [appleSignInAvailable, setAppleSignInAvailable] = useState(false)
+
+  useEffect(() => {
+    if (Platform.OS !== 'ios') return
+    void AppleAuthentication.isAvailableAsync().then(setAppleSignInAvailable)
+  }, [])
 
   if (session && canEnterApp) return <Redirect href="/(app)/(tabs)/index" />
   if (session && !canEnterApp && status !== 'loading') return <Redirect href="/(auth)/waiting" />
@@ -68,7 +74,7 @@ export default function LoginScreen() {
 
           {error ? <Banner text={error} tone="danger" /> : null}
 
-          {Platform.OS === 'ios' ? (
+          {appleSignInAvailable ? (
             <AppleAuthentication.AppleAuthenticationButton
               buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
               buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}

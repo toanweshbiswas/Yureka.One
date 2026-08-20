@@ -13,6 +13,7 @@
     "lint": "tsc --noEmit",
     "prebuild": "expo prebuild",
     "prebuild:clean": "expo prebuild --clean",
+    "prebuild:personal-team": "EXPO_PUBLIC_IOS_PERSONAL_TEAM=1 expo prebuild --platform ios && node scripts/strip-ios-entitlements.mjs",
     "pods": "npx pod-install",
     "open:ios": "open ios/Yureka.xcworkspace",
     "open:android": "open -a 'Android Studio' android",
