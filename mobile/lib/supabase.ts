@@ -33,6 +33,19 @@ const secureStorage = {
     return meta
   },
   async setItem(key: string, value: string) {
+    const meta = await SecureStore.getItemAsync(key)
+    if (meta) {
+      try {
+        const parsed = JSON.parse(meta) as { chunks?: number }
+        if (parsed && typeof parsed.chunks === 'number') {
+          for (let i = 0; i < parsed.chunks; i++) {
+            await SecureStore.deleteItemAsync(`${key}.${i}`)
+          }
+        }
+      } catch {
+        /* plain value */
+      }
+    }
     if (value.length <= CHUNK) {
       await SecureStore.setItemAsync(key, value)
       return

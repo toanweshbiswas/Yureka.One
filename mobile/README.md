@@ -13,6 +13,33 @@ pnpm pods            # CocoaPods for Xcode (macOS only)
 pnpm start           # Metro bundler
 ```
 
+**EAS / TestFlight:** set `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` as EAS secrets (they are not in `eas.json`). For App Store builds, prebuild with `EXPO_PUBLIC_IOS_PAID_TEAM=1` so Sign in with Apple and Universal Links work.
+
+### Personal Team (free Apple ID) — local device/simulator
+
+Production bundle `one.yureka.app` is registered to the org account. On a Personal Team use the dev bundle instead:
+
+```bash
+pnpm prebuild:personal-team   # bundle one.yureka.app.dev, no Apple Sign-In entitlements
+pnpm pods
+pnpm start                    # Metro — keep running
+pnpm open:ios                 # opens Yureka.xcworkspace
+```
+
+In Xcode → **Signing & Capabilities** → select **your** Personal Team. Do **not** add “Sign in with Apple” manually.
+
+**Module map / `No such module 'Expo'` errors:** almost always means Xcode opened **`Yureka.xcodeproj`** instead of **`Yureka.xcworkspace`**, or Pods are stale. Run:
+
+```bash
+pnpm repair:ios    # clean DerivedData + pod install + signing fixes
+pnpm start         # Metro — keep running
+pnpm open:ios      # opens the .xcworkspace
+```
+
+Then Product → Clean Build Folder (⇧⌘K) → Run (⌘R). Build for **simulator** first; switch to a physical device after simulator succeeds.
+
+**Xcode 26 + Swift 6.2 `JavaScriptCodable+Date.swift` error:** run `pnpm patch:ios` (applies upstream `Swift.abs` fix to `expo-modules-jsi`).
+
 ## Open in Xcode or Android Studio
 
 This is an **Expo / React Native** app (not Flutter). Native projects live in `ios/` and `android/` after `pnpm prebuild`.

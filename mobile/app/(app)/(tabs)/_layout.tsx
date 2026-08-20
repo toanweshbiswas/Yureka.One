@@ -1,25 +1,63 @@
 import { colors } from '@/lib/theme'
-import { NativeTabs } from 'expo-router/unstable-native-tabs'
+import { Ionicons } from '@expo/vector-icons'
+import { Tabs } from 'expo-router'
+import { SymbolView } from 'expo-symbols'
+import { Platform, type ColorValue } from 'react-native'
+
+type TabIconProps = {
+  color: ColorValue
+  sf: React.ComponentProps<typeof SymbolView>['name']
+  ion: React.ComponentProps<typeof Ionicons>['name']
+}
+
+function TabIcon({ color, sf, ion }: TabIconProps) {
+  if (Platform.OS === 'ios') {
+    return <SymbolView name={sf} size={22} tintColor={String(color)} weight="semibold" />
+  }
+  return <Ionicons name={ion} size={22} color={String(color)} />
+}
 
 export default function AppTabs() {
   return (
-    <NativeTabs tintColor={colors.clay} minimizeBehavior="onScrollDown">
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Icon sf="house.fill" md="home" />
-        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="offers">
-        <NativeTabs.Trigger.Icon sf="bag.fill" md="shopping_bag" />
-        <NativeTabs.Trigger.Label>Offers</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="giftcards">
-        <NativeTabs.Trigger.Icon sf="gift.fill" md="card_giftcard" />
-        <NativeTabs.Trigger.Label>Gift cards</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="more" role="more">
-        <NativeTabs.Trigger.Icon sf="ellipsis.circle.fill" md="more_horiz" />
-        <NativeTabs.Trigger.Label>More</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.clay,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: {
+          backgroundColor: colors.bg,
+          borderTopColor: colors.border,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Home',
+          tabBarIcon: ({ color }) => <TabIcon color={color} sf="house.fill" ion="home" />,
+        }}
+      />
+      <Tabs.Screen
+        name="offers"
+        options={{
+          title: 'Offers',
+          tabBarIcon: ({ color }) => <TabIcon color={color} sf="bag.fill" ion="bag" />,
+        }}
+      />
+      <Tabs.Screen
+        name="giftcards"
+        options={{
+          title: 'Gift cards',
+          tabBarIcon: ({ color }) => <TabIcon color={color} sf="gift.fill" ion="gift" />,
+        }}
+      />
+      <Tabs.Screen
+        name="more"
+        options={{
+          title: 'More',
+          tabBarIcon: ({ color }) => <TabIcon color={color} sf="ellipsis.circle.fill" ion="ellipsis-horizontal" />,
+        }}
+      />
+    </Tabs>
   )
 }

@@ -1,11 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { Platform } from 'react-native'
-import * as AppleAuthentication from 'expo-apple-authentication'
 import * as Linking from 'expo-linking'
 import * as WebBrowser from 'expo-web-browser'
+import { signInWithAppleNative } from './appleAuth'
 import { apiFetch, setApiTokenGetter } from './api'
 import { authRedirectUri } from './authRedirect'
 import { signInWithGoogleOAuth } from './googleAuth'
+import { routeOAuthCallback } from './oauthCallback'
 import { supabase, supabaseConfigured, type Session, type User } from './supabase'
 
 WebBrowser.maybeCompleteAuthSession()
@@ -44,14 +44,15 @@ function normalizeStatus(raw?: string | null): AppUserStatus {
   return 'none'
 }
 
-async function fetchStatus(email: string): Promise<AppUserStatus> {
+async function fetchStatus(email: string): Promise<AppUserStatus | null> {
   try {
     const res = await apiFetch<{ status?: string }>(
       `/api/v1/auth/status?email=${encodeURIComponent(email)}`,
     )
     return normalizeStatus(res.data?.status)
   } catch {
-    return 'none'
+    // null = network/API failure — keep prior status instead of sending user to waiting.
+    return null
   }
 }
 
@@ -73,7 +74,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return
     }
     const next = await fetchStatus(email)
-    setStatus(next)
+    if (next !== null) setStatus(next)
   }, [user?.email])
 
   useEffect(() => {
@@ -94,17 +95,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(next?.user ?? null)
     })
 
-    const client = supabase
     const consumeAuthUrl = async (url: string) => {
       try {
         const parsed = new URL(url)
         if (!parsed.pathname.includes('/auth/callback')) return
         const code = parsed.searchParams.get('code')
         if (!code) return
-        // auth/callback screen performs the exchange; avoid double-handling here.
-        if (parsed.protocol === 'yureka:') return
-        const { error: exchangeError } = await client.auth.exchangeCodeForSession(code)
-        if (exchangeError) setError(exchangeError.message)
+        // Single PKCE exchange path — auth/callback screen owns the code.
+        routeOAuthCallback(code)
       } catch {
         /* ignore malformed deep links */
       }
@@ -162,20 +160,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithApple = useCallback(async () => {
     if (!supabase) throw new Error('Sign-in is unavailable')
-    if (Platform.OS !== 'ios') throw new Error('Apple sign-in is only on iOS')
     setError(null)
-    const credential = await AppleAuthentication.signInAsync({
-      requestedScopes: [
-        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-        AppleAuthentication.AppleAuthenticationScope.EMAIL,
-      ],
-    })
-    if (!credential.identityToken) throw new Error('Apple sign-in did not return a token')
-    const { error: err } = await supabase.auth.signInWithIdToken({
-      provider: 'apple',
-      token: credential.identityToken,
-    })
-    if (err) throw new Error(err.message)
+    await signInWithAppleNative(supabase)
   }, [])
 
   const resetPassword = useCallback(async (email: string) => {

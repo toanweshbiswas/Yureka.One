@@ -2,6 +2,7 @@ import * as Linking from 'expo-linking'
 import * as WebBrowser from 'expo-web-browser'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { authRedirectUri } from './authRedirect'
+import { routeOAuthCallback } from './oauthCallback'
 
 function parseOAuthCode(url: string): string | null {
   const parsed = Linking.parse(url)
@@ -69,8 +70,7 @@ export async function signInWithGoogleOAuth(client: SupabaseClient) {
     if (result.type === 'success' && result.url) {
       const code = parseOAuthCode(result.url)
       if (code) {
-        const { error: exchangeError } = await client.auth.exchangeCodeForSession(code)
-        if (exchangeError) throw new Error(exchangeError.message)
+        routeOAuthCallback(code)
         return
       }
     }

@@ -1,9 +1,10 @@
 import { CenteredSpinner } from '@/components/Screen'
+import { markCodeExchanged, wasCodeExchanged } from '@/lib/oauthCallback'
 import { supabase } from '@/lib/supabase'
 import { Redirect, useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 
-/** OAuth / magic-link landing — exchange PKCE code before routing home. */
+/** OAuth / magic-link landing — sole PKCE code exchange (Quithero-style single callback). */
 export default function AuthCallback() {
   const { code } = useLocalSearchParams<{ code?: string }>()
   const [ready, setReady] = useState(false)
@@ -12,7 +13,8 @@ export default function AuthCallback() {
   useEffect(() => {
     let alive = true
     const run = async () => {
-      if (!code) {
+      const authCode = code ? String(code) : ''
+      if (!authCode) {
         if (alive) setReady(true)
         return
       }
@@ -23,7 +25,16 @@ export default function AuthCallback() {
         }
         return
       }
-      const { error } = await supabase.auth.exchangeCodeForSession(String(code))
+      if (wasCodeExchanged(authCode)) {
+        const { data } = await supabase.auth.getSession()
+        if (!alive) return
+        if (data.session) {
+          setReady(true)
+          return
+        }
+      }
+      markCodeExchanged(authCode)
+      const { error } = await supabase.auth.exchangeCodeForSession(authCode)
       if (!alive) return
       if (error) setFailed(true)
       setReady(true)
