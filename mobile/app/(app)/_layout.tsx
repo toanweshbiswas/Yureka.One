@@ -17,7 +17,7 @@ export default function AppLayout() {
       }}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="web" options={{ title: 'Yureka', headerBackTitle: 'Back' }} />
+      <Stack.Screen name="web" options={{ title: '', headerBackTitle: 'Back' }} />
     </Stack>
   )
 }

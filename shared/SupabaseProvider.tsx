@@ -357,9 +357,30 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       });
     });
 
+    // When running inside the Yureka native app's WebView, the native shell
+    // injects the Supabase session into localStorage before page JS runs and
+    // fires this custom event. Re-reading the session here skips the login page.
+    const handleNativeSession = () => {
+      sb.auth.getSession().then(({ data }) => {
+        if (data.session && !cancelled) {
+          void applySession(data.session, { silent: true });
+        }
+      });
+    };
+    window.addEventListener('yureka-native-session', handleNativeSession);
+
+    // Also handle the case where the event fired before React mounted.
+    if (
+      typeof window !== 'undefined' &&
+      (window as unknown as Record<string, unknown>).__YUREKA_NATIVE_SESSION__
+    ) {
+      handleNativeSession();
+    }
+
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
+      window.removeEventListener('yureka-native-session', handleNativeSession);
       setAuthTokenGetter(null);
     };
   }, [applyStatusForEmail]);

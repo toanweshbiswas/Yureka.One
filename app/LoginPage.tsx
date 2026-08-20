@@ -13,7 +13,7 @@ import {
   supabaseConfigured,
 } from '@shared/auth'
 import { landingUrl } from '@shared/hosts'
-import { tryHandoffOAuthCodeToNativeApp } from '@shared/nativeAppHandoff'
+import { tryHandoffOAuthCodeToNativeApp, shouldHandoffToNativeApp, tryOpenNativeApp } from '@shared/nativeAppHandoff'
 import { isPasswordRecoveryCallback } from '@shared/oauthHandoff'
 import YurekaBrandMark from '@shared/YurekaBrandMark'
 
@@ -34,6 +34,10 @@ const LoginPage: React.FC = () => {
   const modeParam = searchParams.get('mode')
   const isSignup = location.pathname.endsWith('/signup') || modeParam === 'signup'
   const isForgot = modeParam === 'forgot'
+  // Running inside the Yureka native app's WebView — hide decorative web chrome.
+  const isEmbedded =
+    searchParams.get('embedded') === '1' ||
+    (typeof window !== 'undefined' && window.navigator.userAgent.includes('YurekaApp'))
   const oauthReturning =
     searchParams.has('code') ||
     searchParams.has('error') ||
@@ -85,6 +89,10 @@ const LoginPage: React.FC = () => {
     if (!user) return
 
     if (currentUserStatus === 'accepted' || currentUserStatus === 'admin') {
+      if (shouldHandoffToNativeApp()) {
+        tryOpenNativeApp('dashboard/home')
+        return
+      }
       navigate(nextPath.startsWith('/') ? nextPath : '/dashboard', { replace: true })
       return
     }
@@ -183,8 +191,8 @@ const LoginPage: React.FC = () => {
         paddingBottom: 'max(3rem, env(safe-area-inset-bottom, 0px))',
       }}
     >
-      <div className="fixed inset-0 pointer-events-none opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-      <div className="fixed top-1/4 -left-1/4 w-[50%] h-[50%] bg-clay/10 blur-[120px] rounded-full pointer-events-none" />
+      {!isEmbedded && <div className="fixed inset-0 pointer-events-none opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }} />}
+      {!isEmbedded && <div className="fixed top-1/4 -left-1/4 w-[50%] h-[50%] bg-clay/10 blur-[120px] rounded-full pointer-events-none" />}
 
       <motion.div
         initial={{ opacity: 0, y: 24 }}

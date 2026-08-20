@@ -239,7 +239,13 @@ const DashboardLayout: React.FC = () => {
     const { user } = useSupabase();
     const navigate = useNavigate();
     const location = useLocation();
-    
+    const handoffToNative = shouldHandoffToNativeApp();
+
+    useEffect(() => {
+        if (!handoffToNative) return
+        tryOpenNativeApp('dashboard/home')
+    }, [handoffToNative]);
+
     const reduceMotion = useReducedMotion();
     const [isSidebarOpen, setIsSidebarOpen] = useState(
         () => typeof window === 'undefined' || window.innerWidth >= 768
@@ -290,10 +296,22 @@ const DashboardLayout: React.FC = () => {
     }, []);
 
     const isGiftOrder = /\/dashboard\/giftcards\/orders\//.test(location.pathname);
-    const isNativeEmbedded =
-        typeof window !== 'undefined' &&
-        (window.navigator.userAgent.includes('YurekaApp') ||
-            new URLSearchParams(window.location.search).get('embedded') === '1');
+    // Persist the embedded flag in sessionStorage so it survives React Router
+    // redirects (e.g. /login → back to /dashboard after auth) that drop the
+    // ?embedded=1 query param. YurekaApp UA also signals the native WebView shell.
+    const isNativeEmbedded = (() => {
+        if (typeof window === 'undefined') return false;
+        if (window.navigator.userAgent.includes('YurekaApp')) return true;
+        if (new URLSearchParams(window.location.search).get('embedded') === '1') {
+            try { sessionStorage.setItem('yureka-embedded', '1'); } catch { /* ignore */ }
+            return true;
+        }
+        try {
+            return sessionStorage.getItem('yureka-embedded') === '1';
+        } catch {
+            return false;
+        }
+    })();
     // In-app Super Browse / embed paused — leave the wiring here to restore later.
     // const isExplore = /^\/dashboard\/explore(\/|$)/.test(location.pathname);
     // const browseHasUrl =
@@ -400,6 +418,24 @@ const DashboardLayout: React.FC = () => {
     };
 
     const MOBILE_TABS = PRIMARY_NAV;
+
+    if (handoffToNative) {
+        return (
+            <div className="h-dvh min-h-0 bg-[#070707] flex flex-col items-center justify-center px-6 text-center font-sans">
+                <p className="text-white text-xl font-bold">Open the Yureka app</p>
+                <p className="text-white/50 text-sm mt-2 max-w-sm">
+                    This is the website. Goldback on iPhone lives in the Yureka app on your home screen — not in Safari.
+                </p>
+                <button
+                    type="button"
+                    onClick={() => tryOpenNativeApp('dashboard/home')}
+                    className="mt-6 bg-emerald-500 text-black font-bold text-sm px-6 py-3 rounded-2xl"
+                >
+                    Open Yureka app
+                </button>
+            </div>
+        )
+    }
 
     return (
         <div className="h-dvh min-h-0 bg-[#070707] flex overflow-hidden font-sans selection:bg-clay selection:text-black safe-area-x">

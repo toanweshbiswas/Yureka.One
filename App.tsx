@@ -259,8 +259,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     );
   }
 
+  // Preserve ?embedded=1 so the login page also hides web chrome in the native WebView.
+  const isEmbedded =
+    new URLSearchParams(location.search).get('embedded') === '1' ||
+    (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('yureka-embedded') === '1');
+  const embeddedSuffix = isEmbedded ? '&embedded=1' : '';
+
   if (currentUserStatus === 'none' || !currentUserStatus) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}${embeddedSuffix}`} state={{ from: location }} replace />;
   }
 
   if (currentUserStatus === 'pending' || currentUserStatus === 'on-hold') {
