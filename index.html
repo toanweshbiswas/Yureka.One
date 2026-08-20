@@ -15,7 +15,13 @@
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://yureka.one" />
     <link rel="manifest" href="/manifest.webmanifest" />
-    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script>
+      (function () {
+        var pwa = window.matchMedia('(display-mode: standalone)').matches || !!window.navigator.standalone;
+        window.__YUREKA_PWA__ = pwa;
+        if (pwa) document.documentElement.classList.add('pwa');
+      })();
+    </script>
 
     <meta name="application-name" content="Yureka" />
     <meta name="apple-mobile-web-app-title" content="Yureka" />
@@ -52,9 +58,9 @@
           "description": "Yureka.One is India's first AI-native Wealth Operating System, converting everyday transactions into 24K digital gold rewards and RBI-compliant alternative credit profiles.",
           "areaServed": "IN",
           "sameAs": [
-            "https://twitter.com/yurekamoney",
-            "https://www.linkedin.com/company/yurekamoney",
-            "https://www.instagram.com/yurekamoney"
+            "https://twitter.com/yurekaone",
+            "https://www.linkedin.com/company/yurekaone",
+            "https://www.instagram.com/yurekaone"
           ],
           "knowsAbout": [
             "Wealth Operating System", "Digital Gold Rewards", "Yureka Goldback",
@@ -96,23 +102,26 @@
     <meta property="og:url" content="https://yureka.one" />
     <meta property="og:title" content="Yureka.One — Spend like always. Build wealth by default." />
     <meta property="og:description" content="India's first AI-native Wealth OS: an AI that shops for you, pays you in digital gold, and turns your transactions into a credit profile." />
-    <meta property="og:image" content="https://yureka.one/og-image.jpg" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
+    <meta property="og:image" content="https://yureka.one/og-share.png" />
+    <meta property="og:image:secure_url" content="https://yureka.one/og-share.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:alt" content="Yureka.One — India's AI Wealth OS" />
+    <meta property="og:image:width" content="1376" />
+    <meta property="og:image:height" content="768" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:site" content="@yurekamoney" />
+    <meta name="twitter:site" content="@yurekaone" />
     <meta name="twitter:url" content="https://yureka.one" />
     <meta name="twitter:title" content="Yureka.One — Spend like always. Build wealth by default." />
     <meta name="twitter:description" content="India's first AI-native Wealth OS: an AI that shops for you, pays you in digital gold, and turns your transactions into a credit profile." />
-    <meta name="twitter:image" content="https://yureka.one/og-image.jpg" />
+    <meta name="twitter:image" content="https://yureka.one/og-share.png" />
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:site" content="@yurekamoney" />
+    <meta property="twitter:site" content="@yurekaone" />
     <meta property="twitter:url" content="https://yureka.one" />
     <meta property="twitter:title" content="Yureka.One — Spend like always. Build wealth by default." />
     <meta property="twitter:description" content="India's first AI-native Wealth OS: an AI that shops for you, pays you in digital gold, and turns your transactions into a credit profile." />
-    <meta property="twitter:image" content="https://yureka.one/og-image.jpg" />
+    <meta property="twitter:image" content="https://yureka.one/og-share.png" />
 
 
     
@@ -127,17 +136,23 @@
     <link rel="dns-prefetch" href="https://www.cdnfonts.com">
     <link rel="preconnect" href="https://rvqtlvgaqlgylipsaktm.supabase.co">
     <link rel="dns-prefetch" href="https://rvqtlvgaqlgylipsaktm.supabase.co">
-
-    <!-- Fonts + icon set for the "Yureka One" homepage (Space Mono / Anton SC / Playfair Display / Inter) -->
-    <link rel="preconnect" href="https://cdn.jsdelivr.net">
-    <link
-      href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Anton+SC&family=Playfair+Display:ital,wght@1,500;1,700&family=Inter:wght@400;600;700;800&display=swap"
-      rel="stylesheet"
-    >
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
-    >
+    <script>
+      (function () {
+        if (window.__YUREKA_PWA__) return;
+        var gsi = document.createElement('script');
+        gsi.src = 'https://accounts.google.com/gsi/client';
+        gsi.async = true;
+        document.head.appendChild(gsi);
+        var extra = document.createElement('link');
+        extra.rel = 'stylesheet';
+        extra.href = 'https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Anton+SC&family=Playfair+Display:ital,wght@1,500;1,700&family=Inter:wght@400;600;700;800&display=swap';
+        document.head.appendChild(extra);
+        var icons = document.createElement('link');
+        icons.rel = 'stylesheet';
+        icons.href = 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css';
+        document.head.appendChild(icons);
+      })();
+    </script>
     <script type="module">
       // Security: Disable Right Click & DevTools shortcuts (production only)
       if (!import.meta.env.DEV) {
@@ -154,10 +169,19 @@
       }
     </script>
     <style>
-      #crawler-content { color: #111; background: #fff; padding: 1.25rem; max-width: 46rem; }
-      #crawler-content h1 { font-size: 1.75rem; margin: 0.75rem 0; }
-      #crawler-content h2 { font-size: 1.15rem; margin: 1rem 0 0.4rem; }
-      #crawler-content nav, #crawler-content footer { margin: 1rem 0; }
+      /* First paint matches the cinematic site — never a white SEO snapshot. */
+      html, body { margin: 0; background: #070707; }
+      #crawler-content {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
       html.hydrated #crawler-content { display: none !important; }
     </style>
 </head>
@@ -168,6 +192,7 @@
   <script>
     var cId = "291471";
     (function () {
+      if (window.__YUREKA_PWA__) return;
       var s = document.createElement("script");
       s.async = true;
       s.src = "https://cdn0.cuelinks.com/js/cuelinksv2.js";

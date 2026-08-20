@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { ArrowRight, Loader2, Search, Copy, RefreshCw } from 'lucide-react'
-import { Link, useLocation, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { formatPaise, goldbackApi, goldbackEarnKey } from '@backend/lib/goldback/client'
 import type { GoldbackOffer } from '@backend/lib/goldback/types'
@@ -10,7 +10,8 @@ import { cacheGet, cacheSet, cacheInvalidate, CACHE_TTL } from '@shared/dashboar
 import { notifyGoldbackUpdated } from '@shared/goldbackEvents'
 import { getExploreScene, matchesSceneBrands, sceneBrandNames } from '@shared/exploreScenes'
 import Icon3d from '@shared/Icon3d'
-// import { browsePath } from '@shared/inAppBrowse'
+import { stampAffiliateSubId } from '@shared/inAppBrowse'
+import { openTrackedStore } from '@shared/trackedBrowse'
 
 type Tab = 'goldback' | 'marketplace'
 
@@ -82,6 +83,7 @@ const OffersPage: React.FC = () => {
   const reduceMotion = useReducedMotion()
   const { user } = useSupabase()
   const location = useLocation()
+  const navigate = useNavigate()
   const userId = user?.id || user?.email || ''
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
@@ -273,7 +275,7 @@ const OffersPage: React.FC = () => {
     setToast(null)
     await goldbackApi.click(userId, offer.id)
     const earn = await goldbackApi.earn(userId, offer.id, goldbackEarnKey(userId, offer.id))
-    window.open(offer.url, '_blank', 'noopener,noreferrer')
+    void openTrackedStore(offer.url, userId, undefined, offer.merchant || offer.title)
     if (earn.error || !earn.data) {
       setToast(earn.error || 'Opened offer — earn credit failed')
     } else if (earn.data.created) {
@@ -291,9 +293,6 @@ const OffersPage: React.FC = () => {
       })
     }
     setBusyId(null)
-    // In-app browser paused:
-    // const path = browsePath({ url: offer.url, title: offer.merchant || offer.title, returnTo: `${location.pathname}${location.search}` })
-    // if (path) navigate(path)
   }
 
   const handleMarketplace = (offer: CueLinksOffer) => {
@@ -302,11 +301,9 @@ const OffersPage: React.FC = () => {
       setToast('No affiliate link for this offer')
       return
     }
-    window.open(link, '_blank', 'noopener,noreferrer')
+    const tracked = stampAffiliateSubId(link, userId)
+    void openTrackedStore(link, userId, tracked, offer.merchant || offer.title)
     setToast(`Opened ${offer.merchant}`)
-    // In-app browser paused:
-    // const path = browsePath({ url: link, title: offer.merchant || offer.title, returnTo: `${location.pathname}${location.search}` })
-    // if (path) navigate(path)
   }
 
   const copyCode = async (code: string) => {
@@ -380,6 +377,19 @@ const OffersPage: React.FC = () => {
                 Gift cards
               </Link>
             )}
+            {scene.brands.map((brand) => {
+              const href = brand.embedUrl || `https://${brand.domain.replace(/^www\./, '')}`
+              return (
+                <button
+                  key={brand.domain}
+                  type="button"
+                  onClick={() => void openTrackedStore(href, userId, undefined, brand.name)}
+                  className="rounded-full bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white/80 active:scale-[0.97]"
+                >
+                  {brand.name}
+                </button>
+              )
+            })}
             <button
               type="button"
               onClick={clearScene}

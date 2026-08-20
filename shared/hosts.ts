@@ -25,6 +25,7 @@ export const APP_PATH_PREFIXES = [
   '/waiting',
   '/reset-password',
   '/dashboard',
+  '/go',
 ] as const
 
 export const BRAND_PATH_PREFIXES = ['/brand'] as const

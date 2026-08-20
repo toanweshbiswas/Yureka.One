@@ -87,9 +87,9 @@ export function organizationSchema() {
       "Yureka.One is India's first AI-native Wealth Operating System, converting everyday transactions into 24K digital gold rewards (Yureka Goldback) and RBI-compliant alternative credit profiles.",
     areaServed: 'IN',
     sameAs: [
-      'https://twitter.com/yurekamoney',
-      'https://www.linkedin.com/company/yurekamoney',
-      'https://www.instagram.com/yurekamoney',
+      'https://twitter.com/yurekaone',
+      'https://www.linkedin.com/company/yurekaone',
+      'https://www.instagram.com/yurekaone',
     ],
     knowsAbout: [
       'Wealth Operating System',

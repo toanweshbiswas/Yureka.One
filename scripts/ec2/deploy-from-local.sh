@@ -27,6 +27,7 @@ ssh -i "$KEY" "$USER@$HOST" bash -s <<REMOTE
 set -euo pipefail
 cd "$APP_DIR"
 set -a && source .env && set +a
+export CI=true
 pnpm install --frozen-lockfile
 pnpm run build
 bash scripts/ensure-python-deps.sh

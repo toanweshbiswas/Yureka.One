@@ -208,9 +208,9 @@ const Footer: React.FC = () => {
             {/* Social icons */}
             <div className="flex items-center gap-2.5">
               {[
-                { icon: 'camera', label: 'Instagram', href: 'https://www.instagram.com/yurekamoney' },
-                { icon: 'megaphone', label: 'Twitter', href: 'https://twitter.com/yurekamoney' },
-                { icon: 'heart', label: 'LinkedIn', href: 'https://www.linkedin.com/company/yurekamoney' },
+                { icon: 'camera', label: 'Instagram', href: 'https://www.instagram.com/yurekaone' },
+                { icon: 'megaphone', label: 'Twitter', href: 'https://twitter.com/yurekaone' },
+                { icon: 'heart', label: 'LinkedIn', href: 'https://www.linkedin.com/company/yurekaone' },
                 { icon: 'computer', label: 'Website', href: 'https://yureka.one' },
               ].map(({ icon, label, href }) => (
                 <a

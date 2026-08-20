@@ -22,6 +22,10 @@ import {
 } from './store.js'
 import { fulfillGiftCardWithHubble } from './fulfill.js'
 import { giftCardAmountAllowed } from './denominations.js'
+import { matchGiftCardForPurchase } from './matchMerchant.js'
+import { scrapeProductPriceFromUrl } from './productPrice.js'
+import { isProductPageUrl, merchantHostKey } from '../../../shared/giftCardProduct.js'
+import { sanitizeBrowseUrl } from '../../../shared/inAppBrowse.js'
 import {
   handleBrandDiscountWebhook,
   handleBrandUpdatedWebhook,
@@ -90,6 +94,92 @@ export function registerGiftcardRoutes(app: Express) {
       keyId: giftcardCheckoutMode() === 'razorpay' ? publicRazorpayKeyId() : null,
       directIssue: giftcardDirectIssueEnabled(),
     })
+  })
+
+  app.get('/api/giftcards/match', async (req, res) => {
+    if (!hubbleConfigured()) {
+      return fail(res, 503, 'Gift cards are temporarily unavailable')
+    }
+    try {
+      const hostRaw = typeof req.query.host === 'string' ? req.query.host.trim().toLowerCase() : ''
+      const host = hostRaw.replace(/^www\./, '')
+      if (!host) return fail(res, 400, 'host is required')
+
+      const amountRaw = typeof req.query.amount === 'string' ? Number(req.query.amount) : NaN
+      const amount = Number.isFinite(amountRaw) && amountRaw > 0 ? amountRaw : null
+      const product = typeof req.query.product === 'string' ? req.query.product.trim() : null
+
+      const all = await fetchAllGiftCards()
+      const match = matchGiftCardForPurchase(all, host, amount, product)
+      if (!match) return ok(res, { match: null })
+
+      const appOrigin =
+        (process.env.APP_ORIGIN || process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || '').trim() ||
+        'https://app.yureka.one'
+
+      ok(res, {
+        match: {
+          cardId: match.card.id,
+          title: match.card.title,
+          brand: match.card.brand,
+          logoUrl: match.card.logoUrl,
+          discountPercentage: match.card.discountPercentage,
+          requestedAmount: match.requestedAmount,
+          suggestedAmount: match.suggestedAmount,
+          savingsInr: match.savingsInr,
+          checkoutPath: match.checkoutPath,
+          checkoutUrl: `${appOrigin.replace(/\/$/, '')}${match.checkoutPath}`,
+        },
+      })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Gift card match failed')
+    }
+  })
+
+  app.get('/api/giftcards/match-from-url', async (req, res) => {
+    if (!hubbleConfigured()) {
+      return fail(res, 503, 'Gift cards are temporarily unavailable')
+    }
+    try {
+      const raw = typeof req.query.url === 'string' ? req.query.url.trim() : ''
+      const pageUrl = sanitizeBrowseUrl(raw)
+      if (!pageUrl) return fail(res, 400, 'url is required')
+
+      const host = merchantHostKey(pageUrl)
+      if (!host) return fail(res, 400, 'Invalid store URL')
+
+      const isProductPage = isProductPageUrl(pageUrl)
+      const productPrice = isProductPage ? await scrapeProductPriceFromUrl(pageUrl) : null
+
+      const all = await fetchAllGiftCards()
+      const match = matchGiftCardForPurchase(all, host, productPrice, pageUrl)
+      if (!match) return ok(res, { match: null, isProductPage, productPrice })
+
+      const appOrigin =
+        (process.env.APP_ORIGIN || process.env.FRONTEND_URL || process.env.PUBLIC_APP_URL || '').trim() ||
+        'https://app.yureka.one'
+
+      ok(res, {
+        isProductPage,
+        productPrice,
+        match: {
+          cardId: match.card.id,
+          title: match.card.title,
+          brand: match.card.brand,
+          logoUrl: match.card.logoUrl,
+          discountPercentage: match.card.discountPercentage,
+          requestedAmount: match.requestedAmount,
+          suggestedAmount: match.suggestedAmount,
+          savingsInr: match.savingsInr,
+          checkoutPath: match.checkoutPath,
+          checkoutUrl: `${appOrigin.replace(/\/$/, '')}${match.checkoutPath}`,
+          productPrice,
+          isProductPage,
+        },
+      })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Gift card match failed')
+    }
   })
 
   app.get('/api/giftcards', async (req, res) => {
@@ -182,7 +272,7 @@ export function registerGiftcardRoutes(app: Express) {
       return null
     }
     const amountCheck = giftCardAmountAllowed(card, denomination)
-    if (!amountCheck.ok) {
+    if ('error' in amountCheck) {
       fail(res, 400, amountCheck.error)
       return null
     }
@@ -466,8 +556,8 @@ export function registerGiftcardRoutes(app: Express) {
 
   app.post('/api/hubble/webhooks/wallet-low', ...webhookAuth, async (req, res) => {
     try {
-      const result = await handleWalletLowWebhook(req.body)
-      res.status(200).json({ ok: true, ...result })
+      await handleWalletLowWebhook(req.body)
+      res.status(200).json({ ok: true })
     } catch (e: any) {
       console.error('[hubble webhook] wallet-low:', e?.message || e)
       res.status(500).json({ ok: false, error: e?.message || 'handler failed' })

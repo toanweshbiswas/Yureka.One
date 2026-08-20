@@ -1,3 +1,4 @@
+
 export type ExploreSceneId = 'rides' | 'qcommerce' | 'flights' | 'shopping' | 'giftcards' | 'spend'
 
 export type ExploreBrand = {
@@ -34,8 +35,8 @@ export const EXPLORE_SCENES: ExploreScene[] = [
   {
     id: 'rides',
     title: 'Ride Compare & Book',
-    subtitle: 'Book Uber without leaving Yureka',
-    ribbon: 'IN APP',
+    subtitle: 'Uber rides and related deals',
+    ribbon: 'OFFERS',
     size: 'hero',
     embed: true,
     brands: [{ name: 'Uber', domain: 'uber.com', aliases: ['uber'], embedUrl: 'https://m.uber.com/' }],
@@ -48,8 +49,8 @@ export const EXPLORE_SCENES: ExploreScene[] = [
   {
     id: 'flights',
     title: 'Flight Compare',
-    subtitle: 'Goibibo, MakeMyTrip, and Air India in Yureka',
-    ribbon: 'IN APP',
+    subtitle: 'Goibibo, MakeMyTrip, and Air India deals',
+    ribbon: 'OFFERS',
     size: 'hero',
     embed: true,
     brands: [
@@ -68,8 +69,8 @@ export const EXPLORE_SCENES: ExploreScene[] = [
   {
     id: 'shopping',
     title: 'Shop India',
-    subtitle: 'Amazon, Flipkart, and Myntra in Yureka',
-    ribbon: 'IN APP',
+    subtitle: 'Amazon, Flipkart, and Myntra deals',
+    ribbon: 'OFFERS',
     size: 'hero',
     embed: true,
     brands: [
@@ -88,7 +89,7 @@ export const EXPLORE_SCENES: ExploreScene[] = [
   {
     id: 'qcommerce',
     title: 'Quick Commerce',
-    subtitle: 'Blinkit and Zepto without leaving Yureka',
+    subtitle: 'Blinkit, Zepto, and grocery deals',
     badge: 'BETA',
     size: 'tile',
     embed: true,

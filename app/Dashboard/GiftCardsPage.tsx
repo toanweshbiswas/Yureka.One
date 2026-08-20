@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import { Loader2, Search, X, RefreshCw, ExternalLink } from 'lucide-react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
@@ -127,6 +127,15 @@ const GiftCardsPage: React.FC = () => {
   const [checkoutMode, setCheckoutMode] = useState<'razorpay' | 'direct_wallet' | 'disabled'>('disabled')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+  const deepLinkApplied = useRef(false)
+
+  const checkoutProduct = searchParams.get('product')
+  const checkoutPrice = (() => {
+    const raw = searchParams.get('price')
+    if (!raw) return null
+    const n = Math.ceil(Number(raw))
+    return Number.isFinite(n) && n > 0 ? n : null
+  })()
 
   const userId = user?.id || user?.email || ''
   const apiQuery = hasSceneBrands ? '' : query
@@ -200,6 +209,15 @@ const GiftCardsPage: React.FC = () => {
     if (scene?.id) setCategory('all')
   }, [scene?.id])
 
+  useEffect(() => {
+    const buyId = searchParams.get('buy')
+    if (!buyId || !items.length || deepLinkApplied.current) return
+    const card = items.find((c) => c.id === buyId)
+    if (!card) return
+    deepLinkApplied.current = true
+    setSelected(card)
+  }, [items, searchParams])
+
   const visibleItems = useMemo(() => {
     const q = query.trim().toLowerCase()
     return items.filter((card) => {
@@ -217,6 +235,22 @@ const GiftCardsPage: React.FC = () => {
       setBuyError(null)
       return
     }
+
+    const prefilled = searchParams.get('amount')
+    if (prefilled) {
+      const n = Math.ceil(Number(prefilled))
+      if (Number.isFinite(n) && giftCardAmountAllowed(selected, n).ok) {
+        setAmount(n)
+        setBuyError(null)
+        setCustomerName(
+          String(user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || ''),
+        )
+        const existingPhone = String(user?.user_metadata?.phone || user?.phone || '').replace(/\D/g, '')
+        setCustomerPhone(existingPhone.slice(-10))
+        return
+      }
+    }
+
     const denoms = normalizeDenominations(selected.denominations)
     if (selected.minAmount != null) {
       setAmount(selected.minAmount)
@@ -231,7 +265,7 @@ const GiftCardsPage: React.FC = () => {
     )
     const existingPhone = String(user?.user_metadata?.phone || user?.phone || '').replace(/\D/g, '')
     setCustomerPhone(existingPhone.slice(-10))
-  }, [selected, user])
+  }, [selected, user, searchParams])
 
   const chips = useMemo(() => ['all', ...categories], [categories])
 
@@ -564,6 +598,31 @@ const GiftCardsPage: React.FC = () => {
                 )}
                 {selected.description && (
                   <p className="text-white/55 text-sm leading-relaxed">{selected.description}</p>
+                )}
+                {(checkoutProduct || checkoutPrice != null) && (
+                  <div className="rounded-2xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-3 space-y-1.5">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300/80">
+                      Checkout helper
+                    </p>
+                    {checkoutPrice != null && (
+                      <p className="text-sm text-white/85">
+                        Product price detected: <span className="font-semibold text-white">{formatInr(checkoutPrice)}</span>
+                      </p>
+                    )}
+                    <p className="text-xs text-white/55 leading-relaxed">
+                      Buy this gift card, redeem it on the store, then complete your purchase with the balance.
+                    </p>
+                    {checkoutProduct && (
+                      <a
+                        href={checkoutProduct}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-300 hover:text-emerald-200"
+                      >
+                        View product <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
                 )}
                 <div className="flex flex-wrap gap-2">
                   {selected.categories.map((c) => (

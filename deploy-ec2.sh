@@ -51,6 +51,9 @@ if ! command -v pnpm >/dev/null; then
   sudo npm install -g pnpm@9.15.0
 fi
 
+export CI=true
+export PNPM_CONFIRM_MODULES_PURGE=false
+
 pnpm install --frozen-lockfile
 pnpm run build
 bash scripts/ensure-python-deps.sh

@@ -17,9 +17,9 @@ export function isMobileBrowser() {
   return /iPhone|iPad|iPod|Android/i.test(window.navigator.userAgent)
 }
 
-/** True when the user is in mobile Safari/Chrome on app.yureka.one (not the native shell). */
+/** Never auto-open the native Yureka app from the website or PWA. Stay in the browser. */
 export function shouldHandoffToNativeApp() {
-  return isMobileBrowser() && !isEmbeddedNativeWebView()
+  return false
 }
 
 export function tryHandoffOAuthCodeToNativeApp(code: string) {

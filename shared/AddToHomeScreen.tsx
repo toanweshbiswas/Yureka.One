@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import { Download, Share, X, Smartphone } from 'lucide-react'
 import { resolveSiteRole } from '@shared/hosts'
+import { isIosDevice, isLikelyMobile, isStandalonePwa } from '@shared/pwaDisplay'
 
 const STORAGE_KEY = 'yureka-a2hs-dismissed-v1'
 const DISMISS_MS = 1000 * 60 * 60 * 24 * 3 // 3 days
@@ -13,22 +14,7 @@ type BeforeInstallPromptEvent = Event & {
 }
 
 function isStandalone(): boolean {
-  if (typeof window === 'undefined') return false
-  const mq = window.matchMedia('(display-mode: standalone)').matches
-  const ios = Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
-  return mq || ios
-}
-
-function isIosDevice(): boolean {
-  if (typeof navigator === 'undefined') return false
-  const ua = navigator.userAgent
-  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-}
-
-function isLikelyMobile(): boolean {
-  if (typeof window === 'undefined') return false
-  if (isIosDevice() || /Android/i.test(navigator.userAgent)) return true
-  return window.matchMedia('(max-width: 900px)').matches || navigator.maxTouchPoints > 1
+  return isStandalonePwa()
 }
 
 function wasDismissedRecently(): boolean {

@@ -11,8 +11,10 @@ import AddToHomeScreen from '@shared/AddToHomeScreen';
 import WaitlistPage from '@app/WaitlistPage';
 import WaitingPage from '@app/WaitingPage';
 import LoginPage from '@app/LoginPage';
+import OutboundBridge from '@app/OutboundBridge';
 import ResetPasswordPage from '@app/ResetPasswordPage';
 import { staticPageMeta } from '@backend/lib/seo/pageMeta';
+import { isStandalonePwa } from '@shared/pwaDisplay';
 import {
   resolveSiteRole,
   landingUrl,
@@ -318,7 +320,8 @@ function LandingRoutes() {
 function ProductRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/dashboard/home" replace />} />
+      <Route path="/go" element={<OutboundBridge />} />
       <Route path="/login" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
       <Route path="/signup" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
       <Route path="/join-waitlist" element={<><SEO {...staticPageMeta['/join-waitlist']} /><WaitlistPage /></>} />
@@ -364,10 +367,19 @@ function BrandRoutes() {
   );
 }
 
+function MarketingOrPwaHome() {
+  const pwa =
+    isStandalonePwa() ||
+    (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('source') === 'pwa')
+  if (pwa) return <Navigate to="/dashboard/home" replace />
+  return <MainPage />
+}
+
 function CombinedRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<MainPage />} />
+      <Route path="/" element={<MarketingOrPwaHome />} />
+      <Route path="/go" element={<OutboundBridge />} />
       <Route path="/zwitch" element={<><SEO {...staticPageMeta['/zwitch']} /><ZwitchPage /></>} />
       <Route path="/brands" element={<BrandExplorer />} />
       <Route path="/brands/:category" element={<BrandExplorer />} />

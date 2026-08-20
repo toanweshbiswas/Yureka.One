@@ -9,7 +9,7 @@ const tweets = [
     handle: '@anu_raag_',
     avatar: 'https://i.pravatar.cc/150?u=anu',
     verified: true,
-    content: (<p>@yurekamoney is killing it with AI matching. Found me a card with 5% cashback on Swiggy - literally ₹12K saved this year!</p>),
+    content: (<p>@yureka.one is killing it with AI matching. Found me a card with 5% cashback on Swiggy - literally ₹12K saved this year!</p>),
     date: 'Feb 23, 2025',
   },
   {
@@ -18,7 +18,7 @@ const tweets = [
     handle: '@malikgarv',
     avatar: 'https://i.pravatar.cc/150?u=garv',
     verified: true,
-    content: (<p>Was hunting for a travel card and discovered @yurekamoney. Can't believe the AI matched me with a card that has unlimited lounge access.</p>),
+    content: (<p>Was hunting for a travel card and discovered @yureka.one. Can't believe the AI matched me with a card that has unlimited lounge access.</p>),
     date: 'Jan 30, 2025',
   },
   {
@@ -27,7 +27,7 @@ const tweets = [
     handle: '@chaicoder',
     avatar: 'https://i.pravatar.cc/150?u=chai',
     verified: true,
-    content: (<p>@yurekamoney we desperately need the Chrome extension for UPI payments too! Best fintech tool in India right now.</p>),
+    content: (<p>@yureka.one we desperately need the Chrome extension for UPI payments too! Best fintech tool in India right now.</p>),
     date: 'Jan 29, 2025',
   },
 ];

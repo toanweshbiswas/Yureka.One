@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Yureka",
-  "version": "1.0.1",
-  "description": "Coupons and Goldback for the store you are on. Shop through Yureka without leaving the page.",
+  "version": "1.0.2",
+  "description": "Gift card savings at checkout plus coupons and Goldback for the store you are on.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",

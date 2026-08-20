@@ -1,10 +1,42 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { ChevronLeft, Lock, RotateCw } from 'lucide-react'
-import { browseHost, embedFrameSrc, sanitizeBrowseUrl } from '@shared/inAppBrowse'
+import { ChevronLeft, ExternalLink, RotateCw } from 'lucide-react'
+import {
+  browseHost,
+  embedFrameSrc,
+  sanitizeBrowseUrl,
+} from '@shared/inAppBrowse'
+import { openTrackedStore } from '@shared/trackedBrowse'
+import { canUseInAppBrowse, isIosDevice } from '@shared/pwaDisplay'
+import { useSupabase } from '@shared/SupabaseProvider'
+import { InAppGiftCardBar } from './InAppGiftCardBar'
 
 const spring = { type: 'spring' as const, bounce: 0, duration: 0.35 }
+
+function browserLabel() {
+  return isIosDevice() ? 'Safari' : 'your browser'
+}
+
+function readIframePageUrl(iframe: HTMLIFrameElement | null): string | null {
+  if (!iframe) return null
+  try {
+    return sanitizeBrowseUrl(iframe.contentWindow?.location.href)
+  } catch {
+    return null
+  }
+}
+function iframeLooksBlocked(iframe: HTMLIFrameElement): boolean {
+  try {
+    const href = iframe.contentWindow?.location.href
+    if (!href || href === 'about:blank') return true
+    const body = iframe.contentDocument?.body
+    if (body && !body.innerHTML.trim()) return true
+    return false
+  } catch {
+    return false
+  }
+}
 
 type Props = {
   src?: string
@@ -25,18 +57,55 @@ export function InAppBrowserFrame({
   onBrand,
   extra,
 }: Props) {
+  const { user } = useSupabase()
   const navigate = useNavigate()
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const [frameKey, setFrameKey] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [embedFailed, setEmbedFailed] = useState(false)
+  const [pageUrl, setPageUrl] = useState<string | null>(null)
   const safeSrc = sanitizeBrowseUrl(src)
   const frameSrc = embedFrameSrc(safeSrc)
   const host = browseHost(safeSrc)
+  const allowEmbed = canUseInAppBrowse()
+  const useExternal = Boolean(safeSrc && (!allowEmbed || !frameSrc || embedFailed))
+  const storeName = title || host || 'this store'
+
+  const openOutside = useCallback(() => {
+    void openTrackedStore(safeSrc || '', user?.id || '')
+  }, [safeSrc, user?.id])
 
   useEffect(() => {
-    setLoading(true)
-    const t = window.setTimeout(() => setLoading(false), 8000)
+    setEmbedFailed(false)
+    setLoading(Boolean(frameSrc))
+    setPageUrl(safeSrc)
+  }, [frameSrc, frameKey, safeSrc])
+
+  const syncIframeUrl = useCallback(() => {
+    const live = readIframePageUrl(iframeRef.current)
+    if (live) setPageUrl(live)
+    else if (safeSrc) setPageUrl(safeSrc)
+  }, [safeSrc])
+
+  useEffect(() => {
+    if (!frameSrc || useExternal) return
+    const t = window.setTimeout(() => {
+      const el = iframeRef.current
+      if (el && iframeLooksBlocked(el)) setEmbedFailed(true)
+      setLoading(false)
+    }, 4500)
     return () => window.clearTimeout(t)
-  }, [frameSrc, frameKey])
+  }, [frameSrc, frameKey, useExternal])
+
+  useEffect(() => {
+    if (!frameSrc || useExternal) return
+    const id = window.setInterval(() => syncIframeUrl(), 2500)
+    return () => window.clearInterval(id)
+  }, [frameSrc, useExternal, syncIframeUrl])
+
+  useEffect(() => {
+    if (useExternal) setLoading(false)
+  }, [useExternal])
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col bg-[#070707]">
@@ -51,28 +120,39 @@ export function InAppBrowserFrame({
         >
           <ChevronLeft size={22} />
         </motion.button>
-        <div className="min-w-0 flex-1 rounded-full bg-white/[0.07] px-3 py-2">
-          <p className="truncate text-[13px] font-semibold tracking-[-0.02em] text-white">
-            {title || host || 'Shop'}
-          </p>
-          <p className="flex items-center gap-1 truncate text-[11px] text-white/40">
-            <Lock size={10} className="shrink-0" />
-            {host || 'yureka.one'}
+        <div className="min-w-0 flex-1 px-1">
+          <p className="truncate text-[17px] font-semibold tracking-[-0.03em] text-white">
+            {storeName}
           </p>
         </div>
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.94 }}
-          transition={spring}
-          aria-label="Reload page"
-          onClick={() => {
-            setLoading(true)
-            setFrameKey((k) => k + 1)
-          }}
-          className="flex h-11 w-11 items-center justify-center rounded-full text-white/55 hover:bg-white/[0.08] hover:text-white"
-        >
-          <RotateCw size={16} />
-        </motion.button>
+        {safeSrc && (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.94 }}
+            transition={spring}
+            aria-label={`Open in ${browserLabel()}`}
+            onClick={openOutside}
+            className="flex h-11 w-11 items-center justify-center rounded-full text-white/55 hover:bg-white/[0.08] hover:text-white"
+          >
+            <ExternalLink size={16} />
+          </motion.button>
+        )}
+        {frameSrc && !useExternal && (
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.94 }}
+            transition={spring}
+            aria-label="Reload page"
+            onClick={() => {
+              setLoading(true)
+              setEmbedFailed(false)
+              setFrameKey((k) => k + 1)
+            }}
+            className="flex h-11 w-11 items-center justify-center rounded-full text-white/55 hover:bg-white/[0.08] hover:text-white"
+          >
+            <RotateCw size={16} />
+          </motion.button>
+        )}
       </div>
 
       {brands && brands.length > 0 && (
@@ -98,27 +178,64 @@ export function InAppBrowserFrame({
         </div>
       )}
 
-      <div className="relative min-h-0 flex-1 bg-white">
-        {loading && frameSrc && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white text-[13px] text-black/45">
-            Opening {title || host || 'store'}…
+      <div className="relative min-h-0 flex-1 bg-[#070707]">
+        {useExternal ? (
+          <div className="flex h-full flex-col items-center justify-center px-7 text-center">
+            <p className="max-w-[20rem] text-[17px] font-semibold tracking-[-0.03em] text-white">
+              {storeName} can’t load inside Yureka
+            </p>
+            <p className="mt-2 max-w-[20rem] text-[14px] leading-snug text-white/50">
+              This store blocks in-app windows (blank page or request limits).
+              Continue in {browserLabel()} to shop as usual.
+            </p>
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.97 }}
+              transition={spring}
+              onClick={openOutside}
+              className="mt-6 min-h-[44px] rounded-full bg-white px-6 text-[15px] font-semibold text-black"
+            >
+              Open in {browserLabel()}
+            </motion.button>
+            {host && <InAppGiftCardBar pageUrl={pageUrl} host={host} />}
           </div>
-        )}
-        {frameSrc ? (
-          <iframe
-            key={`${frameSrc}-${frameKey}`}
-            title={title || host || 'Brand'}
-            src={frameSrc}
-            className="absolute inset-0 h-full w-full border-0"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-top-navigation-by-user-activation"
-            referrerPolicy="no-referrer-when-downgrade"
-            allow="payment; geolocation; clipboard-read; clipboard-write"
-            onLoad={() => setLoading(false)}
-          />
         ) : (
-          <div className="flex h-full items-center justify-center px-6 text-center text-[14px] text-black/50">
-            This link can’t be opened inside Yureka.
-          </div>
+          <>
+            {loading && frameSrc && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white text-[13px] text-black/45">
+                Opening {storeName}…
+              </div>
+            )}
+            {allowEmbed && frameSrc ? (
+              <iframe
+                ref={iframeRef}
+                key={`${frameSrc}-${frameKey}`}
+                title={storeName}
+                src={frameSrc}
+                className="absolute inset-0 h-full w-full border-0 bg-white"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-top-navigation-by-user-activation"
+                referrerPolicy="no-referrer-when-downgrade"
+                allow="payment; geolocation; clipboard-read; clipboard-write"
+                onLoad={() => {
+                  const el = iframeRef.current
+                  if (el && iframeLooksBlocked(el)) setEmbedFailed(true)
+                  syncIframeUrl()
+                  setLoading(false)
+                }}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center px-6 text-center text-[14px] text-white/50">
+                This link can’t be opened inside Yureka.
+              </div>
+            )}
+            {host && (
+              <InAppGiftCardBar
+                pageUrl={pageUrl}
+                host={host}
+                requireProductPage
+              />
+            )}
+          </>
         )}
       </div>
     </div>

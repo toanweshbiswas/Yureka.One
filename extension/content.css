@@ -43,7 +43,13 @@
   border-radius: 999px;
   padding: 7px 12px;
 }
-#yureka-extension-bar .yureka-ext-x {
+#yureka-extension-bar.yureka-ext-gift {
+  max-width: min(94vw, 480px);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+#yureka-extension-bar.yureka-ext-gift strong {
+  color: #6ee7b7;
+}
   border: 0;
   background: transparent;
   color: rgba(255, 255, 255, 0.45);

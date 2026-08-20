@@ -13,7 +13,7 @@ import {
   supabaseConfigured,
 } from '@shared/auth'
 import { landingUrl } from '@shared/hosts'
-import { tryHandoffOAuthCodeToNativeApp, shouldHandoffToNativeApp, tryOpenNativeApp } from '@shared/nativeAppHandoff'
+import { tryHandoffOAuthCodeToNativeApp } from '@shared/nativeAppHandoff'
 import { isPasswordRecoveryCallback } from '@shared/oauthHandoff'
 import YurekaBrandMark from '@shared/YurekaBrandMark'
 
@@ -59,6 +59,14 @@ const LoginPage: React.FC = () => {
   }
 
   useEffect(() => {
+    if (document.querySelector('script[src*="accounts.google.com/gsi/client"]')) return
+    const s = document.createElement('script')
+    s.src = 'https://accounts.google.com/gsi/client'
+    s.async = true
+    document.head.appendChild(s)
+  }, [])
+
+  useEffect(() => {
     if (!isRecovery) return
     window.location.replace(`/reset-password${window.location.search}${window.location.hash}`)
   }, [isRecovery])
@@ -89,10 +97,6 @@ const LoginPage: React.FC = () => {
     if (!user) return
 
     if (currentUserStatus === 'accepted' || currentUserStatus === 'admin') {
-      if (shouldHandoffToNativeApp()) {
-        tryOpenNativeApp('dashboard/home')
-        return
-      }
       navigate(nextPath.startsWith('/') ? nextPath : '/dashboard', { replace: true })
       return
     }

@@ -18,7 +18,8 @@ import type { Waitlist as ApiWaitlist } from '@backend/lib/api/types'
 import ExploreBrandScenes from './ExploreBrandScenes'
 import Icon3d from '@shared/Icon3d'
 import YurekaBrandMark from '@shared/YurekaBrandMark'
-// import { SuperBrowseGrid } from './SuperBrowse'
+import { SuperBrowseGrid } from './SuperBrowse'
+import { canUseInAppBrowse } from '@shared/pwaDisplay'
 
 type HomeCache = {
   balance: GoldbackBalance | null
@@ -56,7 +57,7 @@ const GoldbackHome: React.FC = () => {
   const [offers, setOffers] = useState<GoldbackOffer[]>(cached?.data.offers ?? [])
   const [yurekaScore, setYurekaScore] = useState<number | null>(cached?.data.yurekaScore ?? null)
   const [scoreDecision, setScoreDecision] = useState<string | null>(cached?.data.scoreDecision ?? null)
-  const [loading, setLoading] = useState(!cached?.data)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async (opts?: { silent?: boolean }) => {
@@ -65,27 +66,16 @@ const GoldbackHome: React.FC = () => {
       setLoading(false)
       return
     }
-    if (!opts?.silent && !balance && ledger.length === 0) setLoading(true)
+    if (!opts?.silent && !balance && ledger.length === 0 && !cached?.data) setLoading(true)
     setError(null)
-    const [b, l, o, waitlist] = await Promise.all([
+    const [b, l, o] = await Promise.all([
       goldbackApi.balance(userId),
       goldbackApi.ledger(userId),
       goldbackApi.offers(userId),
-      user?.email
-        ? api.get<ApiWaitlist>(`/api/v1/waitlist/entry?email=${encodeURIComponent(user.email)}`)
-        : Promise.resolve(null),
     ])
     const nextBalance = !b.error && b.data ? b.data : null
     const nextLedger = !l.error && l.data ? l.data : []
     const nextOffers = !o.error && o.data ? o.data.filter((item) => item.active !== false) : []
-    let nextScore: number | null = null
-    let nextDecision: string | null = null
-    if (waitlist && !isApiError(waitlist) && waitlist.data) {
-      nextScore = waitlist.data.yurekaScore ?? null
-      nextDecision = waitlist.data.scoreDecision ?? null
-      setYurekaScore(nextScore)
-      setScoreDecision(nextDecision)
-    }
     if (b.error || !b.data) {
       if (!opts?.silent) setError(b.error || 'Could not load balance')
     } else {
@@ -93,6 +83,28 @@ const GoldbackHome: React.FC = () => {
     }
     if (!l.error && l.data) setLedger(l.data)
     if (!o.error && o.data) setOffers(nextOffers)
+    setLoading(false)
+    if (!user?.email) {
+      if (nextBalance) {
+        cacheSet(cacheKey(userId), {
+          balance: nextBalance,
+          ledger: nextLedger,
+          offers: nextOffers,
+          yurekaScore: null,
+          scoreDecision: null,
+        })
+      }
+      return
+    }
+    const waitlist = await api.get<ApiWaitlist>(`/api/v1/waitlist/entry?email=${encodeURIComponent(user.email)}`)
+    let nextScore: number | null = null
+    let nextDecision: string | null = null
+    if (!isApiError(waitlist) && waitlist.data) {
+      nextScore = waitlist.data.yurekaScore ?? null
+      nextDecision = waitlist.data.scoreDecision ?? null
+      setYurekaScore(nextScore)
+      setScoreDecision(nextDecision)
+    }
     if (nextBalance) {
       cacheSet(cacheKey(userId), {
         balance: nextBalance,
@@ -102,7 +114,6 @@ const GoldbackHome: React.FC = () => {
         scoreDecision: nextDecision,
       })
     }
-    setLoading(false)
   }, [userId, user?.email, balance, ledger.length])
 
   useEffect(() => {
@@ -383,11 +394,11 @@ const GoldbackHome: React.FC = () => {
             <ExploreBrandScenes />
           </div>
 
-          {/* Super Browse paused — keep the module, hide it from Home for now.
-          <div className="space-y-3">
-            <SuperBrowseGrid showChrome={false} />
-          </div>
-          */}
+          {canUseInAppBrowse() ? (
+            <div className="space-y-3">
+              <SuperBrowseGrid showChrome={false} />
+            </div>
+          ) : null}
         </div>
       </motion.section>
 

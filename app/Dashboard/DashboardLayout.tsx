@@ -1,14 +1,17 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
-    PanelLeft, PanelLeftClose, X,
+    Compass,
+    Ellipsis,
+    Gift,
+    House,
+    PanelLeft, PanelLeftClose, ShoppingBag, X,
 } from 'lucide-react';
 import { useNavigate, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { signOutGmail } from '@shared/auth';
 import AddToHomeScreen from '@shared/AddToHomeScreen';
 import { cacheInvalidate } from '@shared/dashboardCache';
-import { shouldHandoffToNativeApp, tryOpenNativeApp } from '@shared/nativeAppHandoff';
 import WelcomeBanner from './WelcomeBanner';
 import { googleAvatarUrl } from '@shared/userProfile';
 import Icon3d from '@shared/Icon3d';
@@ -28,6 +31,9 @@ import OffersPage from './OffersPage';
 import GiftCardsPage from './GiftCardsPage';
 import GiftCardOrderPage from './GiftCardOrderPage';
 import ExtensionPage from './ExtensionPage';
+import SuperBrowsePage from './SuperBrowse';
+import ExploreScenePage from './ExploreScenePage';
+import { canUseInAppBrowse } from '@shared/pwaDisplay';
 // import ExploreScenePage from './ExploreScenePage';
 // import SuperBrowsePage from './SuperBrowse';
 
@@ -47,6 +53,8 @@ const PRIMARY_NAV: NavItem[] = [
     { id: 'giftcards', label: 'Gift cards', icon: 'gift', path: '/dashboard/giftcards' },
 ];
 
+const BROWSE_NAV: NavItem = { id: 'browse', label: 'Browse', icon: 'flash', path: '/dashboard/browse' };
+
 const SECONDARY_NAV: NavItem[] = [
     { id: 'expenses', label: 'Expenses', icon: 'chart', path: '/dashboard/expenses' },
     { id: 'planning', label: 'Planning', icon: 'calender', path: '/dashboard/planning' },
@@ -60,7 +68,21 @@ const SOON_NAV: NavItem[] = [
     { id: 'redemption', label: 'Redeem', icon: 'star', comingSoon: true, path: '/dashboard/redemption' },
 ];
 
-const NAV_ITEMS = [...PRIMARY_NAV, ...SECONDARY_NAV, ...SOON_NAV];
+const NAV_ITEMS = [...PRIMARY_NAV, BROWSE_NAV, ...SECONDARY_NAV, ...SOON_NAV];
+
+const TAB_ICONS: Record<string, typeof House> = {
+    home: House,
+    browse: Compass,
+    offers: ShoppingBag,
+    giftcards: Gift,
+};
+
+const TAB_LABELS: Record<string, string> = {
+    home: 'Home',
+    browse: 'Browse',
+    offers: 'Offers',
+    giftcards: 'Gifts',
+};
 
 type InboxNotification = {
     id: string
@@ -233,19 +255,12 @@ const NotificationBell = () => {
     );
 };
 
-const KEEP_ALIVE_TABS = ['home', 'offers', /* 'browse', */ 'giftcards', 'expenses', 'planning', 'bills', 'referrals', 'profile'] as const;
+const KEEP_ALIVE_TABS = ['home', 'offers', 'browse', 'giftcards', 'expenses', 'planning', 'bills', 'referrals', 'profile'] as const;
 
 const DashboardLayout: React.FC = () => {
     const { user } = useSupabase();
     const navigate = useNavigate();
     const location = useLocation();
-    const handoffToNative = shouldHandoffToNativeApp();
-
-    useEffect(() => {
-        if (!handoffToNative) return
-        tryOpenNativeApp('dashboard/home')
-    }, [handoffToNative]);
-
     const reduceMotion = useReducedMotion();
     const [isSidebarOpen, setIsSidebarOpen] = useState(
         () => typeof window === 'undefined' || window.innerWidth >= 768
@@ -284,14 +299,21 @@ const DashboardLayout: React.FC = () => {
     // switch is instant and served from keep-alive + dashboardCache.
     useEffect(() => {
         const t = window.setTimeout(() => {
-            setMountedTabs((prev) => {
-                const next = new Set(prev);
-                next.add('offers');
-                next.add('giftcards');
-                // next.add('browse');
-                return next;
-            });
-        }, 450);
+            const warm = () => {
+                setMountedTabs((prev) => {
+                    const next = new Set(prev);
+                    next.add('offers');
+                    next.add('giftcards');
+                    if (canUseInAppBrowse()) next.add('browse');
+                    return next;
+                });
+            };
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(warm, { timeout: 4000 });
+            } else {
+                warm();
+            }
+        }, 1800);
         return () => window.clearTimeout(t);
     }, []);
 
@@ -312,23 +334,23 @@ const DashboardLayout: React.FC = () => {
             return false;
         }
     })();
-    // In-app Super Browse / embed paused — leave the wiring here to restore later.
-    // const isExplore = /^\/dashboard\/explore(\/|$)/.test(location.pathname);
-    // const browseHasUrl =
-    //     location.pathname.startsWith('/dashboard/browse') &&
-    //     new URLSearchParams(location.search).has('url');
-    // const isEmbeddedBrowse = isExplore || browseHasUrl;
-    const isExplore = false;
-    const isEmbeddedBrowse = isNativeEmbedded;
+    const pwaBrowse = canUseInAppBrowse();
+    const isExplore = /^\/dashboard\/explore(\/|$)/.test(location.pathname);
+    const browseHasUrl =
+        pwaBrowse &&
+        location.pathname.startsWith('/dashboard/browse') &&
+        new URLSearchParams(location.search).has('url');
+    const isEmbeddedBrowse = isNativeEmbedded || (pwaBrowse && isExplore) || browseHasUrl;
     const useKeepAlive =
         KEEP_ALIVE_TABS.includes(activeTab as typeof KEEP_ALIVE_TABS[number]) &&
         !isGiftOrder &&
-        !isExplore;
+        !isExplore &&
+        (activeTab !== 'browse' || pwaBrowse);
 
     const keepAlivePanels = useMemo(() => ({
         home: <GoldbackHome />,
         offers: <OffersPage />,
-        // browse: <SuperBrowsePage />,
+        browse: <SuperBrowsePage />,
         giftcards: <GiftCardsPage />,
         expenses: <Expenses />,
         planning: <ExpensePlanning />,
@@ -370,7 +392,7 @@ const DashboardLayout: React.FC = () => {
     );
 
     const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Member';
-    const isCoreTab = activeTab === 'home' || activeTab === 'offers' || activeTab === 'giftcards' /* || activeTab === 'browse' */;
+    const isCoreTab = activeTab === 'home' || activeTab === 'offers' || activeTab === 'giftcards' || activeTab === 'browse';
     const activeLabel = NAV_ITEMS.find(i => i.id === activeTab)?.label || 'Home';
     const avatarUrl = googleAvatarUrl(user);
 
@@ -417,25 +439,14 @@ const DashboardLayout: React.FC = () => {
         )
     };
 
-    const MOBILE_TABS = PRIMARY_NAV;
-
-    if (handoffToNative) {
-        return (
-            <div className="h-dvh min-h-0 bg-[#070707] flex flex-col items-center justify-center px-6 text-center font-sans">
-                <p className="text-white text-xl font-bold">Open the Yureka app</p>
-                <p className="text-white/50 text-sm mt-2 max-w-sm">
-                    This is the website. Goldback on iPhone lives in the Yureka app on your home screen — not in Safari.
-                </p>
-                <button
-                    type="button"
-                    onClick={() => tryOpenNativeApp('dashboard/home')}
-                    className="mt-6 bg-emerald-500 text-black font-bold text-sm px-6 py-3 rounded-2xl"
-                >
-                    Open Yureka app
-                </button>
-            </div>
-        )
-    }
+    const MOBILE_TABS = pwaBrowse
+        ? [
+            PRIMARY_NAV[0],
+            BROWSE_NAV,
+            PRIMARY_NAV[1],
+            PRIMARY_NAV[2],
+          ]
+        : PRIMARY_NAV;
 
     return (
         <div className="h-dvh min-h-0 bg-[#070707] flex overflow-hidden font-sans selection:bg-clay selection:text-black safe-area-x">
@@ -536,23 +547,6 @@ const DashboardLayout: React.FC = () => {
                     ? 'flex flex-col overflow-hidden'
                     : 'overflow-y-auto overflow-x-hidden dashboard-scroll pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:pb-10'
             }`}>
-                {shouldHandoffToNativeApp() ? (
-                    <div
-                        className="sticky top-0 z-50 px-4 py-3 bg-emerald-500/10 border-b border-emerald-500/25 text-center"
-                        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
-                    >
-                        <p className="text-sm text-white/80">
-                            You&apos;re viewing Yureka in Safari. Use the native app from your home screen for the real mobile experience.
-                        </p>
-                        <button
-                            type="button"
-                            onClick={() => tryOpenNativeApp()}
-                            className="mt-2 text-emerald-400 font-bold text-sm"
-                        >
-                            Open Yureka app
-                        </button>
-                    </div>
-                ) : null}
                 {!isEmbeddedBrowse && (
                 <div
                     className="sticky top-0 z-30 flex items-center justify-between gap-3 px-4 sm:px-5 md:px-10 py-3 md:py-4 bg-[#070707]/80 backdrop-blur-xl border-b border-white/[0.05]"
@@ -630,7 +624,8 @@ const DashboardLayout: React.FC = () => {
                         <Routes>
                             <Route index element={<Navigate to="home" replace />} />
                             <Route path="giftcards/orders/:orderId" element={<GiftCardOrderPage />} />
-                            {/* <Route path="explore/:sceneId" element={<ExploreScenePage />} /> */}
+                            <Route path="explore/:sceneId" element={<ExploreScenePage />} />
+                            <Route path="browse" element={pwaBrowse ? <SuperBrowsePage /> : <Navigate to="/dashboard/offers" replace />} />
                             <Route path="yureka-ai" element={<YurekaAIPage />} />
                             <Route path="join-waitlist" element={<WaitlistPage />} />
                             <Route path="extension" element={<ExtensionPage />} />
@@ -648,55 +643,80 @@ const DashboardLayout: React.FC = () => {
                 </div>
             </main>
 
-            {/* Mobile bottom tab bar — translucent material, content scrolls under */}
+            {/* Mobile tab bar — iOS-style: equal cells, system type, glass, safe area */}
             {!isEmbeddedBrowse && (
             <nav
-                className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#0a0a0a]/78 backdrop-blur-2xl"
-                style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+                className="md:hidden fixed inset-x-0 bottom-0 z-40"
+                style={{
+                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                    background: 'rgba(10, 10, 10, 0.72)',
+                    backdropFilter: 'blur(20px) saturate(180%)',
+                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+                    boxShadow: '0 -0.5px 0 rgba(255,255,255,0.18)',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
+                }}
                 aria-label="Primary"
             >
-                <div className="pointer-events-none absolute inset-x-0 -top-6 h-6 bg-gradient-to-t from-[#070707]/80 to-transparent" />
-                <div className="grid grid-cols-4 h-[3.75rem]">
+                <div
+                    className={`grid ${pwaBrowse ? 'grid-cols-5' : 'grid-cols-4'}`}
+                    style={{ height: 49 }}
+                >
                     {MOBILE_TABS.map((item) => {
                         const active = activeTab === item.id
+                        const Icon = TAB_ICONS[item.id] || House
                         return (
                             <Link
                                 key={item.id}
                                 to={item.path}
-                                className={`relative flex flex-col items-center justify-center gap-1 active:scale-[0.96] transition-transform duration-100 ${
-                                    active ? 'text-clay' : 'text-white/35'
-                                }`}
+                                aria-current={active ? 'page' : undefined}
+                                className="flex h-full min-w-0 flex-col items-center justify-center select-none"
                             >
-                                {/* {item.id === 'browse' && (
-                                    <span className="absolute top-0.5 rounded-full bg-[#f5c542] px-1.5 text-[7px] font-black leading-4 text-black">
-                                        NEW
+                                <motion.span
+                                    whileTap={{ scale: 0.92 }}
+                                    transition={{ type: 'spring', bounce: 0, duration: 0.2 }}
+                                    className="flex flex-col items-center justify-center gap-[3px]"
+                                >
+                                    <Icon
+                                        size={22}
+                                        strokeWidth={active ? 2.25 : 1.75}
+                                        className={active ? 'text-clay' : 'text-white/45'}
+                                    />
+                                    <span
+                                        className={`text-[10px] font-medium leading-none tracking-tight ${
+                                            active ? 'text-clay' : 'text-white/45'
+                                        }`}
+                                    >
+                                        {TAB_LABELS[item.id] || item.label}
                                     </span>
-                                )} */}
-                                <Icon3d
-                                    name={item.icon}
-                                    className={`h-6 w-6 object-contain ${active ? 'scale-110' : 'opacity-75'}`}
-                                    alt=""
-                                />
-                                <span className="max-w-full truncate px-0.5 text-[9px] font-black uppercase tracking-[0.12em]">
-                                    {item.label}
-                                </span>
+                                </motion.span>
                             </Link>
                         )
                     })}
                     <button
                         type="button"
                         onClick={() => setIsSidebarOpen(true)}
-                        className={`flex flex-col items-center justify-center gap-1 active:scale-[0.96] transition-transform duration-100 ${
-                            !isCoreTab || isSidebarOpen ? 'text-clay' : 'text-white/35'
-                        }`}
+                        className="flex h-full min-w-0 flex-col items-center justify-center select-none"
                         aria-label="More"
+                        aria-expanded={isSidebarOpen}
                     >
-                        <Icon3d
-                            name="plus"
-                            className={`h-6 w-6 object-contain ${!isCoreTab || isSidebarOpen ? 'scale-110' : 'opacity-75'}`}
-                            alt=""
-                        />
-                        <span className="text-[9px] font-black uppercase tracking-[0.12em]">More</span>
+                        <motion.span
+                            whileTap={{ scale: 0.92 }}
+                            transition={{ type: 'spring', bounce: 0, duration: 0.2 }}
+                            className="flex flex-col items-center justify-center gap-[3px]"
+                        >
+                            <Ellipsis
+                                size={22}
+                                strokeWidth={!isCoreTab || isSidebarOpen ? 2.25 : 1.75}
+                                className={!isCoreTab || isSidebarOpen ? 'text-clay' : 'text-white/45'}
+                            />
+                            <span
+                                className={`text-[10px] font-medium leading-none tracking-tight ${
+                                    !isCoreTab || isSidebarOpen ? 'text-clay' : 'text-white/45'
+                                }`}
+                            >
+                                More
+                            </span>
+                        </motion.span>
                     </button>
                 </div>
             </nav>

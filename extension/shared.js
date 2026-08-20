@@ -38,6 +38,23 @@ function tabHost(url) {
   }
 }
 
+async function lookupGiftCardMatch(host, amount, productUrl) {
+  const params = new URLSearchParams({ host })
+  if (amount != null && Number.isFinite(amount) && amount > 0) {
+    params.set('amount', String(Math.ceil(amount)))
+  }
+  if (productUrl) params.set('product', productUrl.slice(0, 500))
+  const url = `${DEFAULT_API}/api/giftcards/match?${params.toString()}`
+  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  const json = await res.json()
+  if (!res.ok || json.error) return null
+  return json.data?.match || null
+}
+
+function formatInr(amount) {
+  return `₹${Math.round(amount).toLocaleString('en-IN')}`
+}
+
 function offerCount(data) {
   if (!data) return 0
   const market = data.marketplaceTotal || (data.marketplace && data.marketplace.length) || 0

@@ -1,9 +1,11 @@
 /**
  * Tiny installability service worker.
  * Chrome requires a SW with a fetch handler for beforeinstallprompt / PWA install.
- * Cache-first for same-origin GETs of static assets; network for navigation/API.
+ *
+ * Hashed /assets/* → cache-first (repeat PWA launches should not wait on the network).
+ * HTML / other same-origin → network-first, cache fallback.
  */
-const CACHE = 'yureka-shell-v1'
+const CACHE = 'yureka-shell-v2'
 
 self.addEventListener('install', (event) => {
   // @ts-ignore
@@ -25,14 +27,31 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return
   const url = new URL(req.url)
   if (url.origin !== self.location.origin) return
-  // Never cache API / auth
   if (url.pathname.startsWith('/api/') || url.pathname.includes('supabase')) return
+
+  const isHashedAsset =
+    url.pathname.startsWith('/assets/') ||
+    /\.(js|css|woff2?)$/.test(url.pathname)
+
+  if (isHashedAsset) {
+    // @ts-ignore
+    event.respondWith(
+      caches.open(CACHE).then(async (cache) => {
+        const hit = await cache.match(req)
+        if (hit) return hit
+        const res = await fetch(req)
+        if (res.ok) cache.put(req, res.clone()).catch(() => {})
+        return res
+      })
+    )
+    return
+  }
 
   // @ts-ignore
   event.respondWith(
     fetch(req)
       .then((res) => {
-        if (res.ok && (url.pathname.match(/\.(js|css|png|jpg|jpeg|webp|svg|woff2?|mp4|webmanifest)$/) || url.pathname === '/manifest.webmanifest')) {
+        if (res.ok && (url.pathname.match(/\.(png|jpg|jpeg|webp|svg|mp4|webmanifest)$/) || url.pathname === '/manifest.webmanifest')) {
           const copy = res.clone()
           caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {})
         }

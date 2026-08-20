@@ -5,8 +5,8 @@
 
 export const SITE_URL = 'https://yureka.one';
 export const SITE_NAME = 'Yureka One';
-export const TWITTER_HANDLE = '@yurekamoney';
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.jpg`;
+export const TWITTER_HANDLE = '@yurekaone';
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-share.png`;
 export const DEFAULT_DESCRIPTION =
   "Turn everyday spending into 24K digital gold. Yureka's AI concierge orders for you, pays Goldback up to 16% ROI, and builds your credit profile.";
 

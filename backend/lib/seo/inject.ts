@@ -47,6 +47,7 @@ export function injectHtml(
   html = replaceTag(html, /<meta property="og:description" content=".*?"\s*\/>/, `<meta property="og:description" content="${description}" />`);
   html = replaceTag(html, /<meta property="og:url" content=".*?"\s*\/>/, `<meta property="og:url" content="${url || SITE_URL}" />`);
   html = replaceTag(html, /<meta property="og:image" content=".*?"\s*\/>/, `<meta property="og:image" content="${image}" />`);
+  html = replaceTag(html, /<meta property="og:image:secure_url" content=".*?"\s*\/>/, `<meta property="og:image:secure_url" content="${image}" />`);
 
   html = replaceTag(html, /<meta property="twitter:title" content=".*?"\s*\/>/, `<meta property="twitter:title" content="${title}" />`);
   html = replaceTag(html, /<meta property="twitter:description" content=".*?"\s*\/>/, `<meta property="twitter:description" content="${description}" />`);

@@ -44,6 +44,7 @@ const SEO: React.FC<SEOProps> = ({
     updateMeta('meta[property="og:title"]', fullTitle);
     updateMeta('meta[property="og:description"]', description);
     updateMeta('meta[property="og:image"]', image);
+    updateMeta('meta[property="og:image:secure_url"]', image);
     updateMeta('meta[property="og:url"]', pageUrl);
 
     // Update Twitter tags

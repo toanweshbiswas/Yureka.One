@@ -7,7 +7,7 @@ import { useState } from 'react';
 const FAQS = [
   {
     q: 'What is Yureka.One?',
-    a: 'Yureka Money is an AI-driven rewards copilot that automatically finds the best card, offer, and cashback path for every purchase you make -- online or offline.',
+    a: 'Yureka.One is an AI-driven rewards copilot that automatically finds the best card, offer, and cashback path for every purchase you make -- online or offline.',
   },
   {
     q: 'What is Yureka Goldback?',

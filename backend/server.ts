@@ -12,6 +12,7 @@ import { registerGoldbackRoutes } from './lib/goldback/routes';
 import { registerAdminRoutes } from './lib/admin/routes';
 import { registerGiftcardRoutes } from './lib/hubble/routes';
 import { registerCuelinksRoutes } from './lib/cuelinks/routes';
+import { registerBrowseRoutes } from './lib/browse/routes';
 import { registerMediaRoutes } from './lib/media/routes';
 // import { registerEmbedRoutes } from './lib/embed/routes';
 import { registerWaitlistRoutes } from './lib/waitlist/routes';
@@ -188,6 +189,7 @@ async function startServer() {
   registerAdminRoutes(app);
   registerGiftcardRoutes(app);
   registerCuelinksRoutes(app);
+  registerBrowseRoutes(app);
   registerMediaRoutes(app);
   // registerEmbedRoutes(app);
   registerAuthRoutes(app);

@@ -67,6 +67,7 @@ set -a
 source .env 2>/dev/null || true
 set +a
 
+export CI=true
 pnpm install --frozen-lockfile
 pnpm run build
 bash scripts/ensure-python-deps.sh

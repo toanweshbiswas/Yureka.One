@@ -15,6 +15,7 @@ import {
   supabaseConfigured,
 } from '@shared/auth';
 import { cacheGet, cacheSet, CACHE_TTL, getLastAuthStatus, persistAuthSnapshot } from '@shared/dashboardCache';
+import { isStandalonePwa } from '@shared/pwaDisplay';
 import {
   clearStoredGmailAccessToken,
   getStoredGmailAccessToken,
@@ -92,7 +93,7 @@ async function resolveUserStatus(
       canAccessDashboard?: boolean
     }>(`/api/v1/auth/status?email=${encodeURIComponent(email)}`, {
       skipAuth: true,
-      timeoutMs: 15000,
+      timeoutMs: 6000,
     })
     if (!isApiError(statusRes) && statusRes.data?.status) {
       const s = statusRes.data.status
@@ -107,10 +108,10 @@ async function resolveUserStatus(
     const [roleRes, entryRes] = await Promise.all([
       api.get<{ role: string }>(`/api/v1/auth/role?email=${encodeURIComponent(email)}`, {
         skipAuth: true,
-        timeoutMs: 12000,
+        timeoutMs: 5000,
       }),
       api.get<ApiWaitlist>(`/api/v1/waitlist/entry?email=${encodeURIComponent(email)}`, {
-        timeoutMs: 12000,
+        timeoutMs: 5000,
       }),
     ]);
     if (!isApiError(roleRes) && ['admin', 'editor', 'writer', 'superadmin'].includes(roleRes.data?.role ?? '')) {
@@ -127,6 +128,7 @@ async function resolveUserStatus(
 }
 
 export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const location = useLocation();
   const [cards, setCards] = useState<Card[]>([]);
   const [blogs, setBlogs] = useState<Blog[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -385,8 +387,11 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, [applyStatusForEmail]);
 
-  const location = useLocation();
   const isAdminRoute = location.pathname.startsWith('/admin');
+  const skipPublicCms =
+    location.pathname.startsWith('/dashboard') ||
+    location.pathname.startsWith('/login') ||
+    isStandalonePwa();
 
   const refreshAll = useCallback(async () => {
     try {
@@ -426,19 +431,19 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     const fallbackTimer = setTimeout(() => {
       setIsLoading(false);
-    }, 12000);
+    }, 4000);
 
     const setup = async () => {
       const restored = getLastAuthStatus()
       const dashboardReady = restored === 'accepted' || restored === 'admin'
-      if (isInitialLoad.current && cards.length === 0 && !dashboardReady) {
+      if (isInitialLoad.current && cards.length === 0 && !dashboardReady && !skipPublicCms) {
         setIsLoading(true);
       }
       try {
         if (isAdminRoute) {
           await loadAdminData({ setCards, setBlogs, setReviews, setWaitlist, setTeam, setLogs });
           setIsAdminDataLoaded(true);
-        } else if (!publicDataLoaded.current) {
+        } else if (!publicDataLoaded.current && !skipPublicCms) {
           const [cRes, bRes, rRes] = await Promise.all([
             api.get<ApiCard[]>('/api/v1/cms/cards', { skipAuth: true }),
             api.get<ApiBlog[]>('/api/v1/cms/blogs', { skipAuth: true }),
@@ -483,7 +488,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return () => {
       clearTimeout(fallbackTimer);
     };
-  }, [isAdminRoute]);
+  }, [isAdminRoute, skipPublicCms]);
 
   const contextValue = useMemo(() => ({
     user,
