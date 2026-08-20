@@ -149,8 +149,8 @@ const TermsOfService: React.FC = () => {
                      <div className="pt-8">
                          <h3 className="text-2xl font-heading font-extrabold uppercase tracking-tight text-white mb-6 italic">Grievance Redressal</h3>
                          <p className="text-[10px] uppercase tracking-widest text-clay font-bold mb-2">Grievance Redressal Officer (per DPDP Rule 12 & IT Rules)</p>
-                         <p className="text-xl font-bold text-white mb-8">hello@yureka.one</p>
-                         <a href="mailto:hello@yureka.one" className="inline-flex items-center gap-3 bg-white text-cream px-10 py-5 rounded-full uppercase font-bold tracking-[0.2em] text-[10px] hover:bg-clay hover:scale-105 transition-all shadow-2xl">
+                         <p className="text-xl font-bold text-white mb-8">support@yureka.one</p>
+                         <a href="mailto:support@yureka.one" className="inline-flex items-center gap-3 bg-white text-cream px-10 py-5 rounded-full uppercase font-bold tracking-[0.2em] text-[10px] hover:bg-clay hover:scale-105 transition-all shadow-2xl">
                              Contact Support <ChevronRight size={14} />
                          </a>
                      </div>

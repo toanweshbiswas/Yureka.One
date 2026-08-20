@@ -41,7 +41,7 @@ const Work: React.FC = () => {
   const navigate = useNavigate();
 
   const handleRedirect = (slug: string) => {
-    navigate(`/brands#category-${slug}`);
+    navigate(`/brands/${slug}`);
   };
 
   return (

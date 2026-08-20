@@ -7,14 +7,19 @@ import cors from "cors";
 import * as dotenv from "dotenv";
 import { resolveRouteMeta } from './lib/seo/resolveRouteMeta';
 import { injectHtml } from './lib/seo/inject';
+import { buildSitemapXml } from './lib/seo/sitemap';
 import { registerGoldbackRoutes } from './lib/goldback/routes';
 import { registerAdminRoutes } from './lib/admin/routes';
 import { registerGiftcardRoutes } from './lib/hubble/routes';
 import { registerCuelinksRoutes } from './lib/cuelinks/routes';
+import { registerMediaRoutes } from './lib/media/routes';
+// import { registerEmbedRoutes } from './lib/embed/routes';
 import { registerWaitlistRoutes } from './lib/waitlist/routes';
 import { registerAuthRoutes } from './lib/auth/routes';
 import { registerPublicApiRoutes } from './lib/publicApi/routes';
 import { registerNotificationRoutes } from './lib/notifications/routes';
+import { registerPlanningRoutes } from './lib/planning/routes';
+import { registerBrandRoutes } from './lib/brand/routes';
 
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 
@@ -70,6 +75,7 @@ async function ensurePythonDeps(): Promise<void> {
 
 async function startServer() {
   const app = express();
+  app.disable('x-powered-by');
   app.use(compression());
   app.use(cors());
   const PORT = Number(process.env.PORT) || 3000;
@@ -83,10 +89,73 @@ async function startServer() {
     }),
   );
 
+  // Universal / App Links for the consumer iOS + Android app (`one.yureka.app`).
+  app.get(['/.well-known/apple-app-site-association', '/apple-app-site-association'], (_req, res) => {
+    const team = (process.env.APPLE_TEAM_ID || 'TEAMID').trim()
+    res.set({
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=3600',
+    })
+    res.json({
+      applinks: {
+        details: [
+          {
+            appIDs: [`${team}.one.yureka.app`],
+            paths: ['/dashboard/*', '/offers*', '/giftcards*', '/login*', '/waiting*', '/join-waitlist*', '*'],
+          },
+        ],
+      },
+    })
+  })
+
+  app.get('/.well-known/assetlinks.json', (_req, res) => {
+    const fingerprints = (process.env.ANDROID_SHA256_FINGERPRINTS || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    res.set({
+      'Content-Type': 'application/json',
+      'Cache-Control': 'public, max-age=3600',
+    })
+    res.json([
+      {
+        relation: ['delegate_permission/common.handle_all_urls'],
+        target: {
+          namespace: 'android_app',
+          package_name: 'one.yureka.app',
+          sha256_cert_fingerprints: fingerprints.length ? fingerprints : ['REPLACE_WITH_PLAY_APP_SIGNING_CERT'],
+        },
+      },
+    ])
+  })
+
   // --- API Routes ---
 
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", env: process.env.NODE_ENV });
+  });
+
+  app.get('/robots.txt', (_req, res) => {
+    const candidates = [
+      path.resolve(process.cwd(), 'public/robots.txt'),
+      path.resolve(__dirname, '..', 'public/robots.txt'),
+      path.resolve(__dirname, '..', 'dist', 'robots.txt'),
+    ];
+    const file = candidates.find((p) => fs.existsSync(p));
+    if (!file) return res.status(404).type('text/plain').send('User-agent: *\nAllow: /\n');
+    res.set('Cache-Control', 'public, max-age=3600, must-revalidate');
+    res.type('text/plain').send(fs.readFileSync(file, 'utf8'));
+  });
+
+  app.get('/sitemap.xml', async (_req, res) => {
+    try {
+      const xml = await buildSitemapXml();
+      res.set('Cache-Control', 'public, max-age=3600, must-revalidate');
+      res.type('application/xml').send(xml);
+    } catch (err) {
+      console.warn('sitemap.xml failed:', err);
+      res.status(500).type('text/plain').send('Sitemap unavailable');
+    }
   });
 
   app.get("/api/score/health", async (_req, res) => {
@@ -114,9 +183,13 @@ async function startServer() {
   });
 
   registerGoldbackRoutes(app);
+  registerPlanningRoutes(app);
+  registerBrandRoutes(app);
   registerAdminRoutes(app);
   registerGiftcardRoutes(app);
   registerCuelinksRoutes(app);
+  registerMediaRoutes(app);
+  // registerEmbedRoutes(app);
   registerAuthRoutes(app);
   registerWaitlistRoutes(app);
   registerNotificationRoutes(app);
@@ -308,9 +381,7 @@ async function startServer() {
 
         // HTML entry must always revalidate — it points at hashed chunks.
         if (base === 'index.html' || base.endsWith('.html')) {
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-          res.setHeader('CDN-Cache-Control', 'no-store');
-          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=120, must-revalidate');
           return;
         }
 
@@ -355,9 +426,7 @@ async function startServer() {
       // Never let browsers / Cloudflare cache the SPA shell — stale HTML
       // references deleted chunk hashes and looks like a "cache loading" hang.
       res.set({
-        'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-        'CDN-Cache-Control': 'no-store',
-        'Pragma': 'no-cache',
+        'Cache-Control': 'public, max-age=0, s-maxage=120, must-revalidate',
         'Content-Type': 'text/html; charset=utf-8',
       });
 
@@ -368,7 +437,7 @@ async function startServer() {
           return res.redirect(301, resolved.redirect);
         }
 
-        const html = injectHtml(indexTemplate, resolved.meta, req.path, resolved.schemas);
+        const html = injectHtml(indexTemplate, resolved.meta, req.path, resolved.schemas, { status: resolved.status });
         res.status(resolved.status).send(html);
       } catch (err) {
         console.warn('SEO meta injection failed, serving plain index.html:', err);

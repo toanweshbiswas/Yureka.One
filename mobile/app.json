@@ -1,0 +1,78 @@
+{
+  "expo": {
+    "name": "Yureka",
+    "slug": "yureka",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "yureka",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "one.yureka.app",
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Yureka does not need the camera.",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "associatedDomains": ["applinks:app.yureka.one"]
+    },
+    "android": {
+      "package": "one.yureka.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#070707",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "app.yureka.one",
+              "pathPrefix": "/"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-apple-authentication",
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#070707"
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "replace-after-eas-init"
+      },
+      "router": {
+        "origin": false
+      },
+      "privacyPolicyUrl": "https://yureka.one/privacy-policy",
+      "termsOfServiceUrl": "https://yureka.one/terms-of-service",
+      "supportUrl": "https://yureka.one/contact",
+      "supportEmail": "support@yureka.one"
+    },
+    "owner": "yureka"
+  }
+}

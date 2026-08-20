@@ -1,5 +1,5 @@
-import YurekaLogo from './YurekaLogo';
 import JoinWaitlistButton from './JoinWaitlistButton';
+import YurekaBrandMark from '@shared/YurekaBrandMark';
 
 const HERO_BG_URL = '/hero-bg.jpg';
 
@@ -33,15 +33,20 @@ export default function Footer() {
         <div className="flex w-full flex-col justify-between p-10 sm:p-16 md:w-1/2">
           <div>
             <div className="mb-8 flex items-center gap-2">
-              <YurekaLogo className="h-[18px] w-[18px] text-white/70" />
+              <YurekaBrandMark className="h-6 w-6 rounded-[7px] object-cover" />
               <span className="text-[15px] font-medium tracking-tight text-white/70">
                 Yureka
               </span>
             </div>
             <p className="max-w-sm text-[14px] leading-relaxed text-white/40 sm:text-[15px]">
-              The next evolution of human-machine interaction. Built for those who refuse to be
-              limited by biology alone.
+              India&apos;s AI Wealth OS. Spend as usual. Earn 24K digital gold. Build credit from real transactions.
             </p>
+            <div className="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-[13px] text-white/45">
+              <a href="/about" className="hover:text-white">About</a>
+              <a href="/faq" className="hover:text-white">FAQ</a>
+              <a href="/contact" className="hover:text-white">Contact</a>
+              <a href="/brands" className="hover:text-white">Brands</a>
+            </div>
 
             <JoinWaitlistButton className="mt-8" />
           </div>

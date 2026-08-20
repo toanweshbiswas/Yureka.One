@@ -134,7 +134,7 @@ const SecurityProtocolPage: React.FC = () => {
                         <p className="text-white/40 font-serif italic mb-10 max-w-md mx-auto">
                             If you believe you have discovered a vulnerability or suspect your account has been compromised, contact our InfoSec team immediately.
                         </p>
-                        <a href="mailto:security@yureka.one" className="inline-flex items-center gap-4 bg-clay text-cream px-12 py-5 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-white transition-all shadow-2xl shadow-clay/10">
+                        <a href="mailto:support@yureka.one" className="inline-flex items-center gap-4 bg-clay text-cream px-12 py-5 rounded-2xl font-bold uppercase tracking-[0.2em] text-[10px] hover:bg-white transition-all shadow-2xl shadow-clay/10">
                             Contact InfoSec <ChevronRight size={14} />
                         </a>
                     </section>

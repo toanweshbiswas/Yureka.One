@@ -1,0 +1,44 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "copyright": "2026 Yureka One",
+    "categories": ["FINANCE", "LIFESTYLE"],
+    "info": {
+      "en-US": {
+        "title": "Yureka",
+        "subtitle": "Goldback, offers, gift cards",
+        "description": "Yureka is your Wealth OS — Goldback rewards, partner offers, and gift cards in a native app.\n\nWHAT YOU CAN DO\n• See your live Goldback balance and activity\n• Browse marketplace and Goldback offers\n• Buy gift cards with custom amounts and redeem at partner sites\n• Sign in with Apple, Google, or email\n\nPayments for gift cards use Razorpay checkout. Support: support@yureka.one",
+        "keywords": "goldback,rewards,giftcards,offers,india,wallet,cashback,voucher,finance,yureka",
+        "releaseNotes": "First release: native Home, Offers, and Gift cards, plus the live Yureka dashboard.",
+        "privacyPolicyUrl": "https://yureka.one/privacy-policy",
+        "supportUrl": "https://yureka.one/contact",
+        "marketingUrl": "https://yureka.one"
+      }
+    },
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "gamblingSimulated": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "contests": "NONE",
+      "gambling": false,
+      "unrestrictedWebAccess": true,
+      "seventeenPlus": false
+    },
+    "review": {
+      "firstName": "Yureka",
+      "lastName": "Support",
+      "email": "support@yureka.one",
+      "phone": "+91 0000000000",
+      "demoUserRequired": true,
+      "notes": "Sign in with the review account provided in App Store Connect. Gift-card checkout uses Razorpay, not Apple IAP. Expenses/Gmail stay in the in-app web dashboard. Contact support@yureka.one."
+    }
+  }
+}

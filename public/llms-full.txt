@@ -66,6 +66,7 @@
 ## 5. Map of Services & URLs
 * **Homepage**: `https://yureka.one/`
 * **Brand Explorer**: `https://yureka.one/brands`
+* **Fashion brands**: `https://yureka.one/brands/fashion`
 * **Zwitch Hyperlocal**: `https://yureka.one/zwitch`
 * **Yureka AI Concierge**: `https://yureka.one/yureka-ai`
 * **Goldback Details**: `https://yureka.one/goldback`
@@ -73,6 +74,9 @@
 * **B2B Merchant Portal**: `https://yureka.one/business`
 * **Premium Subscription Info**: `https://yureka.one/pricing`
 * **Company Manifesto**: `https://yureka.one/manifesto`
+* **About Yureka.One**: `https://yureka.one/about`
+* **FAQ**: `https://yureka.one/faq`
+* **Contact**: `https://yureka.one/contact`
 * **Careers / Open Jobs**: `https://yureka.one/jobs`
 * **Security & Infrastructure Protocol**: `https://yureka.one/security-protocol`
 * **Data Privacy Policy**: `https://yureka.one/privacy-policy`
@@ -81,4 +85,4 @@
 * **Developer LLM Metadata**: `https://yureka.one/llms.txt`
 * **Developer LLM Full Spec**: `https://yureka.one/llms-full.txt`
 * **Sitemap XML Index**: `https://yureka.one/sitemap.xml`
-* **Support Email**: `mailto:founder@yureka.one`
+* **Support Email**: `mailto:support@yureka.one`

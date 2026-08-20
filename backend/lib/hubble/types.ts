@@ -36,6 +36,8 @@ export interface HubbleProductRaw {
   discountPercentage?: number | null
   parentBrand?: { id?: string; name?: string } | null
   voucherExpiryInMonths?: number | null
+  storeLocatorUrl?: string | null
+  deeplinks?: Array<{ platform?: string; deeplink?: string | null }> | null
 }
 
 /** Normalized gift card for the Yureka platform UI */
@@ -58,6 +60,7 @@ export interface GiftCard {
   tncUrl: string | null
   termsAndConditions: string[]
   howToUse: string[]
+  redeemSites: Array<{ label: string; url: string }>
   voucherExpiryInMonths: number | null
 }
 

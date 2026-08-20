@@ -369,3 +369,39 @@ export const brands: Brand[] = RAW_BRANDS.map((b, i) => ({
   image: b.image,
   bgColor: b.bgColor,
 }));
+
+export function categorySlug(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+export function brandCategoryFromSlug(slug: string | undefined | null): string | null {
+  if (!slug) return null
+  const key = slug.toLowerCase()
+  return BRAND_CATEGORIES.find((c) => c !== 'All' && categorySlug(c) === key) || null
+}
+
+export function indexableBrandCategories() {
+  return BRAND_CATEGORIES.filter((c) => c !== 'All')
+}
+
+export function brandsCategorySeo(category: string) {
+  const listed = brands.filter((b) => b.image && b.categories.includes(category))
+  const n = listed.length
+  const examples = listed.slice(0, 3).map((b) => b.name)
+  const exampleBit = examples.length ? `, including ${examples.join(', ')}` : ''
+  const titleLead = /brands$/i.test(category) ? category : `${category} brands`
+  let description = `Earn card cashback and Yureka Goldback at ${n} ${category.toLowerCase()} ${n === 1 ? 'partner' : 'partners'} on Yureka${exampleBit}. Compare cards and convert rewards into 24K digital gold.`
+  if (description.length > 160) {
+    description = `Earn cashback and Yureka Goldback at ${n} ${category.toLowerCase()} partners. Shop with 24K digital gold rewards instead of expiring points.`
+  }
+  return {
+    title: `${titleLead} | Reward Partners | Yureka.One`,
+    description,
+    keywords: [
+      `${category.toLowerCase()} cashback india`,
+      `${category.toLowerCase()} reward brands`,
+      'yureka brand explorer',
+      'card rewards india',
+    ],
+  }
+}

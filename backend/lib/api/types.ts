@@ -95,6 +95,9 @@ export interface Blog {
   scheduledAt?: string
   createdAt?: string
   updatedAt?: string
+  contentFormat?: 'html' | 'markdown'
+  notifiedAt?: string | null
+  publishedAt?: string | null
 }
 
 export interface Review {

@@ -3,7 +3,8 @@ import { motion, useMotionTemplate, useScroll, useSpring, useTransform } from 'f
 import ScrambleIn from './ScrambleIn';
 import { useInView } from './useInView';
 import JoinWaitlistButton from './JoinWaitlistButton';
-import ScrollVideo from '@shared/ScrollVideo';
+import { usePrefersCinematic } from './usePrefersCinematic';
+import ScrollScrubVideo from './ScrollScrubVideo';
 
 const METRICS_VIDEO_URL = '/cta_fold.mp4';
 const TECH_VIDEO_URL = '/vault4.mp4';
@@ -59,43 +60,23 @@ function GlassVideoCard({ children }: { children: ReactNode }) {
   );
 }
 
-function useIsDesktopMd() {
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : false,
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const onChange = () => setIsDesktop(mq.matches);
-    onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  return isDesktop;
-}
-
 /** Mobile: stacked scroll-driven sections — no horizontal pin scrub. */
 function MetricsTechnologyMobile() {
   const { ref: statsRef, inView: statsInView } = useInView<HTMLDivElement>('0px');
 
   return (
-    <div className="relative w-full overflow-x-hidden bg-black px-5 pb-20 pt-8">
-      <section className="mx-auto flex w-full max-w-lg flex-col">
-        <div className="relative aspect-[4/3] w-full min-h-[220px]">
-          <GlassVideoCard>
-            <ScrollVideo
-              src={METRICS_VIDEO_URL}
-              className="absolute inset-0 h-full w-full"
-              rootMargin="360px 0px"
-            />
-          </GlassVideoCard>
-        </div>
-
-        <p className="mb-6 mt-8 text-center text-[13px] uppercase tracking-[0.2em] text-[#5fae52]">
+    <div className="relative w-full bg-black pb-20 pt-8">
+      <section className="mx-auto flex w-full max-w-lg flex-col px-5">
+        <p className="mb-6 text-center text-[13px] uppercase tracking-[0.2em] text-[#5fae52]">
           What do you get from Yureka?
         </p>
+      </section>
 
+      <div className="px-4">
+        <ScrollScrubVideo src={METRICS_VIDEO_URL} trackVh={145} />
+      </div>
+
+      <section className="mx-auto mt-6 flex w-full max-w-lg flex-col px-5">
         <div ref={statsRef} className="grid grid-cols-1 gap-8">
           {METRICS.map((metric, i) => (
             <div key={metric.label} className="text-center">
@@ -110,19 +91,8 @@ function MetricsTechnologyMobile() {
         </div>
       </section>
 
-      <section className="mx-auto mt-16 flex w-full max-w-lg flex-col">
-        <div className="relative aspect-[4/3] w-full min-h-[220px]">
-          <GlassVideoCard>
-            <ScrollVideo
-              src={TECH_VIDEO_URL}
-              poster={TECH_POSTER}
-              className="absolute inset-0 h-full w-full"
-              rootMargin="420px 0px"
-            />
-          </GlassVideoCard>
-        </div>
-
-        <div className="mt-8 flex flex-col gap-6">
+      <section className="mx-auto mt-10 flex w-full max-w-lg flex-col px-5">
+        <div className="flex flex-col gap-6">
           <h2 className="text-[clamp(32px,10vw,48px)] font-light leading-[0.95] tracking-[-0.03em] text-white">
             Yureka
             <br />
@@ -136,8 +106,14 @@ function MetricsTechnologyMobile() {
             savings and rewards personally curated for you everytime
           </p>
         </div>
+      </section>
 
-        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+      <div className="mt-8 px-4">
+        <ScrollScrubVideo src={TECH_VIDEO_URL} poster={TECH_POSTER} trackVh={145} />
+      </div>
+
+      <section className="mx-auto mt-8 flex w-full max-w-lg flex-col px-5">
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
           {FEATURES.map((feature) => (
             <div key={feature.title}>
               <div className="mb-2 text-[14px] font-normal text-white">{feature.title}</div>
@@ -387,6 +363,6 @@ function MetricsTechnologyDesktop() {
 }
 
 export default function MetricsTechnology() {
-  const isDesktop = useIsDesktopMd();
-  return isDesktop ? <MetricsTechnologyDesktop /> : <MetricsTechnologyMobile />;
+  const prefersCinematic = usePrefersCinematic();
+  return prefersCinematic ? <MetricsTechnologyDesktop /> : <MetricsTechnologyMobile />;
 }

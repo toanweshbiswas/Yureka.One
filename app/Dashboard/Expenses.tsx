@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { ScannerProgress } from './ScannerProgress';
+import { useMergedSpend } from './useMergedSpend';
 
 interface ParsedTransaction {
     brandName: string;
@@ -18,23 +19,22 @@ interface ParsedTransaction {
 
 const Expenses: React.FC = () => {
     const {
-        session,
-        ledgerTransactions,
         ledgerLoading: loading, 
         ledgerError: error, 
         scanProgress, 
         syncLedger,
         ledgerResyncQuota,
     } = useSupabase();
+    const { transactions: mergedTransactions } = useMergedSpend();
     
     const [searchQuery, setSearchQuery] = useState('');
 
     const transactions = useMemo(() => {
-        return (ledgerTransactions || []).filter((tx: ParsedTransaction) => {
+        return (mergedTransactions || []).filter((tx: ParsedTransaction) => {
             const type = (tx.type || '').toLowerCase();
             return type === 'transaction';
         });
-    }, [ledgerTransactions]);
+    }, [mergedTransactions]);
 
     const remaining = ledgerResyncQuota?.remaining
     const resyncBlocked = remaining === 0

@@ -403,7 +403,7 @@ export function GiftOrdersTab({ data, loading }: { data: AdminOverview | null; l
     <section className="space-y-6">
       <PageHeader
         title="Gift cards"
-        subtitle="Razorpay + Hubble orders across all members (codes are not shown)."
+        subtitle="Gift card orders across all members (codes are not shown)."
       />
       <div className="grid sm:grid-cols-3 gap-3">
         <Surface className="px-4 py-4">
@@ -419,7 +419,7 @@ export function GiftOrdersTab({ data, loading }: { data: AdminOverview | null; l
           <p className="text-[22px] font-semibold mt-2 tracking-[-0.02em]">{data ? formatInr(data.kpis.giftPaidInr) : '—'}</p>
         </Surface>
       </div>
-      <ChartCard title="Orders by Hubble status" caption="Source: gift-card orders · count">
+      <ChartCard title="Orders by status" caption="Source: gift-card orders · count">
         <D3BarChart
           data={(data?.giftsByStatus || []).map((d) => ({ label: d.label, value: d.count }))}
           valueLabel="Orders"

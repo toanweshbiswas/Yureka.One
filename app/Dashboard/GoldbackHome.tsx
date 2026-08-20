@@ -2,19 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
 import {
   ArrowRight,
-  Bell,
-  Coins,
-  Gift,
   Loader2,
-  Receipt,
   RefreshCw,
   Search,
-  Sparkles,
-  Store,
   TrendingUp,
-  User,
-  Users,
-  Wallet,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
@@ -24,6 +15,10 @@ import { cacheGet, cacheSet, CACHE_TTL, getLastAuthEmail } from '@shared/dashboa
 import { onGoldbackUpdated } from '@shared/goldbackEvents'
 import { api, isApiError } from '@backend/lib/api/client'
 import type { Waitlist as ApiWaitlist } from '@backend/lib/api/types'
+import ExploreBrandScenes from './ExploreBrandScenes'
+import Icon3d from '@shared/Icon3d'
+import YurekaBrandMark from '@shared/YurekaBrandMark'
+// import { SuperBrowseGrid } from './SuperBrowse'
 
 type HomeCache = {
   balance: GoldbackBalance | null
@@ -36,12 +31,13 @@ type HomeCache = {
 const cacheKey = (userId: string) => `goldback:home:${userId}`
 
 const QUICK_ACTIONS = [
-  { label: 'Offers', icon: Store, path: '/dashboard/offers?tab=marketplace' },
-  { label: 'Expenses', icon: Receipt, path: '/dashboard/expenses' },
-  { label: 'Bills', icon: Wallet, path: '/dashboard/bills' },
-  { label: 'Gift cards', icon: Gift, path: '/dashboard/giftcards' },
-  { label: 'Referrals', icon: Users, path: '/dashboard/referrals' },
-  { label: 'Profile', icon: User, path: '/dashboard/profile' },
+  { label: 'Offers', icon: 'bag', path: '/dashboard/offers?tab=marketplace' },
+  { label: 'Expenses', icon: 'chart', path: '/dashboard/expenses' },
+  { label: 'Planning', icon: 'calender', path: '/dashboard/planning' },
+  { label: 'Bills', icon: 'wallet', path: '/dashboard/bills' },
+  { label: 'Gift cards', icon: 'gift', path: '/dashboard/giftcards' },
+  { label: 'Referrals', icon: 'heart', path: '/dashboard/referrals' },
+  { label: 'Profile', icon: 'boy', path: '/dashboard/profile' },
 ] as const
 
 function firstName(user: ReturnType<typeof useSupabase>['user']) {
@@ -49,16 +45,6 @@ function firstName(user: ReturnType<typeof useSupabase>['user']) {
     String(user?.user_metadata?.full_name || user?.user_metadata?.name || '').trim() ||
     String(user?.email || '').split('@')[0]
   return full ? full.split(/\s+/)[0] : 'there'
-}
-
-function merchantAccent(index: number) {
-  const accents = [
-    'from-clay/18 to-transparent',
-    'from-emerald-400/14 to-transparent',
-    'from-white/10 to-transparent',
-    'from-teal-300/12 to-transparent',
-  ]
-  return accents[index % accents.length]
 }
 
 const GoldbackHome: React.FC = () => {
@@ -178,7 +164,6 @@ const GoldbackHome: React.FC = () => {
       .reduce((sum, e) => sum + e.amountPaise, 0)
   }, [ledger])
 
-  const featuredOffers = useMemo(() => offers.slice(0, 8), [offers])
   const topCategories = useMemo(() => {
     const ranked = new Map<string, number>()
     for (const offer of offers) {
@@ -245,8 +230,8 @@ const GoldbackHome: React.FC = () => {
         <div className="relative p-5 sm:p-6 space-y-5">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-xl">
-                <Coins size={22} className="text-clay" />
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] shadow-[0_8px_24px_rgba(0,0,0,0.28)] backdrop-blur-xl overflow-hidden">
+                <YurekaBrandMark className="h-12 w-12 rounded-2xl object-cover" />
               </div>
               <div className="min-w-0">
                 <p className="text-sm text-white/48">Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}</p>
@@ -264,8 +249,8 @@ const GoldbackHome: React.FC = () => {
               >
                 <RefreshCw size={18} />
               </button>
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-white/60 backdrop-blur-xl">
-                <Bell size={18} />
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] backdrop-blur-xl">
+                <Icon3d name="megaphone" className="h-6 w-6 object-contain" alt="" />
               </div>
             </div>
           </div>
@@ -365,15 +350,15 @@ const GoldbackHome: React.FC = () => {
 
             <div className="space-y-3">
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">Quick actions</p>
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-6 lg:grid-cols-3">
-                {QUICK_ACTIONS.map((item, index) => (
+              <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-4">
+                {QUICK_ACTIONS.map((item) => (
                   <Link
                     key={item.label}
                     to={item.path}
                     className="group rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-3 text-center shadow-[0_8px_20px_rgba(0,0,0,0.18)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-clay/25"
                   >
-                    <div className={`mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#10372c] text-clay transition group-hover:scale-[1.03] ${index % 2 ? 'bg-[#0c5f45]' : ''}`}>
-                      <item.icon size={18} />
+                    <div className="mx-auto flex h-14 w-14 items-center justify-center">
+                      <Icon3d name={item.icon} className="h-12 w-12 object-contain drop-shadow-[0_8px_16px_rgba(0,0,0,0.35)] transition group-hover:scale-[1.06]" />
                     </div>
                     <p className="mt-2 text-[10px] font-black uppercase tracking-[0.12em] text-white/68">{item.label}</p>
                   </Link>
@@ -385,8 +370,8 @@ const GoldbackHome: React.FC = () => {
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">Explore brands</p>
-                <p className="text-xs text-white/50 mt-1">Open high-conviction offers and tracked merchants from your home feed.</p>
+                <p className="text-[11px] font-black uppercase tracking-[0.22em] text-white/40">Explore offers</p>
+                <p className="text-xs text-white/50 mt-1">Coupons, gift cards, and partner brands by category.</p>
               </div>
               <Link
                 to="/dashboard/offers?tab=marketplace"
@@ -395,55 +380,14 @@ const GoldbackHome: React.FC = () => {
                 See all <ArrowRight size={14} />
               </Link>
             </div>
-
-            <div className="rounded-[1.6rem] border border-white/10 bg-[linear-gradient(135deg,rgba(255,255,255,0.04)_0%,rgba(52,211,153,0.08)_100%)] p-3">
-              {featuredOffers.length === 0 ? (
-                <div className="rounded-[1.2rem] bg-white/[0.05] px-6 py-10 text-center">
-                  <p className="text-sm font-bold text-white">Offer catalog is warming up</p>
-                  <p className="mt-1 text-xs text-white/55">Your featured brands will appear here once offers load.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                    {featuredOffers.map((offer, index) => (
-                      <Link
-                        key={offer.id}
-                        to="/dashboard/offers?tab=marketplace"
-                        className={`rounded-[1.25rem] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-3 transition hover:border-clay/25 ${merchantAccent(index)}`}
-                      >
-                        <div className="flex aspect-square items-center justify-center overflow-hidden rounded-[1rem] bg-white shadow-[inset_0_0_0_1px_rgba(16,55,44,0.05)]">
-                          {offer.imageUrl ? (
-                            <img src={offer.imageUrl} alt={offer.merchant} className="h-full w-full object-contain p-4" />
-                          ) : (
-                            <span className="text-xl font-black uppercase tracking-[-0.04em] text-[#10372c]">
-                              {offer.merchant.slice(0, 2)}
-                            </span>
-                          )}
-                        </div>
-                        <p className="mt-2 text-sm font-bold text-white truncate">{offer.merchant}</p>
-                        <p className="text-[11px] text-white/58 truncate">{offer.rewardLabel || 'Goldback reward'}</p>
-                      </Link>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <Link
-                      to="/dashboard/offers?tab=marketplace"
-                      className="inline-flex items-center justify-center rounded-full bg-[#10372c] px-4 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-white"
-                    >
-                      See all stores
-                    </Link>
-                    <Link
-                      to="/dashboard/offers?tab=marketplace"
-                      className="inline-flex items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-4 py-3 text-[11px] font-black uppercase tracking-[0.14em] text-white"
-                    >
-                      Show demo
-                    </Link>
-                  </div>
-                </>
-              )}
-            </div>
+            <ExploreBrandScenes />
           </div>
+
+          {/* Super Browse paused — keep the module, hide it from Home for now.
+          <div className="space-y-3">
+            <SuperBrowseGrid showChrome={false} />
+          </div>
+          */}
         </div>
       </motion.section>
 
@@ -468,8 +412,8 @@ const GoldbackHome: React.FC = () => {
             animate={{ opacity: 1 }}
             className="rounded-[1.75rem] border border-dashed border-white/15 bg-gradient-to-b from-white/[0.04] to-transparent px-8 py-16 text-center"
           >
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-clay/10 border border-clay/20">
-              <Coins className="text-clay" size={28} />
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-clay/10 border border-clay/20 overflow-hidden">
+              <YurekaBrandMark className="h-16 w-16 rounded-3xl object-cover" />
             </div>
             <p className="text-white font-bold text-lg mb-2">Your vault is empty</p>
             <p className="text-white/45 text-sm mb-8 max-w-sm mx-auto leading-relaxed">

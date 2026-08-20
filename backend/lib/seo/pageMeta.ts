@@ -8,7 +8,7 @@ export const SITE_NAME = 'Yureka One';
 export const TWITTER_HANDLE = '@yurekamoney';
 export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.jpg`;
 export const DEFAULT_DESCRIPTION =
-  "Turn everyday spending into 24K digital gold. Yureka's AI concierge orders for you, earns Yureka Goldback rewards up to 16% ROI, and builds your credit profile automatically.";
+  "Turn everyday spending into 24K digital gold. Yureka's AI concierge orders for you, pays Goldback up to 16% ROI, and builds your credit profile.";
 
 export interface PageMeta {
   title: string;
@@ -31,7 +31,7 @@ export const staticPageMeta: Record<string, PageMeta> = {
   '/': {
     title: "Yureka.One | India's AI Wealth OS — Spend, Earn Gold",
     description:
-      "Turn everyday spending into 24K digital gold. Yureka's AI concierge orders for you, earns Yureka Goldback rewards up to 16% ROI, and builds your credit profile automatically.",
+      "Turn everyday spending into 24K digital gold. Yureka's AI concierge orders for you, pays Goldback up to 16% ROI, and builds your credit profile.",
     ogTitle: "Yureka.One — Spend like always. Build wealth by default.",
     ogDescription:
       "India's first AI-native Wealth OS: an AI that shops for you, pays you in digital gold, and turns your transactions into a credit profile.",
@@ -49,10 +49,10 @@ export const staticPageMeta: Record<string, PageMeta> = {
       'credit card reward partners india', 'brand cashback offers india', 'pay with rewards india',
     ],
   },
-  '/blogs': {
-    title: 'Learn: Digital Gold, AI Shopping & Credit | Yureka.One',
+  '/blog': {
+    title: 'Goldback, AI shopping, and credit guides | Yureka.One',
     description:
-      'Guides on earning Yureka Goldback from everyday spending, ordering food with AI, building credit without a credit card, and India\'s agentic commerce shift.',
+      'Guides on earning Yureka Goldback from everyday spending, ordering food with AI, and building credit without a credit card.',
     keywords: [
       'digital gold cashback guide', 'AI shopping assistant india guide', 'build credit without credit card',
       'SGB alternative 2026', 'agentic commerce india', 'credit card strategy blog india',
@@ -84,10 +84,28 @@ export const staticPageMeta: Record<string, PageMeta> = {
       "The standards that keep Yureka's community of power shoppers trustworthy — covering accurate data sharing, respectful conduct, and prohibited behavior.",
     keywords: ['yureka community guidelines', 'yureka code of conduct'],
   },
+  '/about': {
+    title: 'About Yureka.One — Founded by Anwesh Biswas',
+    description:
+      "Yureka.One is a Bengaluru fintech founded in 2026 by Anwesh Biswas. We build India's AI Wealth OS: Goldback, AI ordering, and alternative credit.",
+    keywords: ['about yureka one', 'anwesh biswas yureka', 'yureka founder', 'wealth os india startup'],
+  },
+  '/contact': {
+    title: 'Contact Yureka.One | support@yureka.one',
+    description:
+      'Email support@yureka.one for support, partnerships, press, and careers. Yureka.One is based in Bengaluru and serves shoppers across India.',
+    keywords: ['yureka contact', 'yureka support email', 'support@yureka.one'],
+  },
+  '/faq': {
+    title: 'Yureka.One FAQ — Goldback, AI ordering, credit',
+    description:
+      'What is Yureka Goldback? Can AI order food in India? How do you build credit without a card? Direct answers on pricing, data, and how to join.',
+    keywords: ['yureka faq', 'what is goldback', 'yureka vs cred', 'wealth os meaning'],
+  },
   '/manifesto': {
     title: 'The Yureka Manifesto | Spend. Accumulate. Evolve.',
     description:
-      "Why Yureka.One exists: a Wealth OS built for India's power shoppers who treat every transaction as an opportunity to earn digital gold and build credit — not just collect dead points.",
+      "Why Yureka.One exists: a Wealth OS for India's power shoppers who treat every transaction as a chance to earn digital gold and build credit.",
     keywords: ['yureka manifesto', 'wealth operating system india', 'power shopper philosophy'],
   },
   '/jobs': {
@@ -132,6 +150,11 @@ export const staticPageMeta: Record<string, PageMeta> = {
   '/admin': {
     title: 'Admin | Yureka.One',
     description: 'Internal administration console.',
+    robots: 'noindex, nofollow',
+  },
+  '/brand': {
+    title: 'Brand portal | Yureka.One',
+    description: 'Invite-only partner portal to publish offers and see how members interact with them.',
     robots: 'noindex, nofollow',
   },
 

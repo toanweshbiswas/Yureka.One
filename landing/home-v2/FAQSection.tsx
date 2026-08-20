@@ -1,52 +1,7 @@
 import { useState } from 'react';
 import JoinWaitlistButton from './JoinWaitlistButton';
-
-// Placeholder answer copy -- on-brand but not sourced from a real FAQ doc.
-// Swap in real answers when available. The Lincoln-with-headphones
-// illustration is likewise a placeholder (simple icon block) standing in
-// for the real custom artwork.
-const FAQS = [
-  {
-    q: 'What is Yureka.One?',
-    a: 'Yureka One is an AI-driven rewards copilot that automatically finds the best card, offer, and cashback path for every purchase you make -- online or offline.',
-  },
-  {
-    q: 'What is Yureka Goldback?',
-    a: "Goldback is our reward format that pays you back in digital gold instead of points that expire or get devalued -- redeemable anytime, with zero gatekeeping.",
-  },
-  {
-    q: 'Is cashback in gold better than regular cashback?',
-    a: "Gold holds value over time instead of losing it. Reward points can be devalued or expire; grams of gold in your account don't.",
-  },
-  {
-    q: 'Can AI really order food or groceries for me in India?',
-    a: "Yes. Yureka's AI can place orders across supported delivery and quick-commerce apps on your behalf, always routing through the highest-reward payment method.",
-  },
-  {
-    q: 'How can I build a credit score without a credit card or loan?',
-    a: "Yureka tracks your everyday spending patterns and reports responsible usage to help you build credit history, even if you've never held a credit card.",
-  },
-  {
-    q: 'Is my data safe with Yureka?',
-    a: 'Your financial data is encrypted end-to-end and never sold. You control exactly what stays connected and can revoke access anytime.',
-  },
-  {
-    q: 'How much does Yureka cost?',
-    a: "Yureka is free to join during the waitlist phase. Pricing for premium AI features will be announced closer to public launch.",
-  },
-  {
-    q: 'How do I join Yureka?',
-    a: "Join the waitlist from the homepage -- we're onboarding users in phases starting with early sign-ups.",
-  },
-  {
-    q: 'How is Yureka different from CRED, CashKaro, or Jar?',
-    a: 'Those platforms track spend or round up savings. Yureka actively optimizes every transaction in real time using AI, across your existing cards -- no behavior change required.',
-  },
-  {
-    q: 'What is a Wealth Operating System?',
-    a: "It's the layer that sits across your cards, spends, and rewards -- making decisions for you instead of asking you to track everything manually.",
-  },
-];
+import { faqQuestions } from '@backend/lib/faq';
+import { Link } from 'react-router-dom';
 
 function FAQItem({
   q,
@@ -76,13 +31,15 @@ function FAQItem({
           <i className="bi bi-plus text-[22px] text-white" />
         </span>
       </button>
-      {isOpen && (
+      {isOpen ? (
         <p
           style={{ fontFamily: 'Inter, sans-serif' }}
           className="mt-4 max-w-2xl text-[13px] leading-relaxed text-white/50 sm:text-[14px]"
         >
           {a}
         </p>
+      ) : (
+        <p className="sr-only">{a}</p>
       )}
     </div>
   );
@@ -107,7 +64,8 @@ export default function FAQSection() {
             style={{ fontFamily: 'Inter, sans-serif' }}
             className="mt-4 text-[14px] text-white/60 sm:text-[15px]"
           >
-            Reach out if we missed yours.
+            Reach out if we missed yours. Full list on the{' '}
+            <Link to="/faq" className="text-[#5fae52] hover:underline">FAQ page</Link>.
           </p>
 
           <div className="relative mt-10 hidden aspect-[4/5] max-w-xs overflow-hidden rounded-2xl border border-white/20 bg-white/[0.04] shadow-2xl shadow-black/40 backdrop-blur-xl sm:block">
@@ -135,7 +93,7 @@ export default function FAQSection() {
         </div>
 
         <div>
-          {FAQS.map((item, i) => (
+          {faqQuestions.map((item, i) => (
             <FAQItem
               key={item.q}
               q={item.q}

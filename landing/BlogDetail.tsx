@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { 
-    ArrowLeft, Share2, Bookmark, Clock, 
-    Twitter, Linkedin, Link as LinkIcon,
-    ChevronUp, BookOpen, ExternalLink, Loader2
+import {
+    ArrowLeft, Share2, Bookmark, Clock,
+    BookOpen, Loader2, ChevronUp
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -12,12 +11,16 @@ import { fromApiBlog } from '@backend/lib/api/mappers';
 import type { Blog as ApiBlog } from '@backend/lib/api/types';
 import { Blog } from '@/types';
 import ImageWithLoader from '@shared/ImageWithLoader';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import SEO from '@shared/SEO';
 import { blogPostingSchema, breadcrumbSchema } from '@backend/lib/seo/structuredData';
+import NotFoundPage from '@landing/NotFoundPage';
+
+const spring = { type: 'spring' as const, bounce: 0, duration: 0.4 };
 
 const BlogDetail: React.FC = () => {
     const { slug } = useParams<{ slug: string }>();
+    const reduceMotion = useReducedMotion();
     const [blog, setBlog] = useState<Blog | null>(null);
     const [related, setRelated] = useState<Blog[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -27,12 +30,11 @@ const BlogDetail: React.FC = () => {
     const [showScrollTop, setShowScrollTop] = useState(false);
     const [extractedHtml, setExtractedHtml] = useState<string | null>(null);
     const [isReaderLoading, setIsReaderLoading] = useState(false);
-    const shadowRef = useRef<HTMLDivElement>(null);
     const articleRef = useRef<HTMLDivElement>(null);
 
     const blogSchemas = blog
         ? [
-              breadcrumbSchema([{ name: 'Home', path: '/' }, { name: 'Pulse', path: '/blogs' }, { name: blog.title, path: `/blogs/${blog.slug || slug}` }]),
+              breadcrumbSchema([{ name: 'Home', path: '/' }, { name: 'Blog', path: '/blog' }, { name: blog.title, path: `/blog/${blog.slug || slug}` }]),
               blogPostingSchema({ title: blog.title, image: blog.image, createdAt: blog.created_at, updatedAt: blog.updated_at, author: blog.author, slug: blog.slug || slug }),
           ]
         : undefined;
@@ -41,9 +43,8 @@ const BlogDetail: React.FC = () => {
         if (!slug) return;
         setIsLoading(true);
         setExtractedHtml(null);
-        
+
         const fetchBlog = async () => {
-            // Try Java API first
             const res = await api.get<ApiBlog>(`/api/v1/cms/blogs/${slug}`, { skipAuth: true });
             const data: Blog | null = !isApiError(res) && res.data ? fromApiBlog(res.data) : null;
 
@@ -51,13 +52,11 @@ const BlogDetail: React.FC = () => {
             setIsLoading(false);
 
             if (data) {
-                // Related blogs — Java API only; stays [] on API error
                 const allRes = await api.get<ApiBlog[]>('/api/v1/cms/blogs', { skipAuth: true });
                 if (!isApiError(allRes)) {
                     setRelated((allRes.data ?? []).map(fromApiBlog).filter(b => b.id !== data!.id && b.category === data!.category).slice(0, 3));
                 }
-                
-                // Try to fetch and extract content for seamless reading
+
                 if (data.external_link) {
                     setIsReaderLoading(true);
                     try {
@@ -65,28 +64,26 @@ const BlogDetail: React.FC = () => {
                         const response = await fetch(proxyUrl);
                         const result = await response.json();
                         const html = result.contents;
-                        
+
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(html, 'text/html');
-                        
-                        // Selectors for Blogger and common blog platforms
+
                         const selectors = [
-                            '.post-body', 
-                            '[itemprop="articleBody"]', 
-                            'article', 
-                            '.entry-content', 
+                            '.post-body',
+                            '[itemprop="articleBody"]',
+                            'article',
+                            '.entry-content',
                             '.main-content',
                             '.post-content'
                         ];
-                        
+
                         let mainContent = null;
                         for (const selector of selectors) {
                             mainContent = doc.querySelector(selector);
                             if (mainContent) break;
                         }
-                        
+
                         if (!mainContent) {
-                            // Heuristic: Find the element with the most text content
                             const allDivs = Array.from(doc.querySelectorAll('div, section, article'));
                             let maxText = 0;
                             let bestEl = null;
@@ -101,11 +98,10 @@ const BlogDetail: React.FC = () => {
                         }
 
                         if (mainContent) {
-                            // Clean up: Remove known branding/clutter selectors
                             const clutter = [
-                                'header', 'footer', 'nav', '.navbar', '#navbar', 
-                                '.post-footer', '.blog-pager', '.comments', '#comments', 
-                                '.attribution', '.sharing-buttons', '.share-buttons', 
+                                'header', 'footer', 'nav', '.navbar', '#navbar',
+                                '.post-footer', '.blog-pager', '.comments', '#comments',
+                                '.attribution', '.sharing-buttons', '.share-buttons',
                                 '.social-sharing', '.footer-outer', '.header-outer',
                                 '.adsbygoogle', 'script', 'style', 'iframe'
                             ];
@@ -113,7 +109,6 @@ const BlogDetail: React.FC = () => {
                                 mainContent?.querySelectorAll(s).forEach(el => el.remove());
                             });
 
-                            // Fix relative links and images
                             const baseUrl = new URL(data.external_link).origin;
                             mainContent.querySelectorAll('img, a').forEach(el => {
                                 if (el instanceof HTMLImageElement) {
@@ -125,7 +120,7 @@ const BlogDetail: React.FC = () => {
                                     if (href && !href.startsWith('http')) el.setAttribute('href', new URL(href, baseUrl).href);
                                 }
                             });
-                            
+
                             setExtractedHtml(mainContent.innerHTML);
                         }
                     } catch (err) {
@@ -165,273 +160,238 @@ const BlogDetail: React.FC = () => {
 
     if (isLoading) {
         return (
-            <div className="min-h-screen bg-cream flex items-center justify-center">
+            <div className="blog-reading min-h-screen bg-cream flex items-center justify-center">
                 <div className="space-y-4 text-center">
-                    <div className="w-12 h-12 border-2 border-clay/30 border-t-clay rounded-full animate-spin mx-auto" />
-                    <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/40">Opening Article</p>
+                    <div className="w-10 h-10 border-2 border-clay/30 border-t-clay rounded-full animate-spin mx-auto" />
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/40">Opening article</p>
                 </div>
             </div>
         );
     }
 
     if (!blog) {
-        return (
-            <div className="min-h-screen bg-cream flex flex-col items-center justify-center p-6 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-clay mb-6">404 Not Found</p>
-                <h1 className="text-5xl font-sans font-extrabold text-white mb-4 tracking-tight">Article Not Found</h1>
-                <p className="text-white/50 mb-10 max-w-md font-serif italic text-lg">The story you are looking for may have been archived or moved.</p>
-                <Link to="/blogs" className="bg-white text-black px-8 py-4 rounded-full font-bold uppercase tracking-widest text-[10px] hover:bg-clay transition-all">
-                    Back to Journal
-                </Link>
-            </div>
-        );
+        return <NotFoundPage />;
     }
 
-    // Estimate word count for reading time display
-    const wordCount = (blog.content || '').split(/\s+/).length;
+    const wordCount = (blog.content || '').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
     const readTime = blog.read_time || `${Math.ceil(wordCount / 200)} min read`;
+    const isHtml = blog.content_format === 'html' || /<\/?[a-z][\s\S]*>/i.test(blog.content || '');
 
     return (
-        <div className="min-h-screen bg-cream pb-32 font-serif" ref={articleRef}>
+        <div className="blog-reading min-h-screen bg-cream pb-28 selection:bg-clay selection:text-cream" ref={articleRef}>
             <SEO
-                title={`${blog.title} | Yureka Journal`}
+                title={`${blog.title} | Yureka Blog`}
                 description={blog.excerpt || `Read the latest insights on ${blog.category} from ${blog.author}.`}
                 image={blog.image}
                 schema={blogSchemas}
             />
 
-            {/* ── READING PROGRESS BAR ── */}
             <div
-                className="fixed top-0 left-0 h-0.5 bg-gradient-to-r from-cream to-clay z-[100] transition-all duration-75"
-                style={{ width: `${readingProgress}%` }}
-            />
+                className="fixed left-0 right-0 top-20 h-0.5 z-[60] pointer-events-none"
+                aria-hidden
+            >
+                <div
+                    className="h-full bg-clay origin-left"
+                    style={{ width: `${readingProgress}%`, transition: reduceMotion ? 'none' : 'width 80ms linear' }}
+                />
+            </div>
 
-            {/* ── TOP NAV ── */}
-            <div className="sticky top-[104px] md:top-20 z-40 bg-cream/90 backdrop-blur-xl border-b border-white/5">
-                <div className="max-w-[780px] mx-auto px-6 h-14 flex items-center justify-between">
-                    <Link to="/blogs" className="flex items-center gap-2 text-white/40 hover:text-clay transition-colors group text-[11px] font-bold uppercase tracking-widest font-sans">
-                        <ArrowLeft size={14} className="group-hover:-translate-x-1 transition-transform" />
-                        Journal
+            <div className="sticky top-20 z-40 bg-cream/78 backdrop-blur-xl border-b border-white/[0.06]">
+                <div className="max-w-[42rem] mx-auto px-5 sm:px-6 h-12 flex items-center justify-between">
+                    <Link
+                        to="/blog"
+                        className="flex items-center gap-2 text-white/45 hover:text-white transition-colors text-[12px] font-semibold tracking-tight active:scale-[0.97]"
+                    >
+                        <ArrowLeft size={15} />
+                        Blog
                     </Link>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5">
                         <AnimatePresence>
                             {copied && (
                                 <motion.span
-                                    initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }}
-                                    className="text-[10px] font-bold text-clay uppercase tracking-widest mr-2"
+                                    initial={{ opacity: 0, x: 8 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0 }}
+                                    transition={spring}
+                                    className="text-[11px] font-semibold text-clay mr-2"
                                 >
-                                    Copied!
+                                    Copied
                                 </motion.span>
                             )}
                         </AnimatePresence>
-                        <button onClick={handleShare} className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/5 text-white/40 hover:text-clay transition-all">
+                        <button
+                            type="button"
+                            onClick={handleShare}
+                            className="w-9 h-9 flex items-center justify-center rounded-full text-white/40 hover:text-white hover:bg-white/5 active:scale-[0.97]"
+                            aria-label="Copy link"
+                        >
                             <Share2 size={16} />
                         </button>
-                        <button onClick={() => setBookmarked(!bookmarked)} className={`w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/5 transition-all ${bookmarked ? 'text-clay' : 'text-white/40 hover:text-clay'}`}>
+                        <button
+                            type="button"
+                            onClick={() => setBookmarked(!bookmarked)}
+                            className={`w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/5 active:scale-[0.97] ${bookmarked ? 'text-clay' : 'text-white/40 hover:text-white'}`}
+                            aria-label="Bookmark"
+                        >
                             <Bookmark size={16} fill={bookmarked ? 'currentColor' : 'none'} />
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div className="max-w-[780px] mx-auto px-6 pt-12 md:pt-20">
-
-                {/* ── ARTICLE HEADER ── */}
-                <header className="mb-12">
-                    {/* Meta */}
-                    <div className="flex items-center flex-wrap gap-3 mb-8 font-sans">
-                        <span className="bg-clay/10 text-clay text-[10px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full">
+            <div className="max-w-[42rem] mx-auto px-5 sm:px-6 pt-10 md:pt-14">
+                <header className="mb-10 text-left">
+                    <div className="flex items-center flex-wrap gap-x-3 gap-y-2 mb-5">
+                        <span className="bg-clay/12 text-clay text-[10px] font-semibold uppercase tracking-[0.16em] px-2.5 py-1 rounded-full">
                             {blog.category}
                         </span>
-                        <div className="flex items-center gap-1.5 text-white/40 text-[10px] font-bold uppercase tracking-widest">
+                        <span className="inline-flex items-center gap-1.5 text-white/40 text-[11px] font-semibold uppercase tracking-[0.12em]">
                             <Clock size={11} />{readTime}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-white/30 text-[10px] font-bold uppercase tracking-widest">
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-white/28 text-[11px] font-semibold uppercase tracking-[0.12em]">
                             <BookOpen size={11} />{wordCount.toLocaleString()} words
-                        </div>
+                        </span>
                     </div>
 
-                    {/* Title */}
-                    <h1 className="text-4xl sm:text-6xl font-sans font-extrabold leading-[1.05] text-transparent bg-clip-text bg-gradient-to-br from-white to-white/60 mb-8 tracking-tight">
+                    <h1 className="text-white">
                         {blog.title}
                     </h1>
 
-                    {/* Author row */}
-                    <div className="flex items-center justify-between flex-wrap gap-6 pt-8 border-t border-white/10">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center text-lg font-bold shadow-md shrink-0">
+                    <div className="flex items-center justify-between flex-wrap gap-4 mt-8 pt-6 border-t border-white/10">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 bg-white text-black rounded-full flex items-center justify-center text-sm font-bold shrink-0">
                                 {blog.author?.[0] || 'Y'}
                             </div>
-                            <div>
-                                <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/40 font-sans">Written By</p>
-                                <p className="text-base font-bold text-white/90 font-sans">{blog.author || 'Yureka Editorial'}</p>
+                            <div className="min-w-0">
+                                <p className="text-[11px] text-white/38">Written by</p>
+                                <p className="text-[15px] font-semibold text-white truncate">{blog.author || 'Yureka Editorial'}</p>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/40 font-sans">Published</p>
-                            <p className="text-base font-bold text-white/90 font-sans">
+                        <div className="text-left sm:text-right">
+                            <p className="text-[11px] text-white/38">Published</p>
+                            <p className="text-[15px] font-semibold text-white">
                                 {new Date(blog.created_at || Date.now()).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                             </p>
                         </div>
                     </div>
                 </header>
 
-                {/* ── HERO IMAGE ── */}
-                <div className="relative aspect-[16/9] rounded-2xl overflow-hidden mb-14 shadow-2xl">
-                    <ImageWithLoader
-                        src={blog.image}
-                        alt={blog.title}
-                        className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                </div>
+                {blog.image ? (
+                    <figure className="mb-10 -mx-5 sm:mx-0 sm:rounded-[1.25rem] overflow-hidden aspect-[16/9] border border-white/8">
+                        <ImageWithLoader
+                            src={blog.image}
+                            alt={blog.title}
+                            className="w-full h-full object-cover"
+                        />
+                    </figure>
+                ) : null}
 
-                {/* ── ARTICLE BODY ── */}
                 <article>
-                    {/* Pull quote / excerpt - Only show if not an external link (to avoid redundancy) */}
                     {!blog.external_link && blog.excerpt && (
-                        <div className="relative pl-6 border-l-4 border-clay mb-12">
-                            <p className="text-xl md:text-2xl italic text-white/70 leading-relaxed font-serif font-medium">
-                                {blog.excerpt}
-                            </p>
-                        </div>
+                        <p className="mb-8 text-[1.15rem] leading-relaxed text-white/62 border-l-[3px] border-clay pl-4">
+                            {blog.excerpt}
+                        </p>
                     )}
 
-                    {/* Main content or External Embed */}
                     {blog.external_link ? (
-                        <div className="w-full relative">
-                             {/* SEAMLESS READER MODE */}
-                             {extractedHtml ? (
-                                <div className="animate-in fade-in duration-700">
-                                    <div className="prose prose-lg max-w-none
-                                    prose-headings:font-sans prose-headings:font-extrabold prose-headings:tracking-tight prose-headings:text-white
-                                        prose-h2:text-3xl prose-h2:mt-16 prose-h2:mb-6 prose-h2:pb-4 prose-h2:border-b prose-h2:border-white/10
-                                        prose-h3:text-2xl prose-h3:mt-12 prose-h3:mb-4
-                                        prose-p:text-white/80 prose-p:leading-[1.85] prose-p:text-[17px] prose-p:font-serif
-                                        prose-a:text-clay prose-a:no-underline hover:prose-a:underline
-                                        prose-blockquote:border-l-4 prose-blockquote:border-clay prose-blockquote:pl-6 prose-blockquote:italic prose-blockquote:text-white/60 prose-blockquote:not-italic
-                                        prose-strong:text-white prose-strong:font-bold
-                                        prose-img:rounded-xl prose-img:shadow-lg prose-img:border prose-img:border-white/10
-                                        prose-ul:space-y-2 prose-li:text-white/75 prose-li:font-serif prose-li:text-[17px]
-                                        prose-hr:border-white/10 prose-hr:my-16
-                                    ">
-                                        <div dangerouslySetInnerHTML={{ __html: extractedHtml }} />
+                        extractedHtml ? (
+                            <div>
+                                <div className="blog-article" dangerouslySetInnerHTML={{ __html: extractedHtml }} />
+                                <p className="mt-10 pt-6 border-t border-white/8 text-center text-[11px] uppercase tracking-[0.16em] text-white/25">
+                                    Original source: {new URL(blog.external_link).hostname}
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="relative bg-white/5 rounded-[1.25rem] overflow-hidden border border-white/10 min-h-[50vh]">
+                                {(isReaderLoading || isLoading) && (
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                        <Loader2 className="animate-spin text-clay" size={36} />
                                     </div>
-                                    
-                                    <div className="mt-12 pt-8 border-t border-white/5 text-center">
-                                        <p className="text-white/20 text-[10px] uppercase font-bold tracking-widest mb-4">Original source: {new URL(blog.external_link).hostname}</p>
-                                    </div>
-                                </div>
-                             ) : (
-                                <div className="w-full relative bg-white/5 rounded-3xl overflow-hidden border border-white/10 shadow-2xl group mb-10">
-                                     {/* Loader while iframe is loading */}
-                                     {(isReaderLoading || isLoading) && (
-                                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-20">
-                                            <Loader2 className="animate-spin text-clay" size={48} />
-                                        </div>
-                                     )}
-                                     
-                                     {/* IFRAME FALLBACK - Now with a larger height to ensure visibility if extraction fails */}
-                                     <div className="relative w-full overflow-hidden min-h-[80vh]">
-                                        <iframe 
-                                            src={blog.external_link} 
-                                            className="w-full h-[3000px] border-none relative z-10 -mb-[120px]"
-                                            title={blog.title}
-                                            scrolling="no"
-                                            allowFullScreen
-                                            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                                        />
-                                        
-                                        {/* Overlay to catch clicks at the very bottom (branding area) */}
-                                        <div className="absolute bottom-0 left-0 w-full h-40 bg-gradient-to-t from-cream to-transparent z-20 pointer-events-none" />
-                                     </div>
-                                </div>
-                             )}
-                        </div>
+                                )}
+                                <iframe
+                                    src={blog.external_link}
+                                    className="w-full min-h-[70vh] border-none"
+                                    title={blog.title}
+                                    allowFullScreen
+                                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                                />
+                            </div>
+                        )
                     ) : (
-                        <div className="prose prose-lg max-w-none
-                            prose-headings:font-sans prose-headings:font-extrabold prose-headings:tracking-tight prose-headings:text-white
-                            prose-h2:text-3xl prose-h2:mt-16 prose-h2:mb-6 prose-h2:pb-4 prose-h2:border-b prose-h2:border-white/10
-                            prose-h3:text-2xl prose-h3:mt-12 prose-h3:mb-4
-                            prose-p:text-white/80 prose-p:leading-[1.85] prose-p:text-[17px] prose-p:font-serif
-                            prose-a:text-clay prose-a:no-underline hover:prose-a:underline
-                            prose-blockquote:border-l-4 prose-blockquote:border-clay prose-blockquote:pl-6 prose-blockquote:italic prose-blockquote:text-white/60 prose-blockquote:not-italic
-                            prose-strong:text-white prose-strong:font-bold
-                            prose-code:bg-clay/10 prose-code:text-clay prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:text-sm prose-code:font-mono
-                            prose-img:rounded-xl prose-img:shadow-lg prose-img:border prose-img:border-white/10
-                            prose-ul:space-y-2 prose-li:text-white/75 prose-li:font-serif prose-li:text-[17px]
-                            prose-hr:border-white/10 prose-hr:my-16
-                        ">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>{blog.content}</ReactMarkdown>
-                        </div>
+                        isHtml ? (
+                            <div className="blog-article" dangerouslySetInnerHTML={{ __html: blog.content || '' }} />
+                        ) : (
+                            <div className="blog-article">
+                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{blog.content}</ReactMarkdown>
+                            </div>
+                        )
                     )}
                 </article>
 
-
-                {/* ── AUTHOR CARD ── */}
-                <div className="mt-12 p-8 md:p-10 rounded-2xl bg-white/5 border border-white/10 flex gap-6 items-start">
-                    <div className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center text-2xl font-bold shrink-0 shadow-md">
+                <div className="mt-12 p-6 sm:p-8 rounded-[1.35rem] bg-white/[0.04] border border-white/10 flex gap-4 items-start">
+                    <div className="w-12 h-12 bg-white text-black rounded-full flex items-center justify-center text-lg font-bold shrink-0">
                         {blog.author?.[0] || 'Y'}
                     </div>
-                    <div className="space-y-3">
-                        <div>
-                            <p className="text-[9px] font-bold uppercase tracking-[0.3em] text-white/40 font-sans">About the Author</p>
-                            <p className="text-xl font-bold text-white font-sans mt-1">{blog.author || 'Yureka Editorial'}</p>
-                        </div>
-                        <p className="text-white/60 leading-relaxed font-serif italic text-[15px]">
-                            Senior analyst at Yureka, specializing in Indian credit ecosystems, reward optimization, and fintech strategy. Published weekly in The Yureka Journal.
+                    <div className="min-w-0 space-y-2">
+                        <p className="text-[11px] text-white/38">About the author</p>
+                        <p className="text-lg font-bold text-white">{blog.author || 'Yureka Editorial'}</p>
+                        <p className="text-[14px] leading-relaxed text-white/50">
+                            Senior analyst at Yureka, specializing in Indian credit ecosystems, reward optimization, and fintech strategy.
                         </p>
-                        <Link to="/blogs" className="inline-flex items-center gap-2 text-clay text-[11px] font-bold uppercase tracking-widest font-sans hover:gap-3 transition-all">
+                        <Link to="/blog" className="inline-flex items-center gap-2 text-clay text-[13px] font-semibold active:scale-[0.97]">
                             More articles <ArrowLeft size={12} className="rotate-180" />
                         </Link>
                     </div>
                 </div>
 
-                {/* ── RELATED ARTICLES ── */}
                 {related.length > 0 && (
-                    <div className="mt-20">
-                        <div className="flex items-center gap-4 mb-10">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-white/40 font-sans shrink-0">Related Articles</p>
+                    <div className="mt-16">
+                        <div className="flex items-center gap-3 mb-6">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/40 shrink-0">Related</p>
                             <div className="flex-1 h-px bg-white/10" />
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             {related.map(post => (
-                                <Link key={post.id} to={`/blogs/${post.slug}`} className="group block">
-                                    <div className="aspect-[4/3] rounded-xl overflow-hidden mb-4 border border-white/5">
-                                        <ImageWithLoader src={post.image} alt={post.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                                <Link key={post.id} to={`/blog/${post.slug}`} className="group flex flex-col h-full active:scale-[0.99] transition-transform">
+                                    <div className="aspect-[16/10] rounded-xl overflow-hidden mb-3 border border-white/8">
+                                        <ImageWithLoader src={post.image} alt={post.title} className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
                                     </div>
-                                    <span className="text-[9px] font-bold uppercase tracking-widest text-clay font-sans">{post.category}</span>
-                                    <h4 className="text-base font-bold text-white/90 leading-[1.3] mt-1 group-hover:text-clay transition-colors font-sans line-clamp-2">{post.title}</h4>
-                                    <p className="text-white/40 text-sm font-serif italic mt-2 line-clamp-2">{post.excerpt}</p>
+                                    <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-clay">{post.category}</span>
+                                    <h4 className="text-[15px] font-bold text-white leading-snug mt-1 group-hover:text-clay transition-colors line-clamp-2">{post.title}</h4>
                                 </Link>
                             ))}
                         </div>
                     </div>
                 )}
 
-                {/* ── CTA ── */}
-                <div className="mt-24 rounded-2xl bg-gradient-to-br from-[#123b2c] to-[#0a1f17] border border-clay/20 p-10 text-center relative overflow-hidden">
-                    <div className="absolute top-0 right-0 w-64 h-64 bg-clay/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none" />
-                    <p className="text-clay text-[10px] font-bold uppercase tracking-[0.4em] font-sans mb-4">Never miss a dispatch</p>
-                    <h3 className="text-3xl md:text-4xl font-sans font-extrabold text-white tracking-tight mb-3 relative z-10">
-                        The future of credit is <span className="italic font-serif font-light text-clay">conversational.</span>
+                <div className="mt-16 rounded-[1.35rem] bg-[#0f241c] border border-clay/20 p-8 sm:p-10 text-center">
+                    <p className="text-clay text-[11px] font-semibold uppercase tracking-[0.18em] mb-3">Never miss a dispatch</p>
+                    <h3 className="text-[1.65rem] font-extrabold text-white tracking-tight mb-3">
+                        The future of credit is conversational.
                     </h3>
-                    <p className="text-white/60 font-serif italic mb-8 relative z-10">Join 50,000+ others on the AI-driven financial optimization platform.</p>
-                    <Link to="/join-waitlist" className="inline-block bg-clay text-black px-10 py-4 rounded-full font-bold uppercase tracking-widest text-[11px] font-sans hover:bg-white transition-all shadow-lg shadow-clay/20 relative z-10">
-                        Join VIP Waitlist →
+                    <p className="text-white/50 text-[15px] leading-relaxed mb-6">Join others on the AI-driven financial optimization platform.</p>
+                    <Link
+                        to="/join-waitlist"
+                        className="inline-block bg-clay text-black px-8 py-3.5 rounded-full font-semibold uppercase tracking-[0.16em] text-[11px] active:scale-[0.97]"
+                    >
+                        Join waitlist
                     </Link>
                 </div>
             </div>
 
-            {/* ── SCROLL TO TOP ── */}
             <AnimatePresence>
                 {showScrollTop && (
                     <motion.button
-                        initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
-                        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                        className="fixed bottom-8 right-8 w-12 h-12 bg-white text-black rounded-full shadow-2xl flex items-center justify-center hover:bg-clay transition-all z-50 border border-black/10"
+                        type="button"
+                        initial={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.92 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.92 }}
+                        transition={spring}
+                        onClick={() => window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })}
+                        className="fixed bottom-8 right-6 w-11 h-11 bg-white text-black rounded-full shadow-2xl flex items-center justify-center active:scale-[0.97] z-50"
+                        aria-label="Back to top"
                     >
-                        <ChevronUp size={20} />
+                        <ChevronUp size={18} />
                     </motion.button>
                 )}
             </AnimatePresence>

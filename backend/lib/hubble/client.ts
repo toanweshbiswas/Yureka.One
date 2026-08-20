@@ -1,4 +1,6 @@
 import { randomUUID } from 'crypto'
+import { normalizeDenominations } from './denominations.js'
+import { collectRedeemSites } from './redeemSites.js'
 import type {
   GiftCard,
   HubbleOrderRaw,
@@ -66,10 +68,17 @@ function normalizeCategories(raw: HubbleProductRaw['category']): string[] {
 export function mapProduct(raw: HubbleProductRaw): GiftCard {
   const categories = normalizeCategories(raw.category)
   const amounts = raw.amountRestrictions || {}
-  const howTo =
+  const howTo = (
     raw.howToUseInstructions?.flatMap((h) => h.instructions || []) ||
     Object.values(raw.usageInstructions || {}).flat() ||
     []
+  ).filter((step) => !/coda\.io|myhubble\.money/i.test(step))
+
+  const denominationType =
+    String(raw.denominationType || '').toUpperCase() === 'FLEXIBLE' ? 'FLEXIBLE' : 'FIXED'
+  const denominations = normalizeDenominations(amounts.denominations)
+  const minAmount = amounts.minVoucherAmount ?? amounts.minAmount ?? null
+  const maxAmount = amounts.maxVoucherAmount ?? amounts.maxAmount ?? null
 
   return {
     id: raw.id,
@@ -80,16 +89,17 @@ export function mapProduct(raw: HubbleProductRaw): GiftCard {
     categories,
     tags: raw.tags || [],
     redemptionType: raw.redemptionType || 'ONLINE',
-    denominationType: raw.denominationType || 'FIXED',
-    denominations: amounts.denominations || [],
-    minAmount: amounts.minAmount ?? amounts.minVoucherAmount ?? null,
-    maxAmount: amounts.maxAmount ?? amounts.maxVoucherAmount ?? null,
+    denominationType,
+    denominations,
+    minAmount: minAmount == null ? null : Number(minAmount),
+    maxAmount: maxAmount == null ? null : Number(maxAmount),
     discountPercentage: raw.discountPercentage ?? null,
     imageUrl: raw.thumbnailUrl || raw.iconImageUrl || raw.logoUrl || null,
     logoUrl: raw.logoUrl || raw.iconImageUrl || null,
-    tncUrl: raw.tncUrl || null,
-    termsAndConditions: raw.termsAndConditions || [],
+    tncUrl: null,
+    termsAndConditions: [],
     howToUse: howTo,
+    redeemSites: collectRedeemSites(raw),
     voucherExpiryInMonths: raw.voucherExpiryInMonths ?? null,
   }
 }

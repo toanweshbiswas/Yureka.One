@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 import Navbar from '@landing/home-v2/Navbar';
@@ -18,9 +18,12 @@ import {
   landingUrl,
   appUrl,
   adminUrl,
+  brandUrl,
   goExternal,
   isTemporaryPublicHost,
   productionUrlForPath,
+  APP_PATH_PREFIXES,
+  BRAND_PATH_PREFIXES,
   type SiteRole,
 } from '@shared/hosts';
 
@@ -73,6 +76,9 @@ const SecurityProtocolPage = lazyWithRetry(() => import('@landing/SecurityProtoc
 const CommunityGuidelines = lazyWithRetry(() => import('@landing/CommunityGuidelines'));
 const YurekaAIPage = lazyWithRetry(() => import('@landing/YurekaAIPage'));
 const CareersPage = lazyWithRetry(() => import('@landing/CareersPage'));
+const AboutPage = lazyWithRetry(() => import('@landing/AboutPage'));
+const ContactPage = lazyWithRetry(() => import('@landing/ContactPage'));
+const FaqPage = lazyWithRetry(() => import('@landing/FaqPage'));
 const ForBrands = lazyWithRetry(() => import('@landing/ForBrands'));
 const ZwitchPage = lazyWithRetry(() => import('@landing/Zwitch/ZwitchPage'));
 const NotFoundPage = lazyWithRetry(() => import('@landing/NotFoundPage'));
@@ -80,11 +86,14 @@ const NotFoundPage = lazyWithRetry(() => import('@landing/NotFoundPage'));
 // App (product)
 const AdminDashboard = lazyWithRetry(() => import('@app/AdminDashboard'));
 const DashboardLayout = lazyWithRetry(() => import('@app/Dashboard/DashboardLayout'));
+const BrandPortal = lazyWithRetry(() => import('@app/brand/BrandPortal'));
+const BrandLoginPage = lazyWithRetry(() => import('@app/brand/BrandLoginPage'));
+const BrandResetPasswordPage = lazyWithRetry(() => import('@app/brand/BrandResetPasswordPage'));
 
-const APP_PATH_PREFIXES = ['/login', '/signup', '/join-waitlist', '/waiting', '/dashboard'] as const;
 const LANDING_PATH_PREFIXES = [
   '/brands',
   '/for-brands',
+  '/blog',
   '/blogs',
   '/zwitch',
   '/privacy-policy',
@@ -92,6 +101,9 @@ const LANDING_PATH_PREFIXES = [
   '/security-protocol',
   '/community-guidelines',
   '/manifesto',
+  '/about',
+  '/contact',
+  '/faq',
   '/jobs',
   '/yureka-ai',
   '/ai-magic',
@@ -122,6 +134,10 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
         goExternal(adminUrl(rest === '/admin' ? '/admin' : rest));
         return;
       }
+      if (pathStartsWith(pathname, BRAND_PATH_PREFIXES)) {
+        goExternal(brandUrl(rest === '/brand' ? '/brand' : rest));
+        return;
+      }
       if (pathStartsWith(pathname, APP_PATH_PREFIXES)) {
         goExternal(appUrl(rest));
         return;
@@ -131,6 +147,10 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
     if (role === 'app') {
       if (pathname === '/admin' || pathname.startsWith('/admin/')) {
         goExternal(adminUrl(rest === '/admin' ? '/admin' : rest));
+        return;
+      }
+      if (pathStartsWith(pathname, BRAND_PATH_PREFIXES)) {
+        goExternal(brandUrl(rest === '/brand' ? '/brand' : rest));
         return;
       }
       if (pathStartsWith(pathname, LANDING_PATH_PREFIXES)) {
@@ -144,12 +164,45 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
         goExternal(adminUrl('/admin'));
         return;
       }
+      if (pathStartsWith(pathname, BRAND_PATH_PREFIXES)) {
+        goExternal(brandUrl(rest === '/brand' ? '/brand' : rest));
+        return;
+      }
       if (pathStartsWith(pathname, APP_PATH_PREFIXES)) {
         goExternal(appUrl(rest));
         return;
       }
       if (pathStartsWith(pathname, LANDING_PATH_PREFIXES)) {
         goExternal(landingUrl(rest));
+        return;
+      }
+    }
+
+    if (role === 'brand') {
+      if (pathname === '/') {
+        goExternal(brandUrl('/brand'));
+        return;
+      }
+      if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+        goExternal(adminUrl(rest === '/admin' ? '/admin' : rest));
+        return;
+      }
+      if (pathStartsWith(pathname, LANDING_PATH_PREFIXES)) {
+        goExternal(landingUrl(rest));
+        return;
+      }
+      if (pathname === '/login' || pathname === '/signup' || pathname === '/reset-password') {
+        const dest =
+          pathname === '/signup'
+            ? '/brand/signup'
+            : pathname === '/reset-password'
+              ? '/brand/reset-password'
+              : '/brand/login';
+        goExternal(brandUrl(`${dest}${search}${hash}`));
+        return;
+      }
+      if (pathStartsWith(pathname, APP_PATH_PREFIXES)) {
+        goExternal(appUrl(rest));
         return;
       }
     }
@@ -165,7 +218,12 @@ const ScrollToTop = () => {
   useEffect(() => {
     // Dashboard keep-alive tabs scroll their own pane — don't jump the whole app.
     if (pathname.startsWith('/dashboard')) return;
-    if (!hash) {
+    const isAuthHash =
+      hash.includes('access_token') ||
+      hash.includes('refresh_token') ||
+      hash.includes('type=recovery') ||
+      hash.includes('error=');
+    if (!hash || isAuthHash) {
       window.scrollTo(0, 0);
     } else {
       const id = hash.replace('#', '');
@@ -216,21 +274,32 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   return <>{children}</>;
 };
 
+function LegacyBlogsRedirect() {
+  const { slug } = useParams();
+  return <Navigate to={slug ? `/blog/${slug}` : '/blog'} replace />;
+}
+
 function LandingRoutes() {
   return (
     <Routes>
       <Route path="/" element={<MainPage />} />
       <Route path="/zwitch" element={<><SEO {...staticPageMeta['/zwitch']} /><ZwitchPage /></>} />
-      <Route path="/brands" element={<><SEO {...staticPageMeta['/brands']} /><BrandExplorer /></>} />
+      <Route path="/brands" element={<BrandExplorer />} />
+      <Route path="/brands/:category" element={<BrandExplorer />} />
       <Route path="/for-brands" element={<ForBrands />} />
-      <Route path="/blogs" element={<><SEO {...staticPageMeta['/blogs']} /><JournalPage /></>} />
-      <Route path="/blogs/:slug" element={<BlogDetail />} />
+      <Route path="/blog" element={<><SEO {...staticPageMeta['/blog']} /><JournalPage /></>} />
+      <Route path="/blog/:slug" element={<BlogDetail />} />
+      <Route path="/blogs" element={<Navigate to="/blog" replace />} />
+      <Route path="/blogs/:slug" element={<LegacyBlogsRedirect />} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />
       <Route path="/security-protocol" element={<SecurityProtocolPage />} />
       <Route path="/community-guidelines" element={<CommunityGuidelines />} />
       <Route path="/yureka-os" element={<Navigate to="/" replace />} />
       <Route path="/manifesto" element={<OurStory />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/faq" element={<FaqPage />} />
       <Route path="/jobs" element={<CareersPage />} />
       <Route path="/yureka-ai" element={<><SEO {...staticPageMeta['/yureka-ai']} /><YurekaAIPage /></>} />
       <Route path="/ai-magic" element={<Navigate to="/yureka-ai" replace />} />
@@ -275,16 +344,38 @@ function AdminRoutes() {
   );
 }
 
+function BrandRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/brand" replace />} />
+      <Route path="/brand/login" element={<><SEO {...staticPageMeta['/brand']} /><BrandLoginPage /></>} />
+      <Route path="/brand/signup" element={<><SEO {...staticPageMeta['/brand']} /><BrandLoginPage /></>} />
+      <Route path="/brand/reset-password" element={<><SEO {...staticPageMeta['/brand']} /><BrandResetPasswordPage /></>} />
+      <Route path="/brand" element={<BrandPortal />} />
+      <Route path="/brand/*" element={<BrandPortal />} />
+      <Route path="*" element={<Navigate to="/brand" replace />} />
+    </Routes>
+  );
+}
+
 function CombinedRoutes() {
   return (
     <Routes>
       <Route path="/" element={<MainPage />} />
       <Route path="/zwitch" element={<><SEO {...staticPageMeta['/zwitch']} /><ZwitchPage /></>} />
-      <Route path="/brands" element={<><SEO {...staticPageMeta['/brands']} /><BrandExplorer /></>} />
+      <Route path="/brands" element={<BrandExplorer />} />
+      <Route path="/brands/:category" element={<BrandExplorer />} />
       <Route path="/for-brands" element={<ForBrands />} />
-      <Route path="/blogs" element={<><SEO {...staticPageMeta['/blogs']} /><JournalPage /></>} />
-      <Route path="/blogs/:slug" element={<BlogDetail />} />
+      <Route path="/blog" element={<><SEO {...staticPageMeta['/blog']} /><JournalPage /></>} />
+      <Route path="/blog/:slug" element={<BlogDetail />} />
+      <Route path="/blogs" element={<Navigate to="/blog" replace />} />
+      <Route path="/blogs/:slug" element={<LegacyBlogsRedirect />} />
       <Route path="/admin" element={<><SEO {...staticPageMeta['/admin']} /><AdminDashboard /></>} />
+      <Route path="/brand/login" element={<><SEO {...staticPageMeta['/brand']} /><BrandLoginPage /></>} />
+      <Route path="/brand/signup" element={<><SEO {...staticPageMeta['/brand']} /><BrandLoginPage /></>} />
+      <Route path="/brand/reset-password" element={<><SEO {...staticPageMeta['/brand']} /><BrandResetPasswordPage /></>} />
+      <Route path="/brand" element={<BrandPortal />} />
+      <Route path="/brand/*" element={<BrandPortal />} />
       <Route path="/login" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
       <Route path="/signup" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
       <Route path="/join-waitlist" element={<><SEO {...staticPageMeta['/join-waitlist']} /><WaitlistPage /></>} />
@@ -304,6 +395,9 @@ function CombinedRoutes() {
       <Route path="/community-guidelines" element={<CommunityGuidelines />} />
       <Route path="/yureka-os" element={<Navigate to="/" replace />} />
       <Route path="/manifesto" element={<OurStory />} />
+      <Route path="/about" element={<AboutPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/faq" element={<FaqPage />} />
       <Route path="/jobs" element={<CareersPage />} />
       <Route path="/yureka-ai" element={<><SEO {...staticPageMeta['/yureka-ai']} /><YurekaAIPage /></>} />
       <Route path="/ai-magic" element={<Navigate to="/yureka-ai" replace />} />
@@ -317,14 +411,20 @@ const AppContent: React.FC = () => {
   const location = useLocation();
   const role = resolveSiteRole();
   const isAdminRoute = location.pathname.startsWith('/admin') || role === 'admin';
+  const isBrandRoute = location.pathname.startsWith('/brand') || role === 'brand';
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const isHomeRoute = location.pathname === '/' && (role === 'landing' || role === 'all');
   const isForBrandsRoute = location.pathname === '/for-brands';
-  const isSpecialRoute = isAdminRoute || isDashboardRoute || isForBrandsRoute || role === 'app';
-  const applyEditorialGrid = !isSpecialRoute && !isHomeRoute;
+  const isBlogRoute =
+    location.pathname === '/blog' ||
+    location.pathname.startsWith('/blog/') ||
+    location.pathname === '/blogs' ||
+    location.pathname.startsWith('/blogs/');
+  const isSpecialRoute = isAdminRoute || isDashboardRoute || isBrandRoute || isForBrandsRoute || role === 'app';
+  const applyEditorialGrid = !isSpecialRoute && !isHomeRoute && !isBlogRoute;
   const isZwitchRoute = location.pathname === '/zwitch';
   const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute;
-  const isProductShell = role === 'app' || role === 'admin' || isAdminRoute || isDashboardRoute;
+  const isProductShell = role === 'app' || role === 'admin' || role === 'brand' || isAdminRoute || isDashboardRoute || isBrandRoute;
   const shellBg = isHomeRoute || isProductShell ? 'bg-[#070707]' : 'bg-cream';
   const showSiteNavbar =
     role === 'landing' || role === 'all'
@@ -332,7 +432,15 @@ const AppContent: React.FC = () => {
       : false;
 
   const appRoutes =
-    role === 'landing' ? <LandingRoutes /> : role === 'app' ? <ProductRoutes /> : role === 'admin' ? <AdminRoutes /> : <CombinedRoutes />;
+    role === 'landing'
+      ? <LandingRoutes />
+      : role === 'app'
+        ? <ProductRoutes />
+        : role === 'admin'
+          ? <AdminRoutes />
+          : role === 'brand'
+            ? <BrandRoutes />
+            : <CombinedRoutes />;
 
   const suspenseFallback = (
     <div className={`fixed inset-0 ${shellBg} flex items-center justify-center`} style={{ zIndex: 100 }}>
@@ -362,7 +470,10 @@ const AppContent: React.FC = () => {
                   <div className="hidden lg:block border-l border-white/5 bg-white/[0.02] h-full min-h-screen" />
                 </div>
               ) : (
-                appRoutes
+                <>
+                  {appRoutes}
+                  {isBlogRoute ? <Footer /> : null}
+                </>
               )}
             </ErrorBoundary>
           </Suspense>

@@ -117,7 +117,7 @@ const CommunityGuidelines: React.FC = () => {
                      <div className="pt-8">
                          <h3 className="text-2xl font-heading font-extrabold uppercase tracking-tight text-white mb-4">See a Violation?</h3>
                          <p className="italic text-white/40 mb-10 max-w-md mx-auto">If you witness behavior that violates these principles, please report it immediately to our security desk.</p>
-                         <a href="mailto:contact@yureka.one" className="inline-flex items-center gap-4 bg-clay text-cream px-10 py-5 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-white transition-all shadow-2xl shadow-clay/10">
+                         <a href="mailto:support@yureka.one" className="inline-flex items-center gap-4 bg-clay text-cream px-10 py-5 rounded-2xl font-bold uppercase tracking-widest text-[10px] hover:bg-white transition-all shadow-2xl shadow-clay/10">
                              Report Violation <ChevronRight size={14} />
                          </a>
                      </div>

@@ -11,6 +11,13 @@ const MERCHANT_DOMAINS: Record<string, string> = {
   jiomart: 'jiomart.com',
 }
 
+const CUELINKS_CDN_HOSTS = new Set([
+  'cdn0.cuelinks.com',
+  'cdn.cuelinks.com',
+  'cdn1.cuelinks.com',
+  'cdn2.cuelinks.com',
+])
+
 function slug(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '')
 }
@@ -38,6 +45,41 @@ export function merchantLogoUrl(merchant?: string | null, pageUrl?: string | nul
   return null
 }
 
+export function isCuelinksCdnHost(host: string): boolean {
+  const h = host.toLowerCase().replace(/^www\./, '')
+  return CUELINKS_CDN_HOSTS.has(h) || h.endsWith('.cuelinks.com')
+}
+
+function absolutizeImageUrl(value: string): string | null {
+  let next = value.trim()
+  if (!next) return null
+  if (next.startsWith('//')) next = `https:${next}`
+  else if (next.startsWith('/')) next = `https://cdn0.cuelinks.com${next}`
+  else if (/^http:\/\//i.test(next)) next = next.replace(/^http:\/\//i, 'https://')
+  try {
+    return new URL(next).toString()
+  } catch {
+    try {
+      return new URL(encodeURI(next)).toString()
+    } catch {
+      return null
+    }
+  }
+}
+
+/** Same-origin proxy so ad blockers / hotlink rules don't blank CueLinks logos. */
+export function throughMediaProxy(url: string): string {
+  try {
+    const parsed = new URL(url)
+    if (isCuelinksCdnHost(parsed.hostname)) {
+      return `/api/media/remote?url=${encodeURIComponent(parsed.toString())}`
+    }
+  } catch {
+    /* keep original */
+  }
+  return url
+}
+
 /** CueLinks often returns `/photos/medium/missing.png` which 404s on our origin. */
 export function resolveRemoteImageUrl(
   raw?: string | null,
@@ -52,12 +94,10 @@ export function resolveRemoteImageUrl(
     value === 'undefined'
 
   if (!unusable) {
-    if (/^https?:\/\//i.test(value)) {
-      return value.replace(/^http:\/\//i, 'https://')
-    }
-    if (value.startsWith('//')) return `https:${value}`
-    if (value.startsWith('/')) return `https://cdn0.cuelinks.com${value}`
+    const absolute = absolutizeImageUrl(value)
+    if (absolute) return throughMediaProxy(absolute)
   }
 
-  return merchantLogoUrl(merchant, fallbackPageUrl)
+  const fallback = merchantLogoUrl(merchant, fallbackPageUrl)
+  return fallback
 }

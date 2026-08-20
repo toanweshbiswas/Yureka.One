@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { appUrl, goExternal, isSplitHostsEnabled } from '@shared/hosts';
-import YurekaLogo from './YurekaLogo';
 import SquashHamburger from './SquashHamburger';
 import ScrambleText from './ScrambleText';
+import YurekaBrandMark from '@shared/YurekaBrandMark';
 
 interface NavbarProps {
   // Optional homepage flourish: gates the initial fade-in on font readiness
@@ -16,13 +16,54 @@ interface NavbarProps {
 
 const NAV_LINKS = [
   { name: 'Brands', path: '/brands', desc: 'Top reward partner brands' },
+  { name: 'About', path: '/about', desc: 'Who builds Yureka' },
+  { name: 'FAQ', path: '/faq', desc: 'Goldback, AI, credit, pricing' },
   { name: 'Yureka AI', path: '/yureka-ai', desc: 'Access the intelligence hub' },
-  { name: 'For Brands', path: '/for-brands', desc: 'Partner, smart checkout & credit data' },
   { name: 'Zwitch', path: '/zwitch', desc: 'Premium digital agency experience' },
 ];
 
 // A single link in the desktop expanding-pill menu, with the same
 // scramble-on-hover text effect as the "Join Waitlist" CTA.
+function HeaderLogo({ size = 'desktop' }: { size?: 'desktop' | 'mobile' | 'drawer' }) {
+  const reduceMotion = useReducedMotion();
+  const compact = size !== 'desktop';
+  return (
+    <Link to="/" aria-label="Yureka home" className="shrink-0">
+      <motion.div
+        className={
+          compact
+            ? 'flex h-9 items-center gap-2 rounded-[10px] border border-white/20 bg-white/15 px-2.5 backdrop-blur-[20px] saturate-[180%] active:scale-[0.97]'
+            : 'flex h-12 items-center gap-2.5 rounded-[14px] border border-white/20 bg-white/15 px-3.5 backdrop-blur-[20px] saturate-[180%] active:scale-[0.97]'
+        }
+        style={{
+          transformOrigin: 'left center',
+          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.28)',
+        }}
+        whileHover={reduceMotion ? undefined : { scale: 1.02 }}
+        whileTap={reduceMotion ? undefined : { scale: 0.97 }}
+        transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+      >
+        <YurekaBrandMark
+          className={
+            compact
+              ? 'h-[22px] w-[22px] rounded-[6px] object-cover'
+              : 'h-7 w-7 rounded-[8px] object-cover'
+          }
+        />
+        <span
+          className={
+            compact
+              ? 'text-[13px] font-semibold leading-none tracking-[-0.02em] text-white whitespace-nowrap'
+              : 'text-[16px] font-semibold leading-none tracking-[-0.022em] text-white'
+          }
+        >
+          Yureka
+        </span>
+      </motion.div>
+    </Link>
+  );
+}
+
 function ScrambleNavLink({
   to,
   label,
@@ -75,6 +116,15 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
 
   const closeMenu = () => setMenuOpen(false);
 
+  useEffect(() => {
+    if (!menuOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [menuOpen]);
+
   const goApp = (path: string) => {
     if (isSplitHostsEnabled()) {
       goExternal(appUrl(path));
@@ -109,24 +159,16 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
   return (
     <>
       <motion.nav
-        className="yureka-one-home fixed top-0 left-0 right-0 z-50 h-20 w-full"
+        className="yureka-one-home fixed top-0 left-0 right-0 z-50 w-full"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: entranceComplete ? 1 : 0, y: entranceComplete ? 0 : -8 }}
         transition={{ type: 'spring', bounce: 0, duration: 0.45 }}
       >
         {/* Desktop */}
-        <div className="hidden md:flex items-center justify-between h-full px-6 md:mx-auto md:max-w-[60vw] md:px-0">
+        <div className="hidden md:flex items-center justify-between h-20 px-6 md:mx-auto md:max-w-[60vw] md:px-0">
           <div className="flex items-center gap-2">
-            <Link to="/">
-              <motion.div
-                className="flex h-12 px-5 items-center gap-2 bg-white/15 backdrop-blur-md rounded-[14px]"
-                whileHover={{ scale: 1.02, backgroundColor: 'rgba(255,255,255,0.22)' }}
-                whileTap={{ scale: 0.98 }}
-              >
-                <YurekaLogo className="w-[18px] h-[18px] text-white" />
-                <span className="text-white text-[16px] font-medium tracking-tight">Yureka</span>
-              </motion.div>
-            </Link>
+            <HeaderLogo />
 
             {/* Inline expanding menu pill: collapsed it's just the toggle
                 button; open it grows to the right and reveals the nav links,
@@ -186,19 +228,12 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
         </div>
 
         {/* Mobile */}
-        <div className="flex md:hidden items-center justify-between h-full px-4 gap-2">
-          <Link to="/" className="shrink-0">
-            <div className="h-9 flex items-center gap-1.5 bg-white/15 backdrop-blur-md rounded-[10px] px-3.5">
-              <YurekaLogo className="w-[14px] h-[14px] text-white shrink-0" />
-              <span className="text-white text-[13px] font-medium tracking-tight whitespace-nowrap">
-                Yureka
-              </span>
-            </div>
-          </Link>
+        <div className="flex md:hidden items-center justify-between h-16 px-4 gap-2">
+          <HeaderLogo size="mobile" />
 
           <button
             type="button"
-            onClick={() => setMenuOpen(true)}
+            onClick={() => setMenuOpen((v) => !v)}
             aria-label="Open menu"
             className="ml-auto mr-2 flex h-9 w-9 shrink-0 touch-manipulation items-center justify-center rounded-[10px] bg-white/15 backdrop-blur-md active:scale-[0.97]"
           >
@@ -231,22 +266,24 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
               className="absolute inset-0 bg-black/80 backdrop-blur-xl"
               onClick={closeMenu}
             />
 
             <motion.div
-              initial={{ x: '100%', opacity: 0 }}
-              animate={{ x: 0, opacity: 1 }}
-              exit={{ x: '100%', opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
               className="absolute top-0 right-0 h-full w-[85%] max-w-[400px] bg-black border-l border-white/10 p-8 sm:p-10 flex flex-col shadow-2xl"
+              style={{
+                paddingTop: 'max(2rem, calc(1.5rem + env(safe-area-inset-top, 0px)))',
+                paddingBottom: 'max(2rem, calc(1.5rem + env(safe-area-inset-bottom, 0px)))',
+              }}
             >
               <div className="flex justify-between items-center mb-12 sm:mb-16">
-                <div className="flex items-center gap-2">
-                  <YurekaLogo className="w-[18px] h-[18px] text-white" />
-                  <span className="text-white text-[16px] font-medium tracking-tight">Yureka</span>
-                </div>
+                <HeaderLogo size="drawer" />
                 <button
                   onClick={closeMenu}
                   className="w-10 h-10 sm:w-12 sm:h-12 bg-white/5 border border-white/10 flex items-center justify-center rounded-full text-white hover:bg-white/10 transition-all"
@@ -255,7 +292,7 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
                 </button>
               </div>
 
-              <nav className="flex-none flex flex-col gap-6 sm:gap-8 overflow-y-auto max-h-[50vh]">
+              <nav className="flex-1 flex flex-col gap-6 sm:gap-8 overflow-y-auto min-h-0">
                 {NAV_LINKS.map((item, idx) => (
                   <motion.div
                     initial={{ opacity: 0, x: 20 }}
@@ -293,7 +330,7 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
                     closeMenu();
                     cta.onClick();
                   }}
-                  className="w-full h-14 bg-white text-black rounded-full flex items-center justify-center gap-2 text-[14px] font-medium"
+                  className="w-full h-14 bg-white text-black rounded-full flex items-center justify-center gap-2 text-[14px] font-medium touch-manipulation active:scale-[0.97]"
                 >
                   {cta.label}
                 </button>

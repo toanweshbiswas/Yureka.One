@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from 'express'
 import { readLedgerCache, runGmailScanner, writeLedgerCache } from '../ledger/scannerRunner.js'
 import { consumeLedgerResync, getLedgerResyncQuota } from '../ledger/resyncQuota.js'
+import { blogToApi, getBlogBySlug, listBlogs } from '../cms/blogStore.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
   res.status(status).json({ data, status, timestamp: new Date().toISOString() })
@@ -30,17 +31,30 @@ export function registerPublicApiRoutes(app: Express) {
     ok(res, [])
   })
 
-  app.get('/api/v1/cms/blogs', (_req, res) => {
-    ok(res, [])
+  app.get('/api/v1/cms/blogs', async (_req, res) => {
+    try {
+      const posts = await listBlogs({ includeDrafts: false })
+      ok(res, posts.map(blogToApi))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load blogs')
+    }
   })
 
-  app.get('/api/v1/cms/blogs/:slug', (_req, res) => {
-    res.status(404).json({
-      data: null,
-      status: 404,
-      error: 'Blog not found',
-      timestamp: new Date().toISOString(),
-    })
+  app.get('/api/v1/cms/blogs/:slug', async (req, res) => {
+    try {
+      const blog = await getBlogBySlug(String(req.params.slug || ''))
+      if (!blog) {
+        return res.status(404).json({
+          data: null,
+          status: 404,
+          error: 'Blog not found',
+          timestamp: new Date().toISOString(),
+        })
+      }
+      ok(res, blogToApi(blog))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load blog')
+    }
   })
 
   app.get('/api/v1/cms/reviews', (_req, res) => {
@@ -172,7 +186,14 @@ export function registerPublicApiRoutes(app: Express) {
 
   // Admin CMS mirrors used by SupabaseProvider on /admin — empty until full CMS lands.
   app.get('/api/v1/admin/cards', (_req, res) => ok(res, []))
-  app.get('/api/v1/admin/blogs', (_req, res) => ok(res, []))
+  app.get('/api/v1/admin/blogs', async (_req, res) => {
+    try {
+      const posts = await listBlogs({ includeDrafts: false })
+      ok(res, posts.map(blogToApi))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load blogs')
+    }
+  })
   app.get('/api/v1/admin/reviews', (_req, res) => ok(res, []))
   app.get('/api/v1/admin/waitlist', async (_req, res) => {
     try {

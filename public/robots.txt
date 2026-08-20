@@ -1,23 +1,30 @@
 # robots.txt for Yureka One (https://yureka.one)
+#
+# Cloudflare: turn OFF "Block AI crawlers" / AI Crawl Control for this zone.
+# A managed Disallow: / for GPTBot, ClaudeBot, and Google-Extended fights the
+# Allow rules below and hides the site from ChatGPT, Claude, and Gemini.
 
-User-agent: *
-Allow: /
-Disallow: /admin
-Disallow: /login
-Disallow: /waiting
-
-# Allow major AI scrapers and LLMs explicitly
 User-agent: GPTBot
 Allow: /
 
 User-agent: ClaudeBot
 Allow: /
 
-User-agent: PerplexityBot
-Allow: /
-
 User-agent: Google-Extended
 Allow: /
 
-# Sitemap location
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /login
+Disallow: /waiting
+Disallow: /dashboard
+Disallow: /brand
+
 Sitemap: https://yureka.one/sitemap.xml

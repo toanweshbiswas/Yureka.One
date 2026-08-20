@@ -1,11 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Gift, Loader2, Search, X, RefreshCw, ExternalLink } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Loader2, Search, X, RefreshCw, ExternalLink } from 'lucide-react'
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { getAuthAccessToken } from '@shared/auth'
 import { cacheGet, cacheSet, CACHE_TTL } from '@shared/dashboardCache'
 import type { GiftCard } from '@backend/lib/hubble/types'
+import {
+  giftCardAmountAllowed,
+  normalizeDenominations,
+} from '@backend/lib/hubble/denominations'
+import { getExploreScene, matchesSceneBrands, sceneBrandNames } from '@shared/exploreScenes'
+import { landingUrl } from '@shared/hosts'
+import Icon3d from '@shared/Icon3d'
 
 const formatInr = (n: number) =>
   `₹${n.toLocaleString('en-IN')}`
@@ -16,6 +23,23 @@ const prettyCategory = (c: string) =>
     .split('_')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ')
+
+function cardAmountLabel(card: GiftCard): string | null {
+  if (card.minAmount != null && card.maxAmount != null) {
+    return `${formatInr(card.minAmount)}–${formatInr(card.maxAmount)}`
+  }
+  const denoms = normalizeDenominations(card.denominations)
+  if (!denoms.length) return null
+  const shown = denoms.slice(0, 3).map(formatInr).join(', ')
+  return denoms.length > 3 ? `${shown}…` : shown
+}
+
+function flexiblePresets(min: number | null, max: number | null): number[] {
+  const round = [100, 250, 500, 1000, 2000, 5000, 10000]
+  const inRange = round.filter((n) => (min == null || n >= min) && (max == null || n <= max))
+  const extras = [min, max].filter((n): n is number => n != null && Number.isFinite(n) && !inRange.includes(n))
+  return [...inRange, ...extras].sort((a, b) => a - b)
+}
 
 function GiftCardImg({
   src,
@@ -30,7 +54,7 @@ function GiftCardImg({
   if (!src || broken) {
     return (
       <div className="h-full w-full flex items-center justify-center text-clay/40">
-        <Gift size={36} />
+        <Icon3d name="gift" className="h-10 w-10 object-contain" alt="" />
       </div>
     )
   }
@@ -79,7 +103,13 @@ const giftCacheKey = (category: string, query: string) =>
 
 const GiftCardsPage: React.FC = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useSupabase()
+  const scene = location.pathname.startsWith('/dashboard/giftcards')
+    ? getExploreScene(searchParams.get('scene'))
+    : null
+  const hasSceneBrands = Boolean(scene && (scene.brands.length || scene.giftNeedles?.length))
   const initialCatalog = cacheGet<GiftCache>(giftCacheKey('all', ''), CACHE_TTL.giftcards)
   const [items, setItems] = useState<GiftCard[]>(() => initialCatalog?.data.items ?? [])
   const [categories, setCategories] = useState<string[]>(() => initialCatalog?.data.categories ?? [])
@@ -99,6 +129,7 @@ const GiftCardsPage: React.FC = () => {
   const [customerPhone, setCustomerPhone] = useState('')
 
   const userId = user?.id || user?.email || ''
+  const apiQuery = hasSceneBrands ? '' : query
 
   useEffect(() => {
     fetch('/api/giftcards/health')
@@ -121,7 +152,7 @@ const GiftCardsPage: React.FC = () => {
   }, [])
 
   const load = useCallback(async (opts?: { refresh?: boolean }) => {
-    const key = giftCacheKey(category, query)
+    const key = giftCacheKey(category, apiQuery)
     if (!opts?.refresh) {
       const hit = cacheGet<GiftCache>(key, CACHE_TTL.giftcards)
       if (hit) {
@@ -140,7 +171,7 @@ const GiftCardsPage: React.FC = () => {
       }
       const params = new URLSearchParams({ status: 'ACTIVE' })
       if (category !== 'all') params.set('category', category)
-      if (query.trim()) params.set('q', query.trim())
+      if (apiQuery.trim()) params.set('q', apiQuery.trim())
       const res = await fetch(`/api/giftcards?${params}`)
       const json = await res.json()
       if (!res.ok || json.error) throw new Error(json.error || 'Failed to load gift cards')
@@ -158,12 +189,27 @@ const GiftCardsPage: React.FC = () => {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [category, query, applyCatalog])
+  }, [category, apiQuery, applyCatalog, items.length])
 
   useEffect(() => {
-    const t = setTimeout(() => load(), query ? 280 : 0)
+    const t = setTimeout(() => load(), apiQuery ? 280 : 0)
     return () => clearTimeout(t)
-  }, [load, query])
+  }, [load, apiQuery])
+
+  useEffect(() => {
+    if (scene?.id) setCategory('all')
+  }, [scene?.id])
+
+  const visibleItems = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return items.filter((card) => {
+      if (!matchesSceneBrands(`${card.brand} ${card.title} ${card.description} ${card.categories.join(' ')}`, scene)) {
+        return false
+      }
+      if (!hasSceneBrands || !q) return true
+      return `${card.title} ${card.brand} ${card.description}`.toLowerCase().includes(q)
+    })
+  }, [items, scene, query, hasSceneBrands])
 
   useEffect(() => {
     if (!selected) {
@@ -171,10 +217,11 @@ const GiftCardsPage: React.FC = () => {
       setBuyError(null)
       return
     }
-    if (selected.denominations.length) {
-      setAmount(selected.denominations[0])
-    } else if (selected.minAmount != null) {
+    const denoms = normalizeDenominations(selected.denominations)
+    if (selected.minAmount != null) {
       setAmount(selected.minAmount)
+    } else if (denoms.length) {
+      setAmount(denoms[0])
     } else {
       setAmount(null)
     }
@@ -188,20 +235,21 @@ const GiftCardsPage: React.FC = () => {
 
   const chips = useMemo(() => ['all', ...categories], [categories])
 
-  const openVariableOk =
-    selected &&
-    !selected.denominations.length &&
-    amount != null &&
-    (selected.minAmount == null || amount >= selected.minAmount) &&
-    (selected.maxAmount == null || amount <= selected.maxAmount)
+  const selectedDenoms = selected ? normalizeDenominations(selected.denominations) : []
+  const amountChips =
+    selectedDenoms.length > 0
+      ? selectedDenoms
+      : selected
+        ? flexiblePresets(selected.minAmount, selected.maxAmount)
+        : []
+  const amountAllowed = Boolean(selected && amount != null && giftCardAmountAllowed(selected, amount).ok)
 
   const phoneDigits = customerPhone.replace(/\D/g, '').slice(-10)
   const canBuy =
     checkoutEnabled &&
     !!selected &&
     amount != null &&
-    amount > 0 &&
-    (selected.denominations.length ? selected.denominations.includes(amount) : openVariableOk) &&
+    amountAllowed &&
     customerName.trim().length >= 2 &&
     phoneDigits.length === 10 &&
     !buying
@@ -354,7 +402,7 @@ const GiftCardsPage: React.FC = () => {
         <div className="max-w-2xl">
           <h2 className="text-2xl font-black tracking-tight text-white mb-2">Gift cards</h2>
           <p className="text-white/45 text-[15px] leading-relaxed">
-            {total.toLocaleString('en-IN')} active brands — pay with Razorpay, then Hubble issues the voucher.
+            {(hasSceneBrands ? visibleItems.length : total).toLocaleString('en-IN')} active brands — pay first, then the gift card code is issued.
           </p>
         </div>
         <button
@@ -367,6 +415,36 @@ const GiftCardsPage: React.FC = () => {
           Refresh
         </button>
       </motion.div>
+
+      {scene && (scene.brands.length > 0 || (scene.giftNeedles && scene.giftNeedles.length > 0)) && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#6d5cff]/30 bg-[#6d5cff]/10 px-4 py-3">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#c8c0ff]">{scene.title}</p>
+            <p className="mt-1 text-sm text-white/80">Gift cards for {sceneBrandNames(scene).join(', ')}.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to={scene.to}
+              className="rounded-full bg-white px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-black"
+            >
+              Marketplace coupons
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchParams((prev) => {
+                  const next = new URLSearchParams(prev)
+                  next.delete('scene')
+                  return next
+                }, { replace: true })
+              }}
+              className="rounded-full border border-white/15 px-3.5 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-white/70"
+            >
+              Clear filter
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3">
         <div className="relative">
@@ -401,7 +479,7 @@ const GiftCardsPage: React.FC = () => {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((card, idx) => (
+        {visibleItems.map((card, idx) => (
           <motion.button
             key={card.id}
             type="button"
@@ -433,9 +511,7 @@ const GiftCardsPage: React.FC = () => {
                   <h3 className="font-bold text-white tracking-tight truncate">{card.title}</h3>
                   <p className="text-[11px] text-white/35 mt-0.5 truncate">
                     {card.redemptionType.replace(/_/g, ' ').toLowerCase()}
-                    {card.minAmount != null && card.maxAmount != null && (
-                      <> · {formatInr(card.minAmount)}–{formatInr(card.maxAmount)}</>
-                    )}
+                    {cardAmountLabel(card) ? <> · {cardAmountLabel(card)}</> : null}
                   </p>
                 </div>
               </div>
@@ -444,7 +520,7 @@ const GiftCardsPage: React.FC = () => {
         ))}
       </div>
 
-      {!items.length && !error && (
+      {!visibleItems.length && !error && (
         <div className="rounded-[1.75rem] border border-white/10 px-8 py-16 text-center text-white/40 text-sm">
           No gift cards match that filter.
         </div>
@@ -499,36 +575,69 @@ const GiftCardsPage: React.FC = () => {
 
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">Amount</p>
-                  {!!selected.denominations.length ? (
-                    <div className="flex flex-wrap gap-2">
-                      {selected.denominations.map((d) => (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => setAmount(d)}
-                          className={`rounded-xl px-3 py-2 text-xs font-bold tabular-nums border transition ${
-                            amount === d
-                              ? 'bg-clay/20 border-clay/40 text-clay'
-                              : 'bg-white/[0.03] border-white/10 text-white/55 hover:text-white'
-                          }`}
-                        >
-                          {formatInr(d)}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
+                  <div className="space-y-2">
+                    {amountChips.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {amountChips.map((d) => (
+                          <button
+                            key={d}
+                            type="button"
+                            onClick={() => setAmount(d)}
+                            className={`rounded-xl px-3 py-2 text-xs font-bold tabular-nums border transition ${
+                              amount === d
+                                ? 'bg-clay/20 border-clay/40 text-clay'
+                                : 'bg-white/[0.03] border-white/10 text-white/55 hover:text-white'
+                            }`}
+                          >
+                            {formatInr(d)}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                     <input
                       type="number"
                       min={selected.minAmount ?? 1}
                       max={selected.maxAmount ?? undefined}
+                      step={1}
                       value={amount ?? ''}
-                      onChange={(e) => setAmount(Number(e.target.value) || null)}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        if (raw === '') {
+                          setAmount(null)
+                          return
+                        }
+                        const n = Number(raw)
+                        setAmount(Number.isFinite(n) ? n : null)
+                      }}
                       className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white focus:outline-none focus:border-clay/40"
-                      placeholder="Enter amount"
+                      placeholder="Enter a custom amount"
                     />
-                  )}
+                    <p className="text-[11px] text-white/35">
+                      {selected.minAmount != null && selected.maxAmount != null
+                        ? `Pick a value or enter any amount from ${formatInr(selected.minAmount)} to ${formatInr(selected.maxAmount)}`
+                        : 'Pick a value or enter a custom amount'}
+                    </p>
+                  </div>
                 </div>
 
+                {!!selected.redeemSites?.length && (
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">Redeem at</p>
+                    <div className="flex flex-col gap-2">
+                      {selected.redeemSites.map((site) => (
+                        <a
+                          key={site.url}
+                          href={site.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 text-clay text-sm font-bold hover:underline break-all"
+                        >
+                          {site.label} <ExternalLink size={14} className="shrink-0" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {!!selected.howToUse.length && (
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">How to use</p>
@@ -539,16 +648,14 @@ const GiftCardsPage: React.FC = () => {
                     </ol>
                   </div>
                 )}
-                {selected.tncUrl && (
-                  <a
-                    href={selected.tncUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 text-clay text-sm font-bold hover:underline"
-                  >
-                    Terms & conditions <ExternalLink size={14} />
-                  </a>
-                )}
+                <a
+                  href={landingUrl('/terms-of-service')}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-clay text-sm font-bold hover:underline"
+                >
+                  Terms & conditions <ExternalLink size={14} />
+                </a>
 
                 <div className="space-y-3">
                   <div>
@@ -605,7 +712,7 @@ const GiftCardsPage: React.FC = () => {
                   )}
                 </button>
                 <p className="text-[11px] text-white/30 leading-relaxed">
-                  You pay on Razorpay first. After the payment succeeds, Hubble generates the gift card code on the next page.
+                  You pay on Razorpay first. After the payment succeeds, the gift card code appears on the next page.
                 </p>
               </div>
             </motion.aside>

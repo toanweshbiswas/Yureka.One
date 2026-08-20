@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'framer-motion';
-import YurekaLogo from './YurekaLogo';
+import YurekaBrandMark from '@shared/YurekaBrandMark';
 
 interface LoaderProps {
   show: boolean;
@@ -31,7 +31,7 @@ export default function Loader({ show }: LoaderProps) {
             : { duration: 1.4, repeat: Infinity, ease: 'easeInOut' }
         }
       >
-        <YurekaLogo className="h-8 w-8 text-white" />
+        <YurekaBrandMark className="h-10 w-10 rounded-xl object-cover" />
       </motion.div>
     </motion.div>
   );

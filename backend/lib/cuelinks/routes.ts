@@ -4,7 +4,9 @@ import {
   cuelinksConfigured,
   fetchCueLinksOffers,
   listCueLinksOffers,
+  listCueLinksOffersForHost,
 } from './client.js'
+import { listOffers as listGoldbackOffers } from '../goldback/store.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
   res.status(status).json({
@@ -29,6 +31,49 @@ export function registerCuelinksRoutes(app: Express) {
       ok(res, {
         configured: cuelinksConfigured(),
       })
+    })
+
+    app.get(`${prefix}/site`, async (req, res) => {
+      const host = typeof req.query.host === 'string' ? req.query.host.trim() : ''
+      if (!host) return fail(res, 400, 'host is required')
+      try {
+        const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 8
+        const market = cuelinksConfigured()
+          ? await listCueLinksOffersForHost(host, Number.isFinite(limit) ? limit : 8)
+          : { host, items: [], total: 0, catalogTotal: 0, fetchedAt: new Date().toISOString() }
+
+        let goldback: Awaited<ReturnType<typeof listGoldbackOffers>> = []
+        try {
+          goldback = await listGoldbackOffers()
+        } catch {
+          goldback = []
+        }
+        const needle = host.toLowerCase().replace(/^www\./, '')
+        const slug = needle.split('.')[0] || needle
+        const goldbackItems = goldback.filter((o) => {
+          if (!o.active) return false
+          const hay = `${o.merchant} ${o.title} ${o.url} ${o.category}`.toLowerCase()
+          try {
+            const u = new URL(o.url)
+            const oh = u.hostname.replace(/^www\./i, '').toLowerCase()
+            if (oh === needle || oh.endsWith(`.${needle}`) || needle.endsWith(`.${oh}`)) return true
+          } catch {
+            /* ignore */
+          }
+          return hay.includes(slug) && slug.length >= 3
+        })
+
+        ok(res, {
+          host: market.host,
+          marketplace: market.items,
+          marketplaceTotal: market.total,
+          goldback: goldbackItems.slice(0, 6),
+          fetchedAt: market.fetchedAt,
+        })
+      } catch (e: any) {
+        console.error('[marketplace] site lookup failed:', e?.message || e)
+        fail(res, 502, 'Failed to look up store offers')
+      }
     })
 
     app.get(`${prefix}/offers`, async (req, res) => {

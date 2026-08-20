@@ -21,6 +21,7 @@ import {
   patchLocalOrder,
 } from './store.js'
 import { fulfillGiftCardWithHubble } from './fulfill.js'
+import { giftCardAmountAllowed } from './denominations.js'
 import {
   handleBrandDiscountWebhook,
   handleBrandUpdatedWebhook,
@@ -180,16 +181,9 @@ export function registerGiftcardRoutes(app: Express) {
       fail(res, 404, 'Gift card not available')
       return null
     }
-    if (card.denominations.length && !card.denominations.includes(denomination)) {
-      fail(res, 400, 'Denomination not allowed for this brand')
-      return null
-    }
-    if (card.minAmount != null && denomination < card.minAmount) {
-      fail(res, 400, `Minimum amount is ${card.minAmount}`)
-      return null
-    }
-    if (card.maxAmount != null && denomination > card.maxAmount) {
-      fail(res, 400, `Maximum amount is ${card.maxAmount}`)
+    const amountCheck = giftCardAmountAllowed(card, denomination)
+    if (!amountCheck.ok) {
+      fail(res, 400, amountCheck.error)
       return null
     }
 

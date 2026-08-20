@@ -1,52 +1,61 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
-    Search, Tag, LayoutGrid, Zap, Sparkle, Store, Gem, UtensilsCrossed,
-    ShoppingBasket, ShoppingCart, Flame, Plane, BedDouble, Shirt, Sparkles,
-    Gamepad2, Watch, Film, Crown, Smartphone, Sofa, Dumbbell, Glasses,
-    Baby, Pill, Footprints, Tv, ShoppingBag, ChevronDown, ChevronUp,
+    Search, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import SEO from '@shared/SEO';
-import { brands as allBrands, BRAND_CATEGORIES, Brand } from '@landing/brandsData';
+import { SITE_URL, staticPageMeta } from '@backend/lib/seo/pageMeta';
+import { breadcrumbSchema } from '@backend/lib/seo/structuredData';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import {
+    brands as allBrands,
+    BRAND_CATEGORIES,
+    Brand,
+    brandCategoryFromSlug,
+    brandsCategorySeo,
+    categorySlug,
+} from '@landing/brandsData';
+import NotFoundPage from '@landing/NotFoundPage';
+import Icon3d from '@shared/Icon3d';
 
 const brands = allBrands.filter(b => b.image);
 
-const CATEGORY_ICONS: Record<string, React.ElementType> = {
-    'All': LayoutGrid,
-    'Quick Commerce': Zap,
-    'New Brands': Sparkle,
-    'Instore Brands': Store,
-    'Jewellery': Gem,
-    'Food': UtensilsCrossed,
-    'Grocery': ShoppingBasket,
-    'E-Commerce': ShoppingCart,
-    'Hot Deals': Flame,
-    'Travel & Transport': Plane,
-    'Hotels': BedDouble,
-    'Fashion': Shirt,
-    'Beauty': Sparkles,
-    'Gaming': Gamepad2,
-    'Watches': Watch,
-    'Entertainment': Film,
-    'Luxury': Crown,
-    'Electronics': Smartphone,
-    'Furnishing': Sofa,
-    'Fitness': Dumbbell,
-    'Accessories': Glasses,
-    'Kids': Baby,
-    'Pharmacy': Pill,
-    'Footwear': Footprints,
-    'OTT': Tv,
-    'Hand Bags': ShoppingBag,
+const CATEGORY_ICONS: Record<string, string> = {
+    'All': 'cube',
+    'Quick Commerce': 'flash',
+    'New Brands': 'star',
+    'Instore Brands': 'bag',
+    'Jewellery': 'medal',
+    'Food': 'cup',
+    'Grocery': 'can',
+    'E-Commerce': 'bag',
+    'Hot Deals': 'fire',
+    'Travel & Transport': 'travel',
+    'Hotels': 'location',
+    'Fashion': 'girl',
+    'Beauty': 'paint-kit',
+    'Gaming': 'computer',
+    'Watches': 'clock',
+    'Entertainment': 'camera',
+    'Luxury': 'trophy',
+    'Electronics': 'mobile',
+    'Furnishing': 'cube',
+    'Fitness': 'gym',
+    'Accessories': 'glass',
+    'Kids': 'boy',
+    'Pharmacy': 'plus',
+    'Footwear': 'gym',
+    'OTT': 'play',
+    'Hand Bags': 'bag',
 };
 
 const STATS = [
-    { label: `${brands.length} Brand Partners`, icon: Store },
-    { label: `${BRAND_CATEGORIES.length - 1} Categories`, icon: LayoutGrid },
-    { label: 'Up to 20% Cashback', icon: Flame },
+    { label: `${brands.length} Brand Partners`, icon: 'bag' },
+    { label: `${BRAND_CATEGORIES.length - 1} Categories`, icon: 'cube' },
+    { label: 'Up to 20% Cashback', icon: 'fire' },
 ];
 
-const slugify = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+const slugify = (value: string) => categorySlug(value);
 
 const BrandCard: React.FC<{ brand: Brand; index: number }> = ({ brand, index }) => (
     <motion.div initial={{ opacity: 0, scale: 0.98 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true, margin: '100px' }} transition={{ delay: (index % 4) * 0.05 }} className="group">
@@ -76,12 +85,30 @@ const BrandCard: React.FC<{ brand: Brand; index: number }> = ({ brand, index }) 
 );
 
 const BrandExplorer: React.FC = () => {
+    const { category: categoryParam } = useParams();
+    const location = useLocation();
+    const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [dropdownOpen, setDropdownOpen] = useState(false);
     const [showScrollTop, setShowScrollTop] = useState(false);
     const dropdownRef = useRef<HTMLDivElement>(null);
 
     const categories = BRAND_CATEGORIES.slice(1);
+    const activeCategory = brandCategoryFromSlug(categoryParam);
+
+    useEffect(() => {
+        const raw = location.hash.replace(/^#/, '');
+        const match = raw.match(/^category-(.+)$/);
+        if (!match) return;
+        navigate(`/brands/${match[1].toLowerCase()}`, { replace: true });
+    }, [location.hash, navigate]);
+
+    useEffect(() => {
+        if (!categoryParam) return;
+        if (categoryParam !== categoryParam.toLowerCase()) {
+            navigate(`/brands/${categoryParam.toLowerCase()}`, { replace: true });
+        }
+    }, [categoryParam, navigate]);
 
     const categoryCounts = useMemo(() => {
         const counts: Record<string, number> = { All: brands.length };
@@ -93,11 +120,12 @@ const BrandExplorer: React.FC = () => {
 
     const categorySections = useMemo(() => {
         const query = searchQuery.toLowerCase();
-        return categories.map(cat => ({
+        const source = activeCategory ? [activeCategory] : categories;
+        return source.map(cat => ({
             category: cat,
             brands: brands.filter(b => b.categories.includes(cat) && b.name.toLowerCase().includes(query)),
         }));
-    }, [categories, searchQuery]);
+    }, [categories, searchQuery, activeCategory]);
 
     const totalMatches = useMemo(() => {
         const query = searchQuery.toLowerCase();
@@ -123,16 +151,43 @@ const BrandExplorer: React.FC = () => {
     const handleJumpTo = (category: string) => {
         setDropdownOpen(false);
         if (category === 'All') {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            navigate('/brands');
             return;
         }
-        const el = document.getElementById(`category-${slugify(category)}`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        navigate(`/brands/${categorySlug(category)}`);
     };
+
+    if (categoryParam && !activeCategory) {
+        return <NotFoundPage />;
+    }
+
+    const indexMeta = staticPageMeta['/brands'];
+    const catSeo = activeCategory ? brandsCategorySeo(activeCategory) : null;
+    const canonical = activeCategory
+        ? `${SITE_URL}/brands/${categorySlug(activeCategory)}`
+        : `${SITE_URL}/brands`;
+    const crumb = breadcrumbSchema(
+        activeCategory
+            ? [
+                { name: 'Home', path: '/' },
+                { name: 'Brands', path: '/brands' },
+                { name: activeCategory, path: `/brands/${categorySlug(activeCategory)}` },
+            ]
+            : [
+                { name: 'Home', path: '/' },
+                { name: 'Brands', path: '/brands' },
+            ],
+    );
 
     return (
         <div className="min-h-screen bg-mesh pb-32 overflow-x-hidden text-white/90 selection:bg-clay selection:text-cream">
-            <SEO title="Brand Explorer | Discover Reward Partners" description="Browse 80+ partner brands across shopping, travel, food, and lifestyle to maximize your card rewards and cashback." />
+            <SEO
+                title={catSeo?.title || indexMeta.title}
+                description={catSeo?.description || indexMeta.description}
+                keywords={catSeo?.keywords || indexMeta.keywords}
+                canonical={canonical}
+                schema={crumb}
+            />
 
             {/* ── HERO ── */}
             <div className="relative pt-24 md:pt-40 pb-20 border-b border-white/5">
@@ -148,17 +203,27 @@ const BrandExplorer: React.FC = () => {
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
                         <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-clay mb-6">Reward Partners & Brands</p>
                         <h1 className="text-5xl sm:text-7xl md:text-8xl font-cirka font-medium text-white leading-[0.95] tracking-tighter mb-8">
-                            Shop Smarter.<br /><span className="text-clay italic font-light">Earn More.</span>
+                            {activeCategory ? (
+                                <>
+                                    {activeCategory}.<br /><span className="text-clay italic font-light">Earn more.</span>
+                                </>
+                            ) : (
+                                <>
+                                    Shop Smarter.<br /><span className="text-clay italic font-light">Earn More.</span>
+                                </>
+                            )}
                         </h1>
                         <p className="text-white/70 text-base md:text-xl font-serif italic max-w-2xl mx-auto leading-relaxed mb-10">
-                            Explore {brands.length} brand partners offering exclusive cashback, discounts, and rewards.
+                            {activeCategory
+                                ? `${categoryCounts[activeCategory] || 0} ${activeCategory.toLowerCase()} partners with cashback and Goldback.`
+                                : `Explore ${brands.length} brand partners offering exclusive cashback, discounts, and rewards.`}
                         </p>
 
                         {/* ── STATS ── */}
                         <div className="flex flex-wrap items-center justify-center gap-3 mb-16">
-                            {STATS.map(({ label, icon: Icon }) => (
+                            {STATS.map(({ label, icon }) => (
                                 <div key={label} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/[0.04] backdrop-blur-xl border border-white/10 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 shadow-lg shadow-black/20">
-                                    <Icon size={12} className="text-clay" />
+                                    <Icon3d name={icon} className="h-5 w-5 object-contain" />
                                     {label}
                                 </div>
                             ))}
@@ -180,8 +245,8 @@ const BrandExplorer: React.FC = () => {
                                     className="w-full sm:w-auto flex items-center justify-between gap-3 px-6 py-4 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white/70 hover:text-white hover:border-clay/40 hover:bg-white/[0.06] transition-all sm:min-w-[220px]"
                                 >
                                     <span className="flex items-center gap-2">
-                                        <LayoutGrid size={14} className="text-clay" />
-                                        Jump To Category
+                                        <Icon3d name={activeCategory ? (CATEGORY_ICONS[activeCategory] || 'cube') : 'cube'} className="h-5 w-5 object-contain" />
+                                        {activeCategory || 'Jump To Category'}
                                     </span>
                                     <ChevronDown size={14} className={`text-white/40 transition-transform duration-300 ${dropdownOpen ? 'rotate-180' : ''}`} />
                                 </button>
@@ -193,17 +258,17 @@ const BrandExplorer: React.FC = () => {
                                         <button onClick={() => handleJumpTo('All')}
                                             className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-[0.2em] text-white/70 hover:bg-white/5 hover:text-clay transition-colors"
                                         >
-                                            <LayoutGrid size={14} className="text-white/30" />
+                                            <Icon3d name="cube" className="h-6 w-6 object-contain" />
                                             All Brands
                                             <span className="ml-auto text-[9px] font-bold text-white/30">{categoryCounts.All}</span>
                                         </button>
                                         {categories.map(cat => {
-                                            const Icon = CATEGORY_ICONS[cat] || Tag;
+                                            const icon = CATEGORY_ICONS[cat] || 'cube';
                                             return (
                                                 <button key={cat} onClick={() => handleJumpTo(cat)}
                                                     className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-[0.2em] text-white/70 hover:bg-white/5 hover:text-clay transition-colors"
                                                 >
-                                                    <Icon size={14} className="text-white/30" />
+                                                    <Icon3d name={icon} className="h-6 w-6 object-contain" />
                                                     {cat}
                                                     <span className="ml-auto text-[9px] font-bold text-white/30">{categoryCounts[cat]}</span>
                                                 </button>
@@ -221,12 +286,12 @@ const BrandExplorer: React.FC = () => {
             <div className="max-w-[1400px] mx-auto px-6 py-12">
                 {categorySections.map(({ category, brands: sectionBrands }) => {
                     if (sectionBrands.length === 0) return null;
-                    const Icon = CATEGORY_ICONS[category] || Tag;
+                    const icon = CATEGORY_ICONS[category] || 'cube';
                     return (
                         <section key={category} id={`category-${slugify(category)}`} className="scroll-mt-28 mb-20">
                             <div className="flex items-center gap-4 mb-8">
-                                <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-clay/10 backdrop-blur-xl border border-clay/20 text-clay shrink-0 shadow-lg shadow-clay/5">
-                                    <Icon size={20} />
+                                <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-white/[0.04] backdrop-blur-xl border border-white/10 shrink-0 shadow-lg shadow-black/20">
+                                    <Icon3d name={icon} className="h-10 w-10 object-contain" />
                                 </div>
                                 <div>
                                     <h2 className="text-2xl md:text-3xl font-cirka font-medium text-white tracking-tight">{category}</h2>
@@ -248,7 +313,7 @@ const BrandExplorer: React.FC = () => {
                 {searchQuery !== '' && totalMatches === 0 && (
                     <div className="flex justify-center py-32">
                         <div className="inline-flex flex-col items-center gap-4 px-12 py-16 rounded-[2.5rem] bg-white/[0.03] backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/30">
-                            <Tag className="text-white/20" size={40} />
+                            <Icon3d name="zoom" className="h-12 w-12 object-contain opacity-70" />
                             <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-white/40 italic">No brands found matching "{searchQuery}"</p>
                             <button onClick={() => setSearchQuery('')}
                                 className="mt-2 text-clay text-[11px] font-bold uppercase tracking-widest hover:underline">Clear Search</button>

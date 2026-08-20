@@ -1,9 +1,31 @@
-const PRODUCT_LINKS = ['Chrome Extension', 'Yureka AI', 'Yureka One Telegram'];
-const COMPANY_LINKS = ['Manifesto', 'Careers'];
-const RESOURCE_LINKS = ['Waitlist Status', 'Privacy Policy', 'Terms of Service'];
+import { Link } from 'react-router-dom';
+
+const PRODUCT_LINKS = [
+  { label: 'Blog', to: '/blog' },
+  { label: 'Chrome Extension', to: '/yureka-ai' },
+  { label: 'Yureka AI', to: '/yureka-ai' },
+  { label: 'Yureka One Telegram' },
+];
+const COMPANY_LINKS = [
+  { label: 'Manifesto', to: '/manifesto' },
+  { label: 'Careers', to: '/jobs' },
+];
+const RESOURCE_LINKS = [
+  { label: 'Waitlist Status', to: '/yureka-ai' },
+  { label: 'Privacy Policy', to: '/privacy-policy' },
+  { label: 'Terms of Service', to: '/terms-of-service' },
+];
 const SOCIAL_ICONS = ['bi-instagram', 'bi-twitter-x', 'bi-chat', 'bi-link-45deg'];
 
-function LinkColumn({ title, links }: { title: string; links: string[] }) {
+function LinkColumn({
+  title,
+  links,
+}: {
+  title: string;
+  links: { label: string; to?: string }[];
+}) {
+  const className =
+    'text-[13px] text-white/50 transition-colors hover:text-white/80 sm:text-[14px]';
   return (
     <div>
       <p
@@ -14,14 +36,16 @@ function LinkColumn({ title, links }: { title: string; links: string[] }) {
       </p>
       <ul className="mt-5 space-y-4">
         {links.map((l) => (
-          <li key={l}>
-            <a
-              href="#"
-              style={{ fontFamily: 'Inter, sans-serif' }}
-              className="text-[13px] text-white/50 transition-colors hover:text-white/80 sm:text-[14px]"
-            >
-              {l}
-            </a>
+          <li key={l.label}>
+            {l.to ? (
+              <Link to={l.to} style={{ fontFamily: 'Inter, sans-serif' }} className={className}>
+                {l.label}
+              </Link>
+            ) : (
+              <a href="#" style={{ fontFamily: 'Inter, sans-serif' }} className={className}>
+                {l.label}
+              </a>
+            )}
           </li>
         ))}
       </ul>

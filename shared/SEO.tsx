@@ -1,5 +1,5 @@
 import React from 'react';
-import { DEFAULT_DESCRIPTION, DEFAULT_OG_IMAGE, formatTitle } from '@backend/lib/seo/pageMeta';
+import { DEFAULT_DESCRIPTION, DEFAULT_OG_IMAGE, formatTitle, SITE_URL } from '@backend/lib/seo/pageMeta';
 import { toGraph } from '@backend/lib/seo/structuredData';
 
 interface SEOProps {
@@ -38,21 +38,29 @@ const SEO: React.FC<SEOProps> = ({
     if (keywords?.length) updateMeta('meta[name="keywords"]', keywords.join(', '));
 
     // Update OG tags
+    const path = window.location.pathname.replace(/\/+$/, '') || '/'
+    const pageUrl = canonical || (path === '/' ? SITE_URL : `${SITE_URL}${path}`)
+
     updateMeta('meta[property="og:title"]', fullTitle);
     updateMeta('meta[property="og:description"]', description);
     updateMeta('meta[property="og:image"]', image);
-    updateMeta('meta[property="og:url"]', window.location.href);
+    updateMeta('meta[property="og:url"]', pageUrl);
 
     // Update Twitter tags
     updateMeta('meta[property="twitter:title"]', fullTitle);
     updateMeta('meta[property="twitter:description"]', description);
     updateMeta('meta[property="twitter:image"]', image);
-    updateMeta('meta[property="twitter:url"]', window.location.href);
+    updateMeta('meta[property="twitter:url"]', pageUrl);
+    updateMeta('meta[name="twitter:title"]', fullTitle);
+    updateMeta('meta[name="twitter:description"]', description);
+    updateMeta('meta[name="twitter:image"]', image);
+    updateMeta('meta[name="twitter:url"]', pageUrl);
 
-    // Update Canonical
     const canonicalTag = document.querySelector('link[rel="canonical"]');
-    if (canonicalTag) {
-      canonicalTag.setAttribute('href', canonical || window.location.href);
+    if (/noindex/i.test(robots)) {
+      canonicalTag?.parentElement?.removeChild(canonicalTag);
+    } else if (canonicalTag) {
+      canonicalTag.setAttribute('href', pageUrl);
     }
 
     // Update Schema

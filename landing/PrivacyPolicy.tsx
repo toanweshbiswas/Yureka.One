@@ -30,7 +30,7 @@ const PrivacyPolicy: React.FC = () => {
                         </p>
                         <div className="text-center md:text-right">
                             <p className="text-[10px] uppercase tracking-widest font-bold text-white/40">Last Updated</p>
-                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">12th August 2026</p>
+                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">19th August 2026</p>
                         </div>
                     </div>
                 </div>
@@ -76,6 +76,19 @@ const PrivacyPolicy: React.FC = () => {
                 </section>
 
                 <section className="space-y-6">
+                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Chrome Extension</h2>
+                    <p>
+                        The Yureka Chrome extension exists to show marketplace coupons and Goldback for the store you are currently visiting. To do that, it reads the hostname of the active tab (for example <span className="text-white">myntra.com</span>) and sends that hostname to <span className="text-white">https://app.yureka.one</span> so we can return matching offers.
+                    </p>
+                    <ul className="list-disc pl-8 space-y-4 text-white/70">
+                        <li>We do not read page content, passwords, payment details, or form fields.</li>
+                        <li>We do not sell extension data. Hostname lookups are used only to match offers for that store.</li>
+                        <li>You can dismiss the on-page bar for the rest of that tab session. Uninstalling the extension stops lookups.</li>
+                        <li>Standard HTTPS request metadata (such as IP address) may appear in server logs for security and reliability.</li>
+                    </ul>
+                </section>
+
+                <section className="space-y-6">
                     <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Google / Gmail Access</h2>
                     <p>
                         Yureka uses Google OAuth for sign-in on <span className="text-white font-bold">app.yureka.one</span>. Separately, and only when you opt in, we may request Gmail read-only permission to analyse transaction and billing emails for spend insights, waitlist scoring, and related product features.
@@ -84,7 +97,7 @@ const PrivacyPolicy: React.FC = () => {
                         <li>Gmail access is optional. You can use core account features without granting inbox access.</li>
                         <li>We process only what is needed to extract merchant, amount, date, and similar transaction metadata from relevant messages.</li>
                         <li>We do not sell your Gmail content. Access tokens are used to run analysis and are not used to send mail on your behalf.</li>
-                        <li>You may revoke Google access at any time in your Google Account permissions, and/or email <a href="mailto:contact@yureka.one" className="text-clay underline">contact@yureka.one</a> to request deletion of derived spending data.</li>
+                        <li>You may revoke Google access at any time in your Google Account permissions, and/or email <a href="mailto:support@yureka.one" className="text-clay underline">support@yureka.one</a> to request deletion of derived spending data.</li>
                     </ul>
                 </section>
 
@@ -194,7 +207,7 @@ const PrivacyPolicy: React.FC = () => {
                         <ul className="space-y-6 text-base">
                             <li className="flex items-start gap-4">
                                 <span className="text-clay font-bold text-xl leading-none">01.</span>
-                                <span className="text-white/70">Email <a href="mailto:contact@Yureka.One" className="text-clay underline font-bold decoration-1 underline-offset-4">contact@Yureka.One</a> with <br /><span className="text-white italic">"Withdraw Consent - [Your Registered Email]"</span></span>
+                                <span className="text-white/70">Email <a href="mailto:support@yureka.one" className="text-clay underline font-bold decoration-1 underline-offset-4">support@yureka.one</a> with <br /><span className="text-white italic">"Withdraw Consent - [Your Registered Email]"</span></span>
                             </li>
                             <li className="flex items-start gap-4">
                                 <span className="text-clay font-bold text-xl leading-none">02.</span>
@@ -216,7 +229,7 @@ const PrivacyPolicy: React.FC = () => {
                      <div className="pt-8">
                          <h3 className="text-2xl font-heading font-extrabold uppercase tracking-tight text-white mb-6 italic">Questions or Concerns?</h3>
                          <p className="text-white/40 italic mb-10 max-w-xl mx-auto text-base">If you have any questions, concerns, or requests regarding this Privacy Policy or your personal information, please contact us.</p>
-                         <a href="mailto:contact@yureka.one" className="inline-flex items-center gap-3 bg-white text-cream px-10 py-5 rounded-full uppercase font-bold tracking-[0.2em] text-[10px] hover:bg-clay hover:scale-105 transition-all shadow-2xl">
+                         <a href="mailto:support@yureka.one" className="inline-flex items-center gap-3 bg-white text-cream px-10 py-5 rounded-full uppercase font-bold tracking-[0.2em] text-[10px] hover:bg-clay hover:scale-105 transition-all shadow-2xl">
                              Contact Privacy Officer <ChevronRight size={14} />
                          </a>
                      </div>

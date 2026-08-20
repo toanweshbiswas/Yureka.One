@@ -142,6 +142,35 @@ export async function sendUserInviteEmail(opts: {
   })
 }
 
+export async function sendBrandInviteEmail(opts: {
+  to: string
+  brandName: string
+  invitedBy?: string | null
+}) {
+  const urls = mailUrls()
+  const signupUrl = `${urls.brandSignup}?email=${encodeURIComponent(opts.to)}`
+  const inviter = (opts.invitedBy || '').trim()
+  const who = inviter ? `${inviter} invited you` : 'You have been invited'
+  const { html } = brandedEmail({
+    preheader: `${who} to the ${opts.brandName} brand portal`,
+    heading: `Join ${opts.brandName} on Yureka`,
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi there,</p>
+      <p style="color:#444;line-height:1.55">${who} to publish offers for <strong>${opts.brandName}</strong> and see how members interact with them. Create an account with this email, then sign in to the brand portal.</p>
+    `,
+    ctaLabel: 'Open brand portal',
+    ctaUrl: signupUrl,
+    footerNote: `Already have a password? Sign in: ${urls.brandLogin}`,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `You're invited to the ${opts.brandName} brand portal`,
+    text: `Hi,\n\n${who} to the ${opts.brandName} brand portal on Yureka.\nCreate an account:\n${signupUrl}\n\nThen sign in: ${urls.brandLogin}\n\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
 export async function sendWaitlistRejectedEmail(opts: { to: string; fullName?: string | null }) {
   const name = firstName(opts.fullName)
   const urls = mailUrls()
@@ -229,6 +258,36 @@ export async function sendAppUpdateEmail(opts: {
     to: opts.to,
     subject: opts.title,
     text: `Hi ${name},\n\n${opts.body}\n\n${opts.ctaUrl || urls.appDashboard}\n\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendBlogPublishedEmail(opts: {
+  to: string
+  fullName?: string | null
+  title: string
+  excerpt?: string | null
+  url: string
+}) {
+  const name = firstName(opts.fullName)
+  const excerpt = (opts.excerpt || '').trim()
+  const { html } = brandedEmail({
+    preheader: `New on the Yureka blog: ${opts.title}`,
+    heading: 'New on the blog',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi ${name},</p>
+      <p style="color:#444;line-height:1.55">We just published a new piece: <strong>${opts.title}</strong>.</p>
+      ${excerpt ? `<p style="color:#666;line-height:1.55">${excerpt}</p>` : ''}
+    `,
+    ctaLabel: 'Read the article',
+    ctaUrl: opts.url,
+    footerNote: `Or open: ${opts.url}`,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `New on Yureka: ${opts.title}`,
+    text: `Hi ${name},\n\nWe just published: ${opts.title}\n\n${excerpt ? `${excerpt}\n\n` : ''}${opts.url}\n\n— Team Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })

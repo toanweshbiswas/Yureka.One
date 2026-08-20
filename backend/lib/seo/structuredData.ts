@@ -60,7 +60,7 @@ export function blogPostingSchema(blog: {
       name: SITE_NAME,
       logo: { '@type': 'ImageObject', url: `${SITE_URL}/logos/yureka-logo.png` },
     },
-    mainEntityOfPage: blog.slug ? `${SITE_URL}/blogs/${blog.slug}` : undefined,
+    mainEntityOfPage: blog.slug ? `${SITE_URL}/blog/${blog.slug}` : undefined,
   };
 }
 
@@ -73,8 +73,16 @@ export function organizationSchema() {
     alternateName: ['Yureka One', 'Yureka'],
     url: SITE_URL,
     logo: `${SITE_URL}/logos/yureka-logo.png`,
+    email: 'support@yureka.one',
     foundingDate: '2026',
-    founder: { '@type': 'Person', name: 'Anwesh Biswas' },
+    founder: { '@type': 'Person', name: 'Anwesh Biswas', url: `${SITE_URL}/about` },
+    contactPoint: {
+      '@type': 'ContactPoint',
+      email: 'support@yureka.one',
+      contactType: 'customer support',
+      areaServed: 'IN',
+      availableLanguage: ['English', 'Hindi'],
+    },
     description:
       "Yureka.One is India's first AI-native Wealth Operating System, converting everyday transactions into 24K digital gold rewards (Yureka Goldback) and RBI-compliant alternative credit profiles.",
     areaServed: 'IN',
@@ -172,4 +180,80 @@ export function softwareApplicationSchema() {
     ],
     publisher: { '@type': 'Organization', name: 'Yureka.One', url: SITE_URL },
   };
+}
+
+export function howToGoldbackSchema() {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'HowTo',
+    name: 'How Yureka turns spending into Goldback',
+    description:
+      'Capture consented transactions, score them, and convert rewards into 24K digital gold.',
+    step: [
+      {
+        '@type': 'HowToStep',
+        position: 1,
+        name: 'Capture',
+        text: 'Consented parsing of shopping receipts and transaction signals from Gmail notifications and UPI messages.',
+      },
+      {
+        '@type': 'HowToStep',
+        position: 2,
+        name: 'Score',
+        text: 'Generate a Power Shopper Score from 0–100 for financial health, shopping optimisation, and reliability.',
+      },
+      {
+        '@type': 'HowToStep',
+        position: 3,
+        name: 'Optimise',
+        text: 'Route the payment, apply the best reward path, and credit Yureka Goldback as 24K digital gold — up to 16% effective ROI.',
+      },
+    ],
+  }
+}
+
+export function jobPostingSchema(role: {
+  title: string
+  type: string
+  location: string
+  dept: string
+  id: string
+}) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'JobPosting',
+    title: role.title,
+    identifier: role.id,
+    employmentType: 'FULL_TIME',
+    hiringOrganization: {
+      '@type': 'Organization',
+      name: 'Yureka.One',
+      sameAs: SITE_URL,
+    },
+    jobLocation: {
+      '@type': 'Place',
+      address: {
+        '@type': 'PostalAddress',
+        addressLocality: role.location,
+        addressCountry: 'IN',
+      },
+    },
+    industry: role.dept,
+    description: `Join Yureka.One in ${role.location} as ${role.title} (${role.type}).`,
+    url: `${SITE_URL}/jobs`,
+  }
+}
+
+export function brandItemListSchema(category: string, names: string[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: `${category} brands on Yureka`,
+    numberOfItems: names.length,
+    itemListElement: names.slice(0, 30).map((name, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name,
+    })),
+  }
 }

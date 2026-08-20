@@ -124,7 +124,14 @@ const ScrollVideo: React.FC<Props> = ({
       )}
       {shouldLoad && (
         <video
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el
+            if (!el) return
+            el.muted = true
+            el.playsInline = true
+            el.setAttribute('playsinline', '')
+            el.setAttribute('webkit-playsinline', '')
+          }}
           src={src}
           poster={poster}
           muted

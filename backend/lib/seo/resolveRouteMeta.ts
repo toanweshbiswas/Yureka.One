@@ -1,18 +1,27 @@
 // Server-only: given a request pathname, resolves which PageMeta + JSON-LD
 // schemas to inject. Static routes are a pure lookup; dynamic routes
-// (/cards/:slug, /blogs/:slug, /compare/:slug) do a best-effort, short-timeout
-// Supabase lookup so crawlers see the real card/blog title — falling back to
-// a generic (and, for genuinely missing slugs, 404) response if the DB is
-// slow or the row doesn't exist.
+// (/blog/:slug) do a best-effort, short-timeout lookup so crawlers see the
+// real title — falling back to generic (or 404 for a confirmed miss).
 
 import { DEFAULT_DESCRIPTION, formatTitle, SITE_URL, staticPageMeta, type PageMeta } from './pageMeta';
-import { faqPageSchema } from './structuredData';
+import {
+  blogPostingSchema,
+  brandItemListSchema,
+  breadcrumbSchema,
+  faqPageSchema,
+  howToGoldbackSchema,
+  jobPostingSchema,
+} from './structuredData';
 import { faqQuestions } from '../faq';
+import { brandCategoryFromSlug, brands, brandsCategorySeo, categorySlug } from '../../../landing/brandsData';
+import { CAREER_ROLES } from '../../../landing/careersData';
+import { getBlogBySlug } from '../cms/blogStore';
 
 export const REDIRECTS: Record<string, string> = {
   '/ai-magic': '/yureka-ai',
   '/ai': '/yureka-ai',
   '/yureka-os': '/',
+  '/blogs': '/blog',
 };
 
 export interface ResolvedRoute {
@@ -41,8 +50,7 @@ function setCached(key: string, value: ResolvedRoute) {
   cache.set(key, { value, expires: Date.now() + TTL_MS });
 }
 
-/** Distinguishes "query timed out / errored" (inconclusive — never 404 on
- *  this) from "query completed and confirmed no row" (genuinely 404-able). */
+/** Distinguishes "query timed out / errored" from "query confirmed no row". */
 function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<{ timedOut: boolean; value: T | undefined }> {
   return new Promise((resolve) => {
     const timer = setTimeout(() => resolve({ timedOut: true, value: undefined }), ms);
@@ -51,6 +59,59 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<{ timedOut
       () => { clearTimeout(timer); resolve({ timedOut: true, value: undefined }); }
     );
   });
+}
+
+function extraSchemas(path: string): object[] {
+  if (path === '/') {
+    return [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: 'Yureka One',
+        alternateName: 'Yureka',
+        url: SITE_URL,
+      },
+      faqPageSchema(faqQuestions),
+      howToGoldbackSchema(),
+    ];
+  }
+  if (path === '/faq') return [faqPageSchema(faqQuestions)];
+  if (path === '/jobs') return CAREER_ROLES.map((role) => jobPostingSchema(role));
+  if (path === '/manifesto') {
+    return [{
+      '@context': 'https://schema.org',
+      '@type': 'WebPage',
+      name: 'The Yureka Manifesto',
+      url: `${SITE_URL}/manifesto`,
+      about: 'Spend. Accumulate. Evolve.',
+    }];
+  }
+  if (path === '/security-protocol') {
+    return [{
+      '@context': 'https://schema.org',
+      '@type': 'TechArticle',
+      headline: 'Yureka.One Security Protocol',
+      url: `${SITE_URL}/security-protocol`,
+      about: 'AES-256, Account Aggregator consent, DPDP-aligned data handling',
+    }];
+  }
+  if (path === '/about') {
+    return [{
+      '@context': 'https://schema.org',
+      '@type': 'AboutPage',
+      name: 'About Yureka.One',
+      url: `${SITE_URL}/about`,
+    }];
+  }
+  if (path === '/contact') {
+    return [{
+      '@context': 'https://schema.org',
+      '@type': 'ContactPage',
+      name: 'Contact Yureka.One',
+      url: `${SITE_URL}/contact`,
+    }];
+  }
+  return [];
 }
 
 export async function resolveRouteMeta(pathname: string): Promise<ResolvedRoute> {
@@ -68,33 +129,82 @@ export async function resolveRouteMeta(pathname: string): Promise<ResolvedRoute>
   }
 
   if (staticPageMeta[path]) {
-    if (path === '/') {
-      const homeSchema = {
-        '@context': 'https://schema.org',
-        '@type': 'WebSite',
-        name: 'Yureka One',
-        alternateName: 'Yureka',
-        url: SITE_URL,
-      };
-      return { status: 200, meta: staticPageMeta['/'], schemas: [homeSchema, faqPageSchema(faqQuestions)] };
-    }
-    return { status: 200, meta: staticPageMeta[path] };
+    return { status: 200, meta: staticPageMeta[path], schemas: extraSchemas(path) };
   }
 
-  const m = path.match(/^\/blogs\/([^/]+)$/);
+  const legacyBlog = path.match(/^\/blogs\/([^/]+)$/);
+  if (legacyBlog) return { status: 200, meta: staticPageMeta['/blog'] || staticPageMeta['/'], redirect: `/blog/${legacyBlog[1]}` };
+
+  const m = path.match(/^\/blog\/([^/]+)$/);
   if (m) return resolveBlog(m[1]);
+
+  const brandCat = path.match(/^\/brands\/([^/]+)$/);
+  if (brandCat) {
+    const raw = brandCat[1];
+    if (raw !== raw.toLowerCase()) {
+      return { status: 200, meta: staticPageMeta['/brands'], redirect: `/brands/${raw.toLowerCase()}` };
+    }
+    const name = brandCategoryFromSlug(raw);
+    if (!name) return { status: 404, meta: NOT_FOUND_META };
+    const seo = brandsCategorySeo(name);
+    const names = brands.filter((b) => b.image && b.categories.includes(name)).map((b) => b.name);
+    return {
+      status: 200,
+      meta: seo,
+      schemas: [
+        breadcrumbSchema([
+          { name: 'Home', path: '/' },
+          { name: 'Brands', path: '/brands' },
+          { name, path: `/brands/${categorySlug(name)}` },
+        ]),
+        brandItemListSchema(name, names),
+      ],
+    };
+  }
 
   return { status: 404, meta: NOT_FOUND_META };
 }
 
-const CARD_FETCH_TIMEOUT_MS = 2000;
 const BLOG_TIMEOUT_FALLBACK: ResolvedRoute = {
   status: 200,
-  meta: { title: formatTitle('Pulse | Yureka Journal'), description: DEFAULT_DESCRIPTION },
+  meta: { title: formatTitle(staticPageMeta['/blog']?.title || 'Blog'), description: DEFAULT_DESCRIPTION, robots: 'noindex, follow' },
 };
 
-async function resolveBlog(_slug: string): Promise<ResolvedRoute> {
-  // Dynamic blog SEO previously read from Supabase; with it removed, crawlers
-  // get the generic Journal meta (blog pages still render client-side).
-  return BLOG_TIMEOUT_FALLBACK;
+async function resolveBlog(slug: string): Promise<ResolvedRoute> {
+  const cached = getCached(`blog:${slug}`);
+  if (cached) return cached;
+
+  const { timedOut, value } = await withTimeout(getBlogBySlug(slug), 2000);
+  if (timedOut) return BLOG_TIMEOUT_FALLBACK;
+  if (!value) {
+    const miss = { status: 404 as const, meta: NOT_FOUND_META };
+    setCached(`blog:${slug}`, miss);
+    return miss;
+  }
+
+  const resolved: ResolvedRoute = {
+    status: 200,
+    meta: {
+      title: formatTitle(value.title),
+      description: value.excerpt || DEFAULT_DESCRIPTION,
+      image: value.image || undefined,
+    },
+    schemas: [
+      breadcrumbSchema([
+        { name: 'Home', path: '/' },
+        { name: 'Blog', path: '/blog' },
+        { name: value.title, path: `/blog/${value.slug}` },
+      ]),
+      blogPostingSchema({
+        title: value.title,
+        image: value.image,
+        createdAt: value.createdAt,
+        updatedAt: value.updatedAt,
+        author: value.author,
+        slug: value.slug,
+      }),
+    ],
+  };
+  setCached(`blog:${slug}`, resolved);
+  return resolved;
 }

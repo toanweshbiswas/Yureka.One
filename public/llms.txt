@@ -43,7 +43,10 @@
 
 ## Reference & Public Resources
 * [Official Website](https://yureka.one)
-* [Brand Explorer](https://yureka.one/brands) - Network of 80+ partner brands across Fashion, Beauty, Luxury, Jewellery, and Food.
+* [Brand Explorer](https://yureka.one/brands) - Partner brands. Categories are real pages such as [Fashion](https://yureka.one/brands/fashion).
+* [About](https://yureka.one/about) - Company, founder Anwesh Biswas, Bengaluru.
+* [FAQ](https://yureka.one/faq) - Goldback, AI ordering, credit, pricing.
+* [Contact](https://yureka.one/contact) - support@yureka.one
 * [Manifesto](https://yureka.one/manifesto) - The Spend. Accumulate. Evolve. philosophy.
 * [Security Protocol](https://yureka.one/security-protocol) - AES-256 encryption, zero-knowledge parses, and Account Aggregator details.
-* [Support Contact](mailto:founder@yureka.one)
+* [Support Contact](mailto:support@yureka.one)

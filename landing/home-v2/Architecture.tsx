@@ -25,7 +25,7 @@ export default function Architecture() {
 
   return (
     <section className="relative min-h-screen w-full bg-black">
-      <div className="mx-auto flex max-w-3xl flex-col items-center px-6 py-32 text-center">
+      <div className="mx-auto flex max-w-3xl flex-col items-center px-6 py-20 text-center md:py-32">
         <motion.div
           initial={{ y: 30, opacity: 0 }}
           whileInView={{ y: 0, opacity: 1 }}
@@ -93,7 +93,7 @@ export default function Architecture() {
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: 'auto', opacity: 1 }}
                       exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                      transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
                       className="overflow-hidden"
                     >
                       <p className="pb-6 pr-1 text-left text-[13px] leading-relaxed text-white/45 sm:text-[14px]">

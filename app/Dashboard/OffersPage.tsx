@@ -1,19 +1,23 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'motion/react'
-import { ExternalLink, Loader2, Tag, CheckCircle2, Search, Coins, Store, Copy, RefreshCw } from 'lucide-react'
-import { useSearchParams } from 'react-router-dom'
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
+import { ArrowRight, Loader2, Search, Copy, RefreshCw } from 'lucide-react'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { formatPaise, goldbackApi, goldbackEarnKey } from '@backend/lib/goldback/client'
 import type { GoldbackOffer } from '@backend/lib/goldback/types'
 import type { CueLinksOffer } from '@backend/lib/cuelinks/types'
 import { cacheGet, cacheSet, cacheInvalidate, CACHE_TTL } from '@shared/dashboardCache'
 import { notifyGoldbackUpdated } from '@shared/goldbackEvents'
+import { getExploreScene, matchesSceneBrands, sceneBrandNames } from '@shared/exploreScenes'
+import Icon3d from '@shared/Icon3d'
+// import { browsePath } from '@shared/inAppBrowse'
 
 type Tab = 'goldback' | 'marketplace'
 
 const BATCH_SIZE = 24
-const MARKET_CACHE_KEY = 'offers:marketplace:v2'
+const MARKET_CACHE_KEY = 'offers:marketplace:v4'
 const GB_CACHE_KEY = 'offers:goldback:v2'
+const spring = { type: 'spring' as const, bounce: 0, duration: 0.4 }
 
 const CATEGORY_COLORS: Record<string, string> = {
   beauty: 'from-rose-500/20 to-transparent',
@@ -30,6 +34,15 @@ type MarketCache = {
   catalogTotal: number
 }
 
+function prettyLabel(value: string) {
+  if (value === 'all') return 'All'
+  return value
+    .toLowerCase()
+    .split(/[_\s]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ')
+}
+
 function OfferMedia({
   src,
   alt,
@@ -40,20 +53,24 @@ function OfferMedia({
   fallback?: 'store' | 'tag'
 }) {
   const [broken, setBroken] = useState(false)
-  const Icon = fallback === 'tag' ? Tag : Store
+  useEffect(() => {
+    setBroken(false)
+  }, [src])
+  const fallbackIcon = fallback === 'tag' ? 'file-text' : 'bag'
   if (!src || broken) {
     return (
-      <div className="h-full w-full flex items-center justify-center text-white/20">
-        <Icon size={28} />
+      <div className="h-full w-full flex items-center justify-center">
+        <Icon3d name={fallbackIcon} className="h-10 w-10 object-contain opacity-50" alt="" />
       </div>
     )
   }
   return (
     <img
+      key={src}
       src={src}
       alt={alt}
       className="h-full w-full object-contain p-5 bg-white/[0.04]"
-      loading="lazy"
+      loading="eager"
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setBroken(true)}
@@ -62,10 +79,16 @@ function OfferMedia({
 }
 
 const OffersPage: React.FC = () => {
+  const reduceMotion = useReducedMotion()
   const { user } = useSupabase()
+  const location = useLocation()
   const userId = user?.id || user?.email || ''
   const [searchParams, setSearchParams] = useSearchParams()
-  const requestedTab = searchParams.get('tab') === 'marketplace' ? 'marketplace' : 'goldback'
+  const tabParam = searchParams.get('tab')
+  const scene = location.pathname.startsWith('/dashboard/offers')
+    ? getExploreScene(searchParams.get('scene'))
+    : null
+  const requestedTab: Tab = tabParam === 'goldback' ? 'goldback' : 'marketplace'
   const [tab, setTab] = useState<Tab>(requestedTab)
 
   const [offers, setOffers] = useState<GoldbackOffer[]>(() => {
@@ -96,13 +119,15 @@ const OffersPage: React.FC = () => {
   const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
 
   const marketLoadedRef = useRef(marketAll.length > 0)
   const gbLoadedRef = useRef(offers.length > 0)
   const fetchGen = useRef(0)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedQuery(query.trim()), query ? 280 : 0)
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), query ? 220 : 0)
     return () => clearTimeout(t)
   }, [query])
 
@@ -112,7 +137,11 @@ const OffersPage: React.FC = () => {
 
   useEffect(() => {
     setVisibleCount(BATCH_SIZE)
-  }, [category, debouncedQuery, tab])
+  }, [category, debouncedQuery, tab, scene?.id])
+
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus()
+  }, [searchOpen])
 
   const applyMarketPayload = useCallback((payload: MarketCache) => {
     setMarketAll(payload.items)
@@ -129,8 +158,6 @@ const OffersPage: React.FC = () => {
     setError(null)
     try {
       if (opts?.refresh) await fetch('/api/marketplace/refresh', { method: 'POST' })
-      // Pull full filtered catalog in one shot (server already caches CueLinks pages).
-      // Client then batches UI rendering — avoids N refetch on category / tab switches.
       const res = await fetch('/api/marketplace/offers')
       const json = await res.json()
       if (gen !== fetchGen.current) return
@@ -168,7 +195,6 @@ const OffersPage: React.FC = () => {
     setGbLoading(false)
   }, [userId])
 
-  // Initial / stale-while-revalidate for marketplace
   useEffect(() => {
     if (tab !== 'marketplace') return
     const hit = cacheGet<MarketCache>(MARKET_CACHE_KEY, CACHE_TTL.offersMarketplace)
@@ -201,6 +227,7 @@ const OffersPage: React.FC = () => {
   const filteredMarket = useMemo(() => {
     const q = debouncedQuery.toLowerCase()
     return marketAll.filter((o) => {
+      if (!matchesSceneBrands(`${o.merchant} ${o.title} ${o.description}`, scene)) return false
       if (category !== 'all' && !o.categories.some((c) => c.toLowerCase() === category.toLowerCase())) {
         return false
       }
@@ -208,7 +235,7 @@ const OffersPage: React.FC = () => {
       const hay = `${o.title} ${o.merchant} ${o.description} ${o.categories.join(' ')} ${o.couponCode || ''}`.toLowerCase()
       return hay.includes(q)
     })
-  }, [marketAll, category, debouncedQuery])
+  }, [marketAll, category, debouncedQuery, scene])
 
   const visibleMarket = useMemo(
     () => filteredMarket.slice(0, visibleCount),
@@ -224,6 +251,7 @@ const OffersPage: React.FC = () => {
   const filteredGb = useMemo(() => {
     const q = debouncedQuery.toLowerCase()
     return offers.filter((o) => {
+      if (!matchesSceneBrands(`${o.merchant} ${o.title} ${o.description}`, scene)) return false
       if (category !== 'all' && (o.category || 'general') !== category) return false
       if (!q) return true
       return (
@@ -232,7 +260,7 @@ const OffersPage: React.FC = () => {
         o.description.toLowerCase().includes(q)
       )
     })
-  }, [offers, category, debouncedQuery])
+  }, [offers, category, debouncedQuery, scene])
 
   const visibleGb = useMemo(
     () => filteredGb.slice(0, visibleCount),
@@ -263,6 +291,9 @@ const OffersPage: React.FC = () => {
       })
     }
     setBusyId(null)
+    // In-app browser paused:
+    // const path = browsePath({ url: offer.url, title: offer.merchant || offer.title, returnTo: `${location.pathname}${location.search}` })
+    // if (path) navigate(path)
   }
 
   const handleMarketplace = (offer: CueLinksOffer) => {
@@ -273,6 +304,9 @@ const OffersPage: React.FC = () => {
     }
     window.open(link, '_blank', 'noopener,noreferrer')
     setToast(`Opened ${offer.merchant}`)
+    // In-app browser paused:
+    // const path = browsePath({ url: link, title: offer.merchant || offer.title, returnTo: `${location.pathname}${location.search}` })
+    // if (path) navigate(path)
   }
 
   const copyCode = async (code: string) => {
@@ -290,6 +324,7 @@ const OffersPage: React.FC = () => {
     setSearchParams((prev) => {
       const nextParams = new URLSearchParams(prev)
       nextParams.set('tab', next)
+      if (scene) nextParams.set('scene', scene.id)
       return nextParams
     }, { replace: true })
     setCategory('all')
@@ -297,171 +332,259 @@ const OffersPage: React.FC = () => {
     setDebouncedQuery('')
   }
 
+  const clearScene = () => {
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev)
+      nextParams.delete('scene')
+      return nextParams
+    }, { replace: true })
+  }
+
   const loading =
     (tab === 'goldback' && gbLoading && !offers.length) ||
     (tab === 'marketplace' && mLoading && !marketAll.length)
   const chips = tab === 'goldback' ? gbCategories : ['all', ...marketCats]
   const marketTotal = filteredMarket.length
+  const enter = reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }
 
   return (
-    <div className="space-y-8">
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl">
-        <h2 className="text-2xl font-black tracking-tight text-white mb-2">Offers</h2>
-        <p className="text-white/45 text-[15px] leading-relaxed">
-          Goldback deals credit your balance. Marketplace shows live coupons and discounts
-          {catalogTotal ? ` (${catalogTotal.toLocaleString('en-IN')} in catalog)` : ''}.
+    <div className="space-y-6">
+      <motion.div
+        initial={enter}
+        animate={{ opacity: 1, y: 0 }}
+        transition={spring}
+        className="max-w-xl"
+      >
+        <h2 className="text-[28px] font-semibold tracking-[-0.035em] text-white leading-none">Offers</h2>
+        <p className="mt-2 text-[15px] leading-relaxed text-white/55">
+          Live coupons in Marketplace. Goldback deals credit your balance
+          {catalogTotal ? ` · ${catalogTotal.toLocaleString('en-IN')} in catalog` : ''}.
         </p>
       </motion.div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={() => switchTab('marketplace')}
-          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.15em] transition active:scale-[0.97] ${
-            tab === 'marketplace' ? 'bg-white text-black' : 'bg-white/5 text-white/40 hover:text-white'
-          }`}
-        >
-          <Store size={14} /> Marketplace
-          {tab === 'marketplace' && marketTotal > 0 && (
-            <span className="rounded-md bg-black/10 px-1.5 py-0.5 text-[9px]">{marketTotal}</span>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => switchTab('goldback')}
-          className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-[11px] font-black uppercase tracking-[0.15em] transition active:scale-[0.97] ${
-            tab === 'goldback' ? 'bg-clay text-black' : 'bg-white/5 text-white/40 hover:text-white'
-          }`}
-        >
-          <Coins size={14} /> Earn Goldback
-        </button>
+      {scene && scene.brands.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[1.35rem] border border-white/10 bg-white/[0.06] px-4 py-3 backdrop-blur-xl">
+          <div>
+            <p className="text-[11px] font-semibold tracking-[-0.01em] text-white">{scene.title}</p>
+            <p className="mt-0.5 text-[13px] text-white/55">
+              {sceneBrandNames(scene).join(', ')}
+              {tab === 'goldback' ? ' · Goldback' : ' · coupons'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {scene.giftTo && (
+              <Link
+                to={scene.giftTo}
+                className="rounded-full bg-white px-3.5 py-2 text-[12px] font-semibold text-black active:scale-[0.97]"
+              >
+                Gift cards
+              </Link>
+            )}
+            <button
+              type="button"
+              onClick={clearScene}
+              className="rounded-full bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white/80 active:scale-[0.97]"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <div className="inline-flex rounded-full bg-white/[0.08] p-1 backdrop-blur-xl">
+          {([
+            { id: 'marketplace' as const, label: 'Marketplace', icon: 'bag', count: tab === 'marketplace' ? marketTotal : 0 },
+            { id: 'goldback' as const, label: 'Goldback', icon: 'dollar', count: 0 },
+          ]).map((item) => {
+            const active = tab === item.id
+            return (
+              <motion.button
+                key={item.id}
+                type="button"
+                onClick={() => switchTab(item.id)}
+                whileTap={{ scale: 0.97 }}
+                transition={spring}
+                className={`inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold tracking-[-0.01em] ${
+                  active ? 'bg-white text-black' : 'text-white/55'
+                }`}
+              >
+                <Icon3d name={item.icon} className="h-4 w-4 object-contain" alt="" />
+                {item.label}
+                {active && item.count > 0 && (
+                  <span className="rounded-full bg-black/8 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums">
+                    {item.count.toLocaleString('en-IN')}
+                  </span>
+                )}
+              </motion.button>
+            )
+          })}
+        </div>
+
         {tab === 'marketplace' && (
-          <button
+          <motion.button
             type="button"
             onClick={() => loadMarketplace({ refresh: true })}
             disabled={refreshing}
-            className="ml-auto inline-flex items-center gap-2 rounded-xl border border-white/10 px-3 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-white/40 hover:text-white disabled:opacity-50 active:scale-[0.97]"
+            whileTap={{ scale: 0.94 }}
+            transition={spring}
+            aria-label="Refresh offers"
+            className="ml-auto flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.08] text-white/70 backdrop-blur-xl disabled:opacity-50"
           >
-            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} /> Refresh
-          </button>
+            <RefreshCw size={15} className={refreshing ? 'animate-spin' : ''} />
+          </motion.button>
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
-        <div className="relative flex-1">
-          <Search size={15} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={tab === 'marketplace' ? 'Search marketplace deals…' : 'Search Goldback offers…'}
-            className="w-full rounded-2xl border border-white/10 bg-white/[0.03] pl-11 pr-4 py-3.5 text-sm text-white placeholder:text-white/25 focus:outline-none focus:border-clay/40 focus:ring-1 focus:ring-clay/20 transition"
-          />
-        </div>
-        <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none max-w-full">
-          {chips.slice(0, 24).map((c) => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setCategory(c)}
-              className={`shrink-0 rounded-xl px-3.5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] transition active:scale-[0.97] ${
-                category === c
-                  ? 'bg-clay text-black shadow-[0_0_24px_rgba(52,211,153,0.25)]'
-                  : 'bg-white/[0.04] text-white/40 border border-white/10 hover:text-white'
-              }`}
-            >
-              {c}
-            </button>
-          ))}
+      <div className="relative">
+        <div
+          className="flex gap-2 overflow-x-auto pb-1 scrollbar-none"
+          style={{
+            maskImage: 'linear-gradient(to right, #000 0%, #000 88%, transparent 100%)',
+            WebkitMaskImage: 'linear-gradient(to right, #000 0%, #000 88%, transparent 100%)',
+          }}
+        >
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.94 }}
+            transition={spring}
+            onClick={() => setSearchOpen((v) => !v)}
+            aria-label="Search offers"
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+              searchOpen || query ? 'bg-white text-black' : 'bg-white/[0.08] text-white/70'
+            }`}
+          >
+            <Search size={14} />
+          </motion.button>
+          {chips.slice(0, 24).map((c) => {
+            const active = category === c
+            return (
+              <motion.button
+                key={c}
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                transition={spring}
+                onClick={() => setCategory(c)}
+                className={`shrink-0 rounded-full px-3.5 py-2 text-[13px] font-medium ${
+                  active ? 'bg-white text-black' : 'bg-white/[0.08] text-white/60'
+                }`}
+              >
+                {prettyLabel(c)}
+              </motion.button>
+            )
+          })}
         </div>
       </div>
+
+      <AnimatePresence initial={false}>
+        {searchOpen && (
+          <motion.div
+            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
+            transition={spring}
+            className="relative"
+          >
+            <Search size={15} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={tab === 'marketplace' ? 'Search coupons' : 'Search Goldback'}
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.06] py-3 pl-11 pr-4 text-[15px] text-white placeholder:text-white/35 backdrop-blur-xl outline-none"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2.5 rounded-2xl border border-clay/40 bg-black/90 backdrop-blur-xl px-5 py-3.5 text-sm text-clay font-bold shadow-2xl"
+            exit={{ opacity: 0, y: 8 }}
+            transition={spring}
+            className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:bottom-8 left-1/2 z-50 -translate-x-1/2 flex items-center gap-2 rounded-full border border-white/10 bg-black/70 px-4 py-2.5 text-[13px] font-semibold text-white backdrop-blur-2xl"
           >
-            <CheckCircle2 size={18} />
+            <Icon3d name="tick" className="h-4 w-4 object-contain" alt="" />
             {toast}
           </motion.div>
         )}
       </AnimatePresence>
 
       {error && (
-        <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-5 py-3 text-sm text-red-200">{error}</div>
+        <div className="rounded-2xl bg-red-500/10 px-4 py-3 text-[13px] text-red-200">{error}</div>
       )}
 
       {loading && (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-          <Loader2 className="animate-spin text-clay" size={32} />
-          <span className="text-[11px] font-black uppercase tracking-[0.35em] text-white/35">
-            Loading {tab === 'marketplace' ? 'marketplace' : 'Goldback'} offers
-          </span>
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <Loader2 className="animate-spin text-white/50" size={28} />
+          <span className="text-[13px] text-white/45">Loading offers</span>
         </div>
       )}
 
       {!loading && tab === 'goldback' && (
         <>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {visibleGb.map((offer, idx) => {
               const grad = CATEGORY_COLORS[offer.category] || CATEGORY_COLORS.general
               return (
                 <motion.article
                   key={offer.id}
                   layout
-                  initial={{ opacity: 0, y: 16 }}
+                  initial={enter}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: Math.min(idx * 0.03, 0.25) }}
-                  className="group relative overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-[#0d0d0d] flex flex-col"
+                  transition={{ ...spring, delay: reduceMotion ? 0 : Math.min(idx * 0.03, 0.2) }}
+                  className="group relative flex flex-col overflow-hidden rounded-[1.5rem] border border-white/[0.08] bg-[#101114]"
                 >
                   <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${grad}`} />
-                  <div className="relative aspect-[16/9] bg-white/[0.03] border-b border-white/[0.06]">
+                  <div className="relative aspect-[16/9] border-b border-white/[0.06] bg-white/[0.03]">
                     <OfferMedia src={offer.imageUrl} alt={offer.merchant} fallback="tag" />
                   </div>
-                  <div className="relative p-6 flex flex-col gap-4 flex-1">
+                  <div className="relative flex flex-1 flex-col gap-3 p-5">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-clay/80 mb-2.5 inline-flex items-center gap-1.5">
-                          <Tag size={11} /> {offer.category}
-                        </p>
-                        <h3 className="text-xl font-black text-white tracking-tight leading-snug">{offer.title}</h3>
-                        <p className="text-white/40 text-xs mt-1.5 font-medium">{offer.merchant}</p>
+                        <p className="mb-1 text-[12px] font-medium text-white/45">{prettyLabel(offer.category)}</p>
+                        <h3 className="text-[17px] font-semibold tracking-[-0.02em] text-white leading-snug">{offer.title}</h3>
+                        <p className="mt-1 text-[13px] text-white/50">{offer.merchant}</p>
                       </div>
-                      <span className="shrink-0 rounded-2xl bg-clay text-black px-3.5 py-2.5 text-[11px] font-black shadow-[0_0_20px_rgba(52,211,153,0.2)]">
+                      <span className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[12px] font-semibold text-black">
                         {offer.rewardLabel || formatPaise(offer.rewardPaise)}
                       </span>
                     </div>
-                    <p className="text-white/50 text-sm leading-relaxed flex-1">{offer.description}</p>
-                    <button
+                    <p className="flex-1 text-[14px] leading-relaxed text-white/55">{offer.description}</p>
+                    <motion.button
                       type="button"
                       disabled={busyId === offer.id}
                       onClick={() => handleGoldback(offer)}
-                      className="mt-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-white text-black px-5 py-4 text-[11px] font-black uppercase tracking-[0.18em] hover:bg-clay transition disabled:opacity-50 active:scale-[0.98]"
+                      whileTap={{ scale: 0.97 }}
+                      transition={spring}
+                      className="mt-1 inline-flex items-center justify-center gap-2 rounded-full bg-white px-5 py-3 text-[13px] font-semibold text-black disabled:opacity-50"
                     >
-                      {busyId === offer.id ? <Loader2 size={16} className="animate-spin" /> : <ExternalLink size={16} />}
+                      {busyId === offer.id ? <Loader2 size={15} className="animate-spin" /> : <ArrowRight size={15} />}
                       Shop & earn
-                    </button>
+                    </motion.button>
                   </div>
                 </motion.article>
               )
             })}
             {!filteredGb.length && !error && (
-              <div className="md:col-span-2 rounded-[1.75rem] border border-white/10 px-8 py-16 text-center text-white/40 text-sm">
+              <div className="rounded-[1.5rem] bg-white/[0.04] px-8 py-16 text-center text-[14px] text-white/45 md:col-span-2">
                 No Goldback offers match that filter.
               </div>
             )}
           </div>
           {hasMoreGb && (
-            <div className="flex justify-center pt-2">
-              <button
+            <div className="flex justify-center pt-1">
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.97 }}
+                transition={spring}
                 onClick={() => setVisibleCount((n) => n + BATCH_SIZE)}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-3.5 text-[11px] font-black uppercase tracking-[0.2em] text-white/70 active:scale-[0.97]"
+                className="rounded-full bg-white/[0.08] px-5 py-2.5 text-[13px] font-semibold text-white/80"
               >
-                Load more ({filteredGb.length - visibleCount} left)
-              </button>
+                Load more · {filteredGb.length - visibleCount} left
+              </motion.button>
             </div>
           )}
         </>
@@ -474,67 +597,72 @@ const OffersPage: React.FC = () => {
               <motion.article
                 key={offer.id}
                 layout
-                initial={{ opacity: 0, y: 12 }}
+                initial={enter}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(idx * 0.012, 0.2) }}
-                className="rounded-[1.5rem] border border-white/[0.08] bg-[#0d0d0d] overflow-hidden flex flex-col"
+                transition={{ ...spring, delay: reduceMotion ? 0 : Math.min(idx * 0.012, 0.16) }}
+                className="flex flex-col overflow-hidden rounded-[1.4rem] border border-white/[0.08] bg-[#101114]"
               >
-                <div className="aspect-[16/9] bg-white/[0.03] relative">
+                <div className="relative aspect-[16/9] bg-white/[0.03]">
                   <OfferMedia src={offer.imageUrl} alt={offer.merchant} />
                   {offer.categories[0] && (
-                    <span className="absolute left-3 top-3 rounded-lg bg-black/70 backdrop-blur px-2 py-1 text-[9px] font-black uppercase tracking-widest text-white/80">
-                      {offer.categories[0]}
+                    <span className="absolute left-3 top-3 rounded-full bg-black/45 px-2.5 py-1 text-[11px] font-medium text-white/90 backdrop-blur-xl">
+                      {prettyLabel(offer.categories[0])}
                     </span>
                   )}
-                  <span className="absolute right-3 top-3 rounded-lg bg-clay/20 border border-clay/30 px-2 py-1 text-[9px] font-black uppercase tracking-widest text-clay">
-                    {offer.type}
-                  </span>
                 </div>
-                <div className="p-4 flex flex-col gap-3 flex-1">
+                <div className="flex flex-1 flex-col gap-2.5 p-4">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">{offer.merchant}</p>
-                    <h3 className="font-bold text-white tracking-tight mt-1 line-clamp-2 leading-snug">{offer.title}</h3>
+                    <p className="text-[12px] font-medium text-white/45">{offer.merchant}</p>
+                    <h3 className="mt-0.5 line-clamp-2 text-[15px] font-semibold tracking-[-0.02em] leading-snug text-white">
+                      {offer.title}
+                    </h3>
                     {offer.description && (
-                      <p className="text-white/40 text-xs mt-2 line-clamp-2 leading-relaxed">{offer.description}</p>
+                      <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-white/45">{offer.description}</p>
                     )}
                   </div>
                   {offer.couponCode && (
-                    <button
+                    <motion.button
                       type="button"
+                      whileTap={{ scale: 0.97 }}
+                      transition={spring}
                       onClick={() => copyCode(offer.couponCode!)}
-                      className="inline-flex items-center gap-2 self-start rounded-xl border border-dashed border-clay/40 bg-clay/10 px-3 py-1.5 text-[11px] font-mono font-bold text-clay active:scale-[0.97]"
+                      className="inline-flex items-center gap-1.5 self-start rounded-full bg-white/8 px-3 py-1.5 text-[12px] font-semibold text-white"
                     >
                       <Copy size={12} /> {offer.couponCode}
-                    </button>
+                    </motion.button>
                   )}
                   {offer.endDate && (
-                    <p className="text-[10px] text-white/25 uppercase tracking-wider">Ends {offer.endDate}</p>
+                    <p className="text-[12px] text-white/35">Ends {offer.endDate}</p>
                   )}
-                  <button
+                  <motion.button
                     type="button"
+                    whileTap={{ scale: 0.97 }}
+                    transition={spring}
                     onClick={() => handleMarketplace(offer)}
-                    className="mt-auto inline-flex items-center justify-center gap-2 rounded-2xl bg-white text-black px-4 py-3.5 text-[11px] font-black uppercase tracking-[0.18em] hover:bg-clay transition active:scale-[0.98]"
+                    className="mt-auto inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-black"
                   >
-                    <ExternalLink size={14} /> Shop deal
-                  </button>
+                    <ArrowRight size={14} /> Shop
+                  </motion.button>
                 </div>
               </motion.article>
             ))}
             {!filteredMarket.length && !error && (
-              <div className="sm:col-span-2 lg:col-span-3 rounded-[1.75rem] border border-white/10 px-8 py-16 text-center text-white/40 text-sm">
+              <div className="rounded-[1.5rem] bg-white/[0.04] px-8 py-16 text-center text-[14px] text-white/45 sm:col-span-2 lg:col-span-3">
                 No marketplace offers match that filter.
               </div>
             )}
           </div>
           {hasMoreMarket && (
-            <div className="flex justify-center pt-2">
-              <button
+            <div className="flex justify-center pt-1">
+              <motion.button
                 type="button"
+                whileTap={{ scale: 0.97 }}
+                transition={spring}
                 onClick={() => setVisibleCount((n) => n + BATCH_SIZE)}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-6 py-3.5 text-[11px] font-black uppercase tracking-[0.2em] text-white/70 active:scale-[0.97]"
+                className="rounded-full bg-white/[0.08] px-5 py-2.5 text-[13px] font-semibold text-white/80"
               >
-                Load more ({filteredMarket.length - visibleCount} left)
-              </button>
+                Load more · {filteredMarket.length - visibleCount} left
+              </motion.button>
             </div>
           )}
         </>

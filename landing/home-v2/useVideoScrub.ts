@@ -15,10 +15,13 @@ export function useVideoScrub(opts: {
   activeRef: RefObject<boolean>;
   /** Min media-time delta between seeks. Default ~1 frame at 24fps. */
   minDeltaSec?: number;
+  /** Re-bind when the media element appears (lazy src). */
+  enabled?: boolean;
 }) {
-  const { videoRef, scrollProgress, mapTime, activeRef, minDeltaSec = 1 / 24 } = opts;
+  const { videoRef, scrollProgress, mapTime, activeRef, minDeltaSec = 1 / 24, enabled = true } = opts;
 
   useEffect(() => {
+    if (!enabled) return;
     const video = videoRef.current;
     if (!video) return;
 
@@ -82,5 +85,5 @@ export function useVideoScrub(opts: {
       video.removeEventListener('seeking', onSeeking);
       video.removeEventListener('seeked', onSeeked);
     };
-  }, [videoRef, scrollProgress, mapTime, activeRef, minDeltaSec]);
+  }, [videoRef, scrollProgress, mapTime, activeRef, minDeltaSec, enabled]);
 }

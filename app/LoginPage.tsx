@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2, LogIn, UserPlus } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useSupabase } from '@shared/SupabaseProvider'
 import {
@@ -13,6 +13,9 @@ import {
   supabaseConfigured,
 } from '@shared/auth'
 import { landingUrl } from '@shared/hosts'
+import { tryHandoffOAuthCodeToNativeApp } from '@shared/nativeAppHandoff'
+import { isPasswordRecoveryCallback } from '@shared/oauthHandoff'
+import YurekaBrandMark from '@shared/YurekaBrandMark'
 
 const LoginPage: React.FC = () => {
   const { user, currentUserStatus, isLoading } = useSupabase()
@@ -35,6 +38,11 @@ const LoginPage: React.FC = () => {
     searchParams.has('code') ||
     searchParams.has('error') ||
     searchParams.has('error_description')
+  const isRecovery = isPasswordRecoveryCallback(
+    location.pathname,
+    location.search,
+    typeof window !== 'undefined' ? window.location.hash : location.hash,
+  )
 
   const setMode = (next: 'signin' | 'signup') => {
     setError(null)
@@ -47,6 +55,11 @@ const LoginPage: React.FC = () => {
   }
 
   useEffect(() => {
+    if (!isRecovery) return
+    window.location.replace(`/reset-password${window.location.search}${window.location.hash}`)
+  }, [isRecovery])
+
+  useEffect(() => {
     const oauthError = searchParams.get('error_description') || searchParams.get('error')
     if (oauthError) {
       setError(oauthError.replace(/\+/g, ' '))
@@ -54,15 +67,19 @@ const LoginPage: React.FC = () => {
   }, [searchParams])
 
   useEffect(() => {
-    if (!searchParams.has('code')) return
+    if (isRecovery) return
+    const code = searchParams.get('code')
+    if (!code) return
+    if (tryHandoffOAuthCodeToNativeApp(code)) return
     const sb = getSupabaseBrowser()
     if (!sb) return
     void sb.auth.getSession().then(({ error: sessionError }) => {
       if (sessionError) setError(sessionError.message)
     })
-  }, [searchParams])
+  }, [searchParams, isRecovery])
 
   useEffect(() => {
+    if (isRecovery) return
     if (isLoading || currentUserStatus === 'loading') return
     if (oauthReturning && !user && !error) return
     if (!user) return
@@ -82,7 +99,7 @@ const LoginPage: React.FC = () => {
     if (currentUserStatus === 'none') {
       navigate('/join-waitlist', { replace: true })
     }
-  }, [user, currentUserStatus, isLoading, navigate, nextPath, oauthReturning, error])
+  }, [user, currentUserStatus, isLoading, navigate, nextPath, oauthReturning, error, isRecovery])
 
   const handleGmail = async () => {
     setError(null)
@@ -147,6 +164,7 @@ const LoginPage: React.FC = () => {
   }
 
   if (
+    isRecovery ||
     isLoading ||
     (oauthReturning && !user && !error)
   ) {
@@ -174,9 +192,7 @@ const LoginPage: React.FC = () => {
         transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
         className="relative z-10 w-full max-w-md bg-white/[0.04] border border-white/10 rounded-[2rem] sm:rounded-[2.5rem] p-7 sm:p-10 text-center shadow-2xl"
       >
-        <div className="w-14 h-14 rounded-2xl bg-clay/15 border border-clay/25 flex items-center justify-center mx-auto mb-8">
-          {isSignup ? <UserPlus className="text-clay" size={24} /> : isForgot ? <LogIn className="text-clay" size={24} /> : <LogIn className="text-clay" size={24} />}
-        </div>
+        <YurekaBrandMark className="w-14 h-14 rounded-2xl object-cover mx-auto mb-8 shadow-[0_0_24px_rgba(0,147,59,0.28)]" />
         <h1 className="text-3xl md:text-4xl font-heading font-black text-white uppercase tracking-tighter mb-3">
           {isForgot ? 'Reset password' : isSignup ? 'Create account' : 'Welcome back'}
         </h1>

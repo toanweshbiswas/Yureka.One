@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
-    Receipt, Wallet, Store,
-    Gift, Zap, Sparkles, Users, User, Home,
-    LogOut, Menu, Bell, Coins, MoreHorizontal, X
+    PanelLeft, PanelLeftClose, X,
 } from 'lucide-react';
 import { useNavigate, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { signOutGmail } from '@shared/auth';
 import AddToHomeScreen from '@shared/AddToHomeScreen';
 import { cacheInvalidate } from '@shared/dashboardCache';
+import { shouldHandoffToNativeApp, tryOpenNativeApp } from '@shared/nativeAppHandoff';
 import WelcomeBanner from './WelcomeBanner';
 import { googleAvatarUrl } from '@shared/userProfile';
+import Icon3d from '@shared/Icon3d';
+import YurekaBrandMark from '@shared/YurekaBrandMark';
 
 
 // Sub-components (to be built)
@@ -19,39 +20,44 @@ import ReferralDashboard from './ReferralDashboard';
 import AccountSettings from './AccountSettings';
 import Expenses from './Expenses';
 import Bills from './Bills';
+import ExpensePlanning from './ExpensePlanning';
 import YurekaAIPage from '@landing/YurekaAIPage';
 import WaitlistPage from '@app/WaitlistPage';
 import GoldbackHome from './GoldbackHome';
 import OffersPage from './OffersPage';
 import GiftCardsPage from './GiftCardsPage';
 import GiftCardOrderPage from './GiftCardOrderPage';
+import ExtensionPage from './ExtensionPage';
+// import ExploreScenePage from './ExploreScenePage';
+// import SuperBrowsePage from './SuperBrowse';
 
 import { api, isApiError } from '@backend/lib/api/client';
 
 type NavItem = {
     id: string
     label: string
-    icon: typeof Coins
+    icon: string
     path: string
     comingSoon?: boolean
 }
 
 const PRIMARY_NAV: NavItem[] = [
-    { id: 'home', label: 'Home', icon: Home, path: '/dashboard/home' },
-    { id: 'offers', label: 'Offers', icon: Store, path: '/dashboard/offers' },
-    { id: 'giftcards', label: 'Gift cards', icon: Gift, path: '/dashboard/giftcards' },
+    { id: 'home', label: 'Home', icon: 'dollar', path: '/dashboard/home' },
+    { id: 'offers', label: 'Offers', icon: 'bag', path: '/dashboard/offers' },
+    { id: 'giftcards', label: 'Gift cards', icon: 'gift', path: '/dashboard/giftcards' },
 ];
 
 const SECONDARY_NAV: NavItem[] = [
-    { id: 'expenses', label: 'Expenses', icon: Receipt, path: '/dashboard/expenses' },
-    { id: 'bills', label: 'Bills', icon: Wallet, path: '/dashboard/bills' },
-    { id: 'referrals', label: 'Referrals', icon: Users, path: '/dashboard/referrals' },
-    { id: 'profile', label: 'Profile', icon: User, path: '/dashboard/profile' },
+    { id: 'expenses', label: 'Expenses', icon: 'chart', path: '/dashboard/expenses' },
+    { id: 'planning', label: 'Planning', icon: 'calender', path: '/dashboard/planning' },
+    { id: 'bills', label: 'Bills', icon: 'wallet', path: '/dashboard/bills' },
+    { id: 'referrals', label: 'Referrals', icon: 'heart', path: '/dashboard/referrals' },
+    { id: 'profile', label: 'Profile', icon: 'boy', path: '/dashboard/profile' },
 ];
 
 const SOON_NAV: NavItem[] = [
-    { id: 'extension', label: 'Extension', icon: Zap, comingSoon: true, path: '/dashboard/extension' },
-    { id: 'redemption', label: 'Redeem', icon: Sparkles, comingSoon: true, path: '/dashboard/redemption' },
+    { id: 'extension', label: 'Extension', icon: 'flash', path: '/dashboard/extension' },
+    { id: 'redemption', label: 'Redeem', icon: 'star', comingSoon: true, path: '/dashboard/redemption' },
 ];
 
 const NAV_ITEMS = [...PRIMARY_NAV, ...SECONDARY_NAV, ...SOON_NAV];
@@ -144,7 +150,11 @@ const NotificationBell = () => {
                 onClick={handleOpen}
                 className="w-11 h-11 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center justify-center text-white/35 hover:text-white hover:border-white/20 transition-all relative group"
             >
-                <Bell size={18} className={`transition-transform ${isOpen ? 'text-clay' : 'group-hover:rotate-12'}`} />
+                <Icon3d
+                    name="megaphone"
+                    className={`h-[22px] w-[22px] object-contain transition-transform ${isOpen ? 'scale-110' : 'group-hover:rotate-12'}`}
+                    alt=""
+                />
                 {unreadCount > 0 && (
                     <div className="absolute -top-1 -right-1 min-w-[1.125rem] h-[1.125rem] px-1 bg-clay rounded-full shadow-[0_0_12px_rgba(52,211,153,0.8)] flex items-center justify-center text-[8px] text-black font-black leading-none">
                         {unreadCount}
@@ -223,13 +233,14 @@ const NotificationBell = () => {
     );
 };
 
-const KEEP_ALIVE_TABS = ['home', 'offers', 'giftcards', 'expenses', 'bills', 'referrals', 'profile'] as const;
+const KEEP_ALIVE_TABS = ['home', 'offers', /* 'browse', */ 'giftcards', 'expenses', 'planning', 'bills', 'referrals', 'profile'] as const;
 
 const DashboardLayout: React.FC = () => {
     const { user } = useSupabase();
     const navigate = useNavigate();
     const location = useLocation();
     
+    const reduceMotion = useReducedMotion();
     const [isSidebarOpen, setIsSidebarOpen] = useState(
         () => typeof window === 'undefined' || window.innerWidth >= 768
     );
@@ -271,6 +282,7 @@ const DashboardLayout: React.FC = () => {
                 const next = new Set(prev);
                 next.add('offers');
                 next.add('giftcards');
+                // next.add('browse');
                 return next;
             });
         }, 450);
@@ -278,13 +290,30 @@ const DashboardLayout: React.FC = () => {
     }, []);
 
     const isGiftOrder = /\/dashboard\/giftcards\/orders\//.test(location.pathname);
-    const useKeepAlive = KEEP_ALIVE_TABS.includes(activeTab as typeof KEEP_ALIVE_TABS[number]) && !isGiftOrder;
+    const isNativeEmbedded =
+        typeof window !== 'undefined' &&
+        (window.navigator.userAgent.includes('YurekaApp') ||
+            new URLSearchParams(window.location.search).get('embedded') === '1');
+    // In-app Super Browse / embed paused — leave the wiring here to restore later.
+    // const isExplore = /^\/dashboard\/explore(\/|$)/.test(location.pathname);
+    // const browseHasUrl =
+    //     location.pathname.startsWith('/dashboard/browse') &&
+    //     new URLSearchParams(location.search).has('url');
+    // const isEmbeddedBrowse = isExplore || browseHasUrl;
+    const isExplore = false;
+    const isEmbeddedBrowse = isNativeEmbedded;
+    const useKeepAlive =
+        KEEP_ALIVE_TABS.includes(activeTab as typeof KEEP_ALIVE_TABS[number]) &&
+        !isGiftOrder &&
+        !isExplore;
 
     const keepAlivePanels = useMemo(() => ({
         home: <GoldbackHome />,
         offers: <OffersPage />,
+        // browse: <SuperBrowsePage />,
         giftcards: <GiftCardsPage />,
         expenses: <Expenses />,
+        planning: <ExpensePlanning />,
         bills: <Bills />,
         referrals: <ReferralDashboard />,
         profile: <AccountSettings />,
@@ -307,7 +336,7 @@ const DashboardLayout: React.FC = () => {
                 animate={{ scale: 1, opacity: 1 }}
                 className="w-20 h-20 bg-clay/10 rounded-[1.75rem] flex items-center justify-center border border-clay/20 mb-6"
             >
-                <Sparkles size={32} className="text-clay" />
+                <Icon3d name="star" className="h-10 w-10 object-contain" alt="" />
             </motion.div>
             <h2 className="text-3xl font-black tracking-tight text-white mb-3">Coming soon</h2>
             <p className="text-white/40 max-w-sm mx-auto text-[15px] leading-relaxed">
@@ -323,36 +352,52 @@ const DashboardLayout: React.FC = () => {
     );
 
     const displayName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Member';
-    const isCoreTab = activeTab === 'home' || activeTab === 'offers' || activeTab === 'giftcards';
+    const isCoreTab = activeTab === 'home' || activeTab === 'offers' || activeTab === 'giftcards' /* || activeTab === 'browse' */;
     const activeLabel = NAV_ITEMS.find(i => i.id === activeTab)?.label || 'Home';
     const avatarUrl = googleAvatarUrl(user);
 
-    const NavLink = ({ item, idx }: { item: NavItem; idx: number }) => (
+    const NavLink = ({ item, idx }: { item: NavItem; idx: number }) => {
+        const active = activeTab === item.id
+        return (
         <Link to={item.path!} onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}>
             <motion.div
-                initial={{ opacity: 0, x: -12 }}
+                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.03 }}
-                className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all group relative active:scale-[0.98] ${
-                    activeTab === item.id
-                        ? 'bg-white text-black shadow-lg shadow-white/5'
-                        : 'text-white/35 hover:bg-white/[0.04] hover:text-white'
-                }`}
+                transition={{ type: 'spring', bounce: 0, duration: 0.4, delay: idx * 0.02 }}
+                whileTap={{ scale: 0.97 }}
+                className={
+                    isSidebarOpen
+                        ? `w-full flex items-center gap-3 px-3 py-2.5 rounded-[1.15rem] ${
+                              active
+                                  ? 'bg-white/[0.12] text-white'
+                                  : 'text-white/45 hover:bg-white/[0.06] hover:text-white'
+                          }`
+                        : `mx-auto flex h-11 w-11 items-center justify-center rounded-[1.05rem] ${
+                              active
+                                  ? 'bg-white/[0.14] text-white'
+                                  : 'text-white/40 hover:bg-white/[0.08] hover:text-white'
+                          }`
+                }
             >
-                <item.icon size={18} className={activeTab === item.id ? 'text-black' : 'group-hover:scale-110 transition-transform'} />
+                <Icon3d
+                    name={item.icon}
+                    className={`h-6 w-6 object-contain shrink-0 ${active ? 'scale-110' : 'opacity-80'}`}
+                    alt=""
+                />
                 {isSidebarOpen && (
                     <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <span className="text-[11px] font-black uppercase tracking-[0.15em] truncate">{item.label}</span>
+                        <span className="text-[13px] font-medium tracking-[-0.01em] truncate">{item.label}</span>
                         {item.comingSoon && (
-                            <span className={`text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-md shrink-0 ${
-                                activeTab === item.id ? 'bg-black/10 text-black/50' : 'bg-white/5 text-white/30'
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full shrink-0 ${
+                                active ? 'bg-white/10 text-white/55' : 'bg-white/5 text-white/30'
                             }`}>Soon</span>
                         )}
                     </div>
                 )}
             </motion.div>
         </Link>
-    );
+        )
+    };
 
     const MOBILE_TABS = PRIMARY_NAV;
 
@@ -368,28 +413,26 @@ const DashboardLayout: React.FC = () => {
             )}
 
             <aside className={`fixed md:relative z-50 h-dvh md:h-full border-r border-white/[0.07] bg-[#0a0a0a]/95 backdrop-blur-xl md:backdrop-blur-none md:bg-[#0a0a0a] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] md:transition-[width] ${
-                isSidebarOpen ? 'translate-x-0 w-[min(17.5rem,88vw)]' : '-translate-x-full md:translate-x-0 md:w-[4.75rem]'
+                isSidebarOpen ? 'translate-x-0 w-[min(17.5rem,88vw)]' : '-translate-x-full md:translate-x-0 md:w-[4.5rem]'
             }`}
             style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
             >
-                <div className="h-full flex flex-col p-5">
-                    <div className="flex items-center gap-3 mb-10 px-2">
-                        <div className="w-11 h-11 bg-clay rounded-2xl flex items-center justify-center shrink-0 shadow-[0_0_28px_rgba(52,211,153,0.35)]">
-                            <Coins size={20} className="text-black" />
-                        </div>
+                <div className={`h-full flex flex-col ${isSidebarOpen ? 'p-5' : 'px-2 py-5'}`}>
+                    <div className={`flex items-center mb-8 ${isSidebarOpen ? 'gap-3 px-1' : 'justify-center'}`}>
+                        <YurekaBrandMark className="w-11 h-11 rounded-2xl object-cover shrink-0 shadow-[0_0_20px_rgba(0,147,59,0.28)]" />
                         {isSidebarOpen && (
                             <div className="flex flex-col min-w-0">
-                                <span className="text-base font-black tracking-tight text-white leading-none">Yureka</span>
-                                <span className="text-[9px] font-black uppercase tracking-[0.35em] text-clay/70 mt-1.5">Goldback</span>
+                                <span className="text-[17px] font-semibold tracking-[-0.03em] text-white leading-none">Yureka</span>
+                                <span className="text-[11px] font-medium tracking-[0.04em] text-clay/80 mt-1">Goldback</span>
                             </div>
                         )}
                         <button
                             type="button"
                             aria-label="Close menu"
                             onClick={() => setIsSidebarOpen(false)}
-                            className="md:hidden ml-auto w-10 h-10 rounded-xl border border-white/10 flex items-center justify-center text-white/40 active:scale-[0.97]"
+                            className="md:hidden ml-auto w-10 h-10 rounded-full bg-white/[0.06] flex items-center justify-center text-white/50 active:scale-[0.97]"
                         >
-                            <span className="text-lg leading-none">×</span>
+                            <X size={16} />
                         </button>
                     </div>
 
@@ -420,32 +463,67 @@ const DashboardLayout: React.FC = () => {
                         </div>
                     </nav>
 
-                    <div className="pt-5 border-t border-white/[0.07] mt-auto space-y-1">
-                        <button
+                    <div className="pt-4 border-t border-white/[0.07] mt-auto space-y-1">
+                        <motion.button
                             type="button"
                             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                            className="hidden md:flex w-full items-center gap-4 px-4 py-3 rounded-2xl text-white/25 hover:text-white/60 hover:bg-white/[0.03] transition text-[10px] font-black uppercase tracking-[0.2em]"
+                            whileTap={{ scale: 0.94 }}
+                            transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+                            aria-label={isSidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+                            title={isSidebarOpen ? 'Collapse' : 'Expand'}
+                            className={
+                                isSidebarOpen
+                                    ? 'hidden md:flex w-full items-center gap-3 px-3 py-2.5 rounded-[1.15rem] text-white/50 hover:bg-white/[0.08] hover:text-white'
+                                    : 'hidden md:flex mx-auto h-11 w-11 items-center justify-center rounded-[1.05rem] bg-white/[0.08] text-white/70 hover:bg-white/[0.12] hover:text-white'
+                            }
                         >
-                            <Menu size={18} />
-                            {isSidebarOpen && <span>Collapse</span>}
-                        </button>
+                            {isSidebarOpen ? <PanelLeftClose size={18} strokeWidth={1.8} /> : <PanelLeft size={18} strokeWidth={1.8} />}
+                            {isSidebarOpen && <span className="text-[13px] font-medium tracking-[-0.01em]">Collapse</span>}
+                        </motion.button>
                         <button 
                             onClick={handleLogout}
-                            className="w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl text-white/30 hover:bg-red-500/10 hover:text-red-300 transition-all group"
+                            className={
+                                isSidebarOpen
+                                    ? 'w-full flex items-center gap-3 px-3 py-2.5 rounded-[1.15rem] text-white/40 hover:bg-red-500/10 hover:text-red-300'
+                                    : 'mx-auto flex h-11 w-11 items-center justify-center rounded-[1.05rem] text-white/40 hover:bg-red-500/10 hover:text-red-300'
+                            }
                         >
-                            <LogOut size={18} className="group-hover:-translate-x-0.5 transition-transform" />
-                            {isSidebarOpen && <span className="text-[10px] font-black uppercase tracking-[0.25em]">Sign out</span>}
+                            <Icon3d name="lock" className="h-6 w-6 object-contain" alt="" />
+                            {isSidebarOpen && <span className="text-[13px] font-medium tracking-[-0.01em]">Sign out</span>}
                         </button>
                     </div>
                 </div>
             </aside>
 
-            <main className="flex-1 relative overflow-y-auto overflow-x-hidden dashboard-scroll min-w-0 min-h-0 pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:pb-10">
+            <main className={`flex-1 relative min-w-0 min-h-0 ${
+                isEmbeddedBrowse
+                    ? 'flex flex-col overflow-hidden'
+                    : 'overflow-y-auto overflow-x-hidden dashboard-scroll pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:pb-10'
+            }`}>
+                {shouldHandoffToNativeApp() ? (
+                    <div
+                        className="sticky top-0 z-50 px-4 py-3 bg-emerald-500/10 border-b border-emerald-500/25 text-center"
+                        style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
+                    >
+                        <p className="text-sm text-white/80">
+                            You&apos;re viewing Yureka in Safari. Use the native app from your home screen for the real mobile experience.
+                        </p>
+                        <button
+                            type="button"
+                            onClick={() => tryOpenNativeApp()}
+                            className="mt-2 text-emerald-400 font-bold text-sm"
+                        >
+                            Open Yureka app
+                        </button>
+                    </div>
+                ) : null}
+                {!isEmbeddedBrowse && (
                 <div
                     className="sticky top-0 z-30 flex items-center justify-between gap-3 px-4 sm:px-5 md:px-10 py-3 md:py-4 bg-[#070707]/80 backdrop-blur-xl border-b border-white/[0.05]"
                     style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
                 >
                     <div className="flex items-center gap-3 min-w-0">
+                        <YurekaBrandMark className="md:hidden h-8 w-8 rounded-xl object-cover shrink-0" />
                         <div className="md:hidden flex flex-col min-w-0">
                             <span className="text-[9px] font-black uppercase tracking-[0.28em] text-white/30">Yureka</span>
                             <h1 className="text-base font-black tracking-tight text-white truncate leading-tight">
@@ -482,12 +560,13 @@ const DashboardLayout: React.FC = () => {
                         </Link>
                     </div>
                 </div>
+                )}
 
-                <div className="p-4 sm:p-5 md:p-10 max-w-6xl mx-auto">
-                    {activeTab === 'home' && <WelcomeBanner />}
+                <div className={isEmbeddedBrowse ? 'flex min-h-0 flex-1 flex-col' : 'p-4 sm:p-5 md:p-10 max-w-6xl mx-auto'}>
+                    {activeTab === 'home' && !isEmbeddedBrowse && <WelcomeBanner />}
                     {/* Keep primary tabs mounted so switching doesn't remount / refetch */}
                     {useKeepAlive && (
-                        <div>
+                        <div className={isEmbeddedBrowse ? 'flex min-h-0 flex-1 flex-col' : undefined}>
                             {(Object.keys(keepAlivePanels) as Array<keyof typeof keepAlivePanels>).map((id) => {
                                 if (!mountedTabs.has(id)) return null
                                 const active = activeTab === id
@@ -496,7 +575,13 @@ const DashboardLayout: React.FC = () => {
                                         key={id}
                                         hidden={!active}
                                         aria-hidden={!active}
-                                        className={active ? 'block' : 'hidden'}
+                                        className={
+                                          active
+                                            ? isEmbeddedBrowse
+                                              ? 'flex min-h-0 flex-1 flex-col'
+                                              : 'block'
+                                            : 'hidden'
+                                        }
                                     >
                                         {keepAlivePanels[id]}
                                     </div>
@@ -505,13 +590,17 @@ const DashboardLayout: React.FC = () => {
                         </div>
                     )}
                     {!useKeepAlive && (
+                        <div className={isEmbeddedBrowse ? 'flex min-h-0 flex-1 flex-col' : undefined}>
                         <Routes>
                             <Route index element={<Navigate to="home" replace />} />
                             <Route path="giftcards/orders/:orderId" element={<GiftCardOrderPage />} />
+                            {/* <Route path="explore/:sceneId" element={<ExploreScenePage />} /> */}
                             <Route path="yureka-ai" element={<YurekaAIPage />} />
                             <Route path="join-waitlist" element={<WaitlistPage />} />
+                            <Route path="extension" element={<ExtensionPage />} />
                             <Route path="*" element={renderEmpty()} />
                         </Routes>
+                        </div>
                     )}
                     {/* Ensure /dashboard redirects even when keep-alive is active */}
                     {(location.pathname === '/dashboard' || location.pathname === '/dashboard/') && (
@@ -524,6 +613,7 @@ const DashboardLayout: React.FC = () => {
             </main>
 
             {/* Mobile bottom tab bar — translucent material, content scrolls under */}
+            {!isEmbeddedBrowse && (
             <nav
                 className="md:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#0a0a0a]/78 backdrop-blur-2xl"
                 style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
@@ -537,12 +627,23 @@ const DashboardLayout: React.FC = () => {
                             <Link
                                 key={item.id}
                                 to={item.path}
-                                className={`flex flex-col items-center justify-center gap-1 active:scale-[0.96] transition-transform duration-100 ${
+                                className={`relative flex flex-col items-center justify-center gap-1 active:scale-[0.96] transition-transform duration-100 ${
                                     active ? 'text-clay' : 'text-white/35'
                                 }`}
                             >
-                                <item.icon size={20} strokeWidth={active ? 2.4 : 1.8} />
-                                <span className="text-[9px] font-black uppercase tracking-[0.12em]">{item.label}</span>
+                                {/* {item.id === 'browse' && (
+                                    <span className="absolute top-0.5 rounded-full bg-[#f5c542] px-1.5 text-[7px] font-black leading-4 text-black">
+                                        NEW
+                                    </span>
+                                )} */}
+                                <Icon3d
+                                    name={item.icon}
+                                    className={`h-6 w-6 object-contain ${active ? 'scale-110' : 'opacity-75'}`}
+                                    alt=""
+                                />
+                                <span className="max-w-full truncate px-0.5 text-[9px] font-black uppercase tracking-[0.12em]">
+                                    {item.label}
+                                </span>
                             </Link>
                         )
                     })}
@@ -554,13 +655,18 @@ const DashboardLayout: React.FC = () => {
                         }`}
                         aria-label="More"
                     >
-                        <MoreHorizontal size={20} strokeWidth={!isCoreTab ? 2.4 : 1.8} />
+                        <Icon3d
+                            name="plus"
+                            className={`h-6 w-6 object-contain ${!isCoreTab || isSidebarOpen ? 'scale-110' : 'opacity-75'}`}
+                            alt=""
+                        />
                         <span className="text-[9px] font-black uppercase tracking-[0.12em]">More</span>
                     </button>
                 </div>
             </nav>
+            )}
 
-            <AddToHomeScreen liftForTabBar />
+            <AddToHomeScreen liftForTabBar={!isEmbeddedBrowse} />
         </div>
     );
 };

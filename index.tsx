@@ -19,6 +19,7 @@ if (handoff) {
   void initializeFirebaseAnalytics();
 
   void import('./App').then(({ default: App }) => {
+    document.documentElement.classList.add('hydrated')
     ReactDOM.createRoot(rootElement).render(
       <React.StrictMode>
         <App />

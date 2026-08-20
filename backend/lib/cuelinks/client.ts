@@ -3,10 +3,14 @@ import type { CueLinksOffer, CueLinksRawOffer } from './types.js'
 
 const CACHE_TTL_MS = 10 * 60 * 1000
 const FOREIGN_CURRENCY_RE = /[$€£]|USD|EUR|GBP|CAD|AUD|AED|SGD|MYR/i
+const DEFAULT_PER_PAGE = 100
+const MAX_PAGES = 50
+const PAGE_CONCURRENCY = 4
 
 type Cache = { offers: CueLinksOffer[]; fetchedAt: number; totalCount: number }
 
 let cache: Cache | null = null
+let inflight: Promise<Cache> | null = null
 const foreignCampaigns = new Set<number>()
 
 function config() {
@@ -75,6 +79,7 @@ async function fetchPage(page: number, perPage: number): Promise<{ offers: CueLi
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: 'application/json',
+      'User-Agent': 'Yureka.One/1.0',
     },
   })
 
@@ -101,27 +106,55 @@ function applyIndiaFilter(offers: CueLinksOffer[]): CueLinksOffer[] {
   })
 }
 
-/** Pull several pages for the marketplace UI (capped). */
+async function fetchAllPages(perPage: number, maxPages: number): Promise<{ offers: CueLinksOffer[]; totalCount: number }> {
+  const first = await fetchPage(1, perPage)
+  const totalCount = first.totalCount || first.offers.length
+  const totalPages = Math.min(
+    maxPages,
+    Math.max(1, Math.ceil((totalCount || first.offers.length) / perPage)),
+  )
+
+  const byId = new Map<string, CueLinksOffer>()
+  for (const raw of first.offers) {
+    const offer = mapOffer(raw)
+    byId.set(offer.id, offer)
+  }
+
+  const remaining = Array.from({ length: totalPages - 1 }, (_, i) => i + 2)
+  for (let i = 0; i < remaining.length; i += PAGE_CONCURRENCY) {
+    const batch = remaining.slice(i, i + PAGE_CONCURRENCY)
+    const pages = await Promise.all(batch.map((page) => fetchPage(page, perPage)))
+    for (const page of pages) {
+      for (const raw of page.offers) {
+        const offer = mapOffer(raw)
+        byId.set(offer.id, offer)
+      }
+    }
+  }
+
+  return { offers: Array.from(byId.values()), totalCount }
+}
+
+/** Pull the full CueLinks offers catalog (paginated; cached). */
 export async function fetchCueLinksOffers(opts?: { force?: boolean; maxPages?: number; perPage?: number }) {
   if (!opts?.force && cache && Date.now() - cache.fetchedAt < CACHE_TTL_MS) {
     return cache
   }
+  if (inflight && !opts?.force) return inflight
 
-  const perPage = opts?.perPage ?? 50
-  const maxPages = opts?.maxPages ?? 6
-  const all: CueLinksOffer[] = []
-  let totalCount = 0
+  const perPage = Math.min(100, Math.max(1, opts?.perPage ?? DEFAULT_PER_PAGE))
+  const maxPages = Math.max(1, opts?.maxPages ?? MAX_PAGES)
 
-  for (let page = 1; page <= maxPages; page++) {
-    const { offers, totalCount: total } = await fetchPage(page, perPage)
-    totalCount = total
-    all.push(...offers.map(mapOffer))
-    if (offers.length < perPage || all.length >= total) break
-  }
+  inflight = (async () => {
+    const { offers, totalCount } = await fetchAllPages(perPage, maxPages)
+    const filtered = applyIndiaFilter(offers).filter((o) => o.status === 'live' || !o.status)
+    cache = { offers: filtered, fetchedAt: Date.now(), totalCount }
+    return cache
+  })().finally(() => {
+    inflight = null
+  })
 
-  const filtered = applyIndiaFilter(all).filter((o) => o.status === 'live' || !o.status)
-  cache = { offers: filtered, fetchedAt: Date.now(), totalCount }
-  return cache
+  return inflight
 }
 
 export async function listCueLinksOffers(filters?: {
@@ -163,7 +196,7 @@ export async function listCueLinksOffers(filters?: {
   const limit =
     limitRaw == null || Number.isNaN(Number(limitRaw))
       ? items.length
-      : Math.min(100, Math.max(1, Number(limitRaw)))
+      : Math.min(items.length, Math.max(1, Number(limitRaw)))
   const sliced = items.slice(offset, offset + limit)
 
   return {
@@ -172,8 +205,53 @@ export async function listCueLinksOffers(filters?: {
     hasMore: offset + sliced.length < items.length,
     offset,
     limit,
-    catalogTotal: snap.totalCount,
+    catalogTotal: snap.offers.length,
     categories: Array.from(catSet).sort((a, b) => a.localeCompare(b)),
+    fetchedAt: new Date(snap.fetchedAt).toISOString(),
+  }
+}
+
+function hostTokens(host: string): string[] {
+  const h = host.toLowerCase().replace(/^www\./, '')
+  const name = h.split('.')[0] || h
+  const tokens = new Set<string>([h, name])
+  if (name === 'zeptonow') tokens.add('zepto')
+  if (name === 'makemytrip') {
+    tokens.add('mmt')
+    tokens.add('make my trip')
+  }
+  if (name === 'bookmyshow') tokens.add('book my show')
+  if (name === 'bigbasket') tokens.add('big basket')
+  if (name === 'jiomart') tokens.add('jio mart')
+  return [...tokens].filter((t) => t.length >= 3)
+}
+
+export async function listCueLinksOffersForHost(host: string, limit = 8) {
+  const snap = await fetchCueLinksOffers()
+  const inHost = host.toLowerCase().replace(/^www\./, '')
+  const tokens = hostTokens(inHost)
+  const matched = snap.offers.filter((o) => {
+    try {
+      const u = new URL(o.url || o.affiliateUrl || 'https://invalid.invalid')
+      const oh = u.hostname.replace(/^www\./i, '').toLowerCase()
+      if (oh === inHost || oh.endsWith(`.${inHost}`) || inHost.endsWith(`.${oh}`)) return true
+    } catch {
+      /* ignore */
+    }
+    const hay = `${o.merchant} ${o.title} ${o.description} ${o.categories.join(' ')}`.toLowerCase()
+    const compact = hay.replace(/[^a-z0-9]+/g, '')
+    return tokens.some((t) => {
+      const n = t.toLowerCase()
+      const nCompact = n.replace(/[^a-z0-9]+/g, '')
+      return hay.includes(n) || (nCompact.length >= 3 && compact.includes(nCompact))
+    })
+  })
+  const cap = Math.min(24, Math.max(1, limit))
+  return {
+    host: inHost,
+    items: matched.slice(0, cap),
+    total: matched.length,
+    catalogTotal: snap.offers.length,
     fetchedAt: new Date(snap.fetchedAt).toISOString(),
   }
 }

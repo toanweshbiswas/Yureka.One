@@ -89,6 +89,7 @@ export function fromApiBlog(b: ApiBlog): Blog {
     scheduled_at: b.scheduledAt,
     created_at: b.createdAt,
     updated_at: b.updatedAt,
+    content_format: b.contentFormat,
   }
 }
 

@@ -89,7 +89,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 Sync & Reload
               </button>
               <a 
-                href="mailto:dev@yureka.one"
+                href="mailto:support@yureka.one"
                 className="text-[10px] font-bold text-white/30 hover:text-white/60 transition-colors uppercase tracking-widest border-b border-white/10 pb-1"
               >
                 Report Node Failure

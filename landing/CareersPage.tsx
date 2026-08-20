@@ -3,6 +3,8 @@ import { ArrowRight, ArrowUpRight, Briefcase } from 'lucide-react';
 import ImageWithLoader from '@shared/ImageWithLoader';
 import SEO from '@shared/SEO';
 import { staticPageMeta } from '@backend/lib/seo/pageMeta';
+import { jobPostingSchema } from '@backend/lib/seo/structuredData';
+import { CAREER_ROLES } from '@landing/careersData';
 
 interface FadeInSectionProps {
   children: React.ReactNode;
@@ -40,18 +42,12 @@ const FadeInSection: React.FC<FadeInSectionProps> = ({ children, delay = 0, clas
   );
 };
 
-const roles = [
-    { title: "Founding AI Engineer", type: "Full-time", location: "Bengaluru", dept: "Engineering", id: "ENG-001" },
-    { title: "Credit Risk Analyst", type: "Full-time", location: "Bengaluru", dept: "Risk", id: "RSK-004" },
-    { title: "Product Designer", type: "Full-time", location: "Bengaluru", dept: "Design", id: "DES-012" },
-    { title: "Growth Lead", type: "Full-time", location: "Bengaluru", dept: "Marketing", id: "MKT-003" },
-    { title: "Fintech Partnerships", type: "Full-time", location: "Bengaluru", dept: "Business", id: "BIZ-008" }
-];
+const roles = CAREER_ROLES;
 
 const CareersPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-cream pt-4 md:pt-8 pb-20 font-sans text-white overflow-x-hidden selection:bg-clay selection:text-cream">
-      <SEO {...staticPageMeta['/jobs']} />
+      <SEO {...staticPageMeta['/jobs']} schema={CAREER_ROLES.map(jobPostingSchema)} />
 
       <div className="max-w-[1440px] mx-auto px-6 relative z-10">
         
@@ -124,7 +120,7 @@ const CareersPage: React.FC = () => {
                 
                 <div className="mt-12 text-center p-12 border border-dashed border-white/10 rounded-3xl bg-white/5 backdrop-blur-sm">
                     <p className="text-white/40 mb-4 uppercase tracking-[0.3em] text-[10px] font-bold">Don't see your role?</p>
-                    <a href="mailto:careers@yureka.one" className="text-clay font-serif italic text-2xl underline hover:text-white transition-colors decoration-1 underline-offset-8">Email the Editor</a>
+                    <a href="mailto:support@yureka.one" className="text-clay font-serif italic text-2xl underline hover:text-white transition-colors decoration-1 underline-offset-8">Email the Editor</a>
                 </div>
             </div>
 

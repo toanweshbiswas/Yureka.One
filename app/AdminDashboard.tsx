@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom'
 import {
   LogIn, LogOut, Loader2, Search, CheckCircle, XCircle, PauseCircle,
   Clock, RefreshCw, Filter, ShieldCheck, Users, Coins, Store, Plus, Trash2, KeyRound,
-  Activity, Gift, LayoutDashboard,
+  Activity, Gift, LayoutDashboard, BookOpen, Building2,
 } from 'lucide-react'
 import { normalizeEmail } from '@backend/lib/mail/emailAddress'
 import type { AdminOverview } from '@backend/lib/admin/overview'
 import { GiftOrdersTab, OverviewTab, UsersTab, ScoreBadge, ScoreSignals, UserScoreAnalysis } from './admin/ActivityViews'
+import BlogsTab from './admin/BlogsTab'
+import BrandsTab from './admin/BrandsTab'
 import {
   Callout,
   ConfirmDialog,
@@ -24,7 +26,7 @@ import {
 } from './admin/ui'
 
 type AdminRole = 'viewer' | 'admin' | 'superadmin'
-type Tab = 'overview' | 'waitlist' | 'users' | 'gifts' | 'offers' | 'ledger' | 'admins'
+type Tab = 'overview' | 'waitlist' | 'users' | 'gifts' | 'offers' | 'brands' | 'ledger' | 'blogs' | 'admins'
 
 const ADMIN_TOKEN_KEY = 'yureka_admin_token'
 const ADMIN_ROLE_KEY = 'yureka_admin_role'
@@ -613,13 +615,16 @@ const AdminDashboard: React.FC = () => {
     { id: 'users', label: 'Users', icon: Activity, hint: overview ? String(overview.users.length) : undefined },
     { id: 'gifts', label: 'Gift cards', icon: Gift },
     { id: 'offers', label: 'Offers', icon: Store },
+    { id: 'brands', label: 'Brands', icon: Building2 },
+    { id: 'blogs', label: 'Blog', icon: BookOpen },
     { id: 'ledger', label: 'Goldback', icon: Coins },
     { id: 'admins', label: 'Admins', icon: ShieldCheck, hide: !isSuper },
   ]
   const navGroups: { label: string; ids: Tab[] }[] = [
     { label: 'Monitor', ids: ['overview'] },
     { label: 'People', ids: ['waitlist', 'users'] },
-    { label: 'Commerce', ids: ['gifts', 'offers', 'ledger'] },
+    { label: 'Commerce', ids: ['gifts', 'offers', 'brands', 'ledger'] },
+    { label: 'Site', ids: ['blogs'] },
     { label: 'Access', ids: ['admins'] },
   ]
   const visibleTabs = tabs.filter((t) => !t.hide)
@@ -889,6 +894,10 @@ const AdminDashboard: React.FC = () => {
             )}
           </section>
         )}
+
+        {tab === 'blogs' && <BlogsTab token={token} canWrite={canWrite} />}
+
+        {tab === 'brands' && <BrandsTab token={token} canWrite={canWrite} />}
 
         {tab === 'offers' && (
           <section className="space-y-6">

@@ -6,10 +6,30 @@
  *
  * Call this before mounting React / creating the Supabase client.
  */
+
+function hashParams(hash: string) {
+  return new URLSearchParams(hash.startsWith('#') ? hash.slice(1) : hash)
+}
+
+export function isPasswordRecoveryCallback(
+  pathname = typeof window !== 'undefined' ? window.location.pathname : '',
+  search = typeof window !== 'undefined' ? window.location.search : '',
+  hash = typeof window !== 'undefined' ? window.location.hash : '',
+): boolean {
+  const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
+  return (
+    pathname === '/reset-password' ||
+    pathname.startsWith('/reset-password/') ||
+    params.get('type') === 'recovery' ||
+    hashParams(hash).get('type') === 'recovery'
+  )
+}
+
 export function oauthHandoffUrl(
   hostname = typeof window !== 'undefined' ? window.location.hostname.toLowerCase() : '',
   search = typeof window !== 'undefined' ? window.location.search : '',
   hash = typeof window !== 'undefined' ? window.location.hash : '',
+  pathname = typeof window !== 'undefined' ? window.location.pathname : '',
 ): string | null {
   if (typeof window === 'undefined') return null
 
@@ -20,18 +40,20 @@ export function oauthHandoffUrl(
   if (!hasCode && !hasHashToken) return null
 
   const isApp = hostname === 'app.yureka.one'
+  const isBrand = hostname === 'brand.yureka.one'
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
-  if (isApp || isLocal) return null
+  if (isApp || isBrand || isLocal) return null
 
   const appBase =
     (import.meta.env.VITE_APP_URL as string | undefined)?.replace(/\/$/, '') ||
     'https://app.yureka.one'
 
-  const url = new URL(`${appBase}/login`)
+  const dest = isPasswordRecoveryCallback(pathname, search, hash) ? '/reset-password' : '/login'
+  const url = new URL(`${appBase}${dest}`)
   params.forEach((value, key) => {
     url.searchParams.set(key, value)
   })
-  if (!url.searchParams.has('next')) {
+  if (dest === '/login' && !url.searchParams.has('next')) {
     url.searchParams.set('next', '/dashboard')
   }
   if (hash) url.hash = hash.startsWith('#') ? hash : `#${hash}`

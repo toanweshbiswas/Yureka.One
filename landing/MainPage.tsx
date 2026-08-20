@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import HeroCinematic from '@landing/home-v2/HeroCinematic';
 import HeroMobile from '@landing/home-v2/HeroMobile';
 import SEO from '@shared/SEO';
@@ -15,28 +15,14 @@ import Architecture from '@landing/home-v2/Architecture';
 import FAQSection from '@landing/home-v2/FAQSection';
 import YurekaCallout from '@landing/home-v2/YurekaCallout';
 import Footer from '@landing/home-v2/Footer';
+import { usePrefersCinematic } from '@landing/home-v2/usePrefersCinematic';
 
 /**
  * Homepage composition:
- * Loader → Navbar → hero (mobile stacked / desktop cinematic) → sections → footer.
+ * Loader → Navbar → hero (touch stacked / desktop cinematic) → sections → footer.
  *
- * Mobile never mounts the 500vh+ pin-scrub cinematic — that path only runs at md+.
+ * Touch never mounts the 500vh+ pin-scrub cinematic — that path is pointer-only.
  */
-function useIsDesktopMd() {
-  const [isDesktop, setIsDesktop] = useState(() =>
-    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
-  );
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const onChange = () => setIsDesktop(mq.matches);
-    onChange();
-    mq.addEventListener('change', onChange);
-    return () => mq.removeEventListener('change', onChange);
-  }, []);
-
-  return isDesktop;
-}
 
 const MainPage: React.FC = () => {
   const homeSchema = {
@@ -48,7 +34,7 @@ const MainPage: React.FC = () => {
   };
 
   const [entranceComplete, setEntranceComplete] = useState(false);
-  const isDesktop = useIsDesktopMd();
+  const prefersCinematic = usePrefersCinematic();
 
   useEffect(() => {
     let cancelled = false;
@@ -80,12 +66,11 @@ const MainPage: React.FC = () => {
       <div className="yureka-one-home bg-black min-h-screen text-white">
         <Loader show={!entranceComplete} />
         <Navbar entranceComplete={entranceComplete} />
-        {/* Scroll cue is desktop cinematic-only */}
-        {isDesktop && <ScrollDownCue />}
-        {isDesktop ? (
+        {prefersCinematic && <ScrollDownCue />}
+        {prefersCinematic ? (
           <HeroCinematic entranceComplete={entranceComplete} />
         ) : (
-          <HeroMobile />
+          <HeroMobile entranceComplete={entranceComplete} />
         )}
         <BrandsSection />
         <MetricsTechnology />

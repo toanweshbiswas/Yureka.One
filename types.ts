@@ -15,6 +15,7 @@ export interface Blog {
   read_time?: string;
   status?: 'draft' | 'published';
   scheduled_at?: string;
+  content_format?: 'html' | 'markdown';
 }
 
 export interface Card {

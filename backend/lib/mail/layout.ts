@@ -15,14 +15,22 @@ function landingOrigin(): string {
   return (process.env.VITE_LANDING_URL || '').trim().replace(/\/$/, '') || 'https://yureka.one'
 }
 
+function brandOrigin(): string {
+  return (process.env.VITE_BRAND_URL || '').trim().replace(/\/$/, '') || 'https://brand.yureka.one'
+}
+
 export function mailUrls() {
+  const brand = brandOrigin()
   return {
     app: appOrigin(),
     admin: adminOrigin(),
     landing: landingOrigin(),
+    brand,
     appLogin: `${appOrigin()}/login?next=${encodeURIComponent('/dashboard')}`,
     appDashboard: `${appOrigin()}/dashboard`,
     adminLogin: `${adminOrigin()}/admin`,
+    brandLogin: `${brand}/brand/login`,
+    brandSignup: `${brand}/brand/signup`,
   }
 }
 

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Gift, Store, User, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { motion, AnimatePresence } from 'motion/react'
 import { useSupabase } from '@shared/SupabaseProvider'
+import Icon3d from '@shared/Icon3d'
 
 const STORAGE_KEY = 'yureka_welcome_dismissed'
 
@@ -62,9 +63,9 @@ const WelcomeBanner: React.FC = () => {
 
           <ul className="space-y-3">
             {[
-              { icon: User, label: 'Complete your profile', to: '/dashboard/profile' },
-              { icon: Store, label: 'Browse offers & earn Goldback', to: '/dashboard/offers' },
-              { icon: Gift, label: 'Explore gift cards', to: '/dashboard/giftcards' },
+              { icon: 'boy', label: 'Complete your profile', to: '/dashboard/profile' },
+              { icon: 'bag', label: 'Browse offers & earn Goldback', to: '/dashboard/offers' },
+              { icon: 'gift', label: 'Explore gift cards', to: '/dashboard/giftcards' },
             ].map((item) => (
               <li key={item.to}>
                 <Link
@@ -72,11 +73,11 @@ const WelcomeBanner: React.FC = () => {
                   onClick={dismiss}
                   className="flex items-center gap-3 text-sm text-white/80 hover:text-white transition-colors group"
                 >
-                  <span className="w-8 h-8 rounded-xl bg-black/25 border border-white/10 flex items-center justify-center text-clay group-hover:border-clay/40">
-                    <item.icon size={14} />
+                  <span className="w-8 h-8 rounded-xl bg-black/25 border border-white/10 flex items-center justify-center group-hover:border-clay/40">
+                    <Icon3d name={item.icon} className="h-5 w-5 object-contain" alt="" />
                   </span>
                   <span className="font-semibold">{item.label}</span>
-                  <CheckCircle2 size={14} className="text-white/20 ml-auto" />
+                  <Icon3d name="tick" className="h-4 w-4 object-contain opacity-40 ml-auto" alt="" />
                 </Link>
               </li>
             ))}

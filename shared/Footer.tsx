@@ -1,8 +1,10 @@
 import React from 'react';
-import { Instagram, Twitter, MessageSquare, Link as LinkIcon, ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import HomeFooter from '@landing/home-v2/Footer';
+import Icon3d from '@shared/Icon3d';
+import YurekaBrandMark from '@shared/YurekaBrandMark';
 
 const Footer: React.FC = () => {
   return (
@@ -99,18 +101,7 @@ const Footer: React.FC = () => {
             <div className="md:col-span-1 pr-0 md:pr-10 mb-10 md:mb-0 border-b md:border-b-0 md:border-r border-white/6 pb-8 md:pb-0">
               {/* Logo row */}
               <div className="flex items-center gap-2.5 mb-5">
-                <div className="w-7 h-7 flex items-center justify-center">
-                  {/* Play / triangle icon matching the screenshot */}
-                  <svg viewBox="0 0 28 28" fill="none" className="w-full h-full">
-                    <polygon
-                      points="6,4 24,14 6,24"
-                      stroke="rgba(255,255,255,0.70)"
-                      strokeWidth="1.6"
-                      strokeLinejoin="round"
-                      fill="none"
-                    />
-                  </svg>
-                </div>
+                <YurekaBrandMark className="h-8 w-8 rounded-lg object-cover" />
                 <span className="font-sans font-extrabold tracking-widest text-white text-sm">
                   YUREKA
                 </span>
@@ -136,6 +127,7 @@ const Footer: React.FC = () => {
                 </h4>
                 <ul className="space-y-3.5">
                   {[
+                    { label: 'Blog', to: '/blog' },
                     { label: 'Chrome Extension', to: '/yureka-ai' },
                     { label: 'Yureka AI', to: '/yureka-ai' },
                     { label: 'Yureka One Telegram', to: '#' },
@@ -160,8 +152,10 @@ const Footer: React.FC = () => {
                 </h4>
                 <ul className="space-y-3.5">
                   {[
+                    { label: 'About', to: '/about' },
                     { label: 'Manifesto', to: '/manifesto' },
                     { label: 'Careers', to: '/jobs' },
+                    { label: 'Contact', to: '/contact' },
                   ].map(({ label, to }) => (
                     <li key={label}>
                       <Link
@@ -182,7 +176,8 @@ const Footer: React.FC = () => {
                 </h4>
                 <ul className="space-y-3.5">
                   {[
-                    { label: 'Waitlist Status', to: '/yureka-ai' },
+                    { label: 'FAQ', to: '/faq' },
+                    { label: 'Waitlist', to: '/join-waitlist' },
                     { label: 'Privacy Policy', to: '/privacy-policy' },
                     { label: 'Terms of Service', to: '/terms-of-service' },
                   ].map(({ label, to }) => (
@@ -213,18 +208,20 @@ const Footer: React.FC = () => {
             {/* Social icons */}
             <div className="flex items-center gap-2.5">
               {[
-                { Icon: Instagram, label: 'Instagram', href: '#' },
-                { Icon: Twitter,   label: 'Twitter',   href: '#' },
-                { Icon: MessageSquare, label: 'Discord', href: '#' },
-                { Icon: LinkIcon,  label: 'Website',   href: '#' },
-              ].map(({ Icon, label, href }) => (
+                { icon: 'camera', label: 'Instagram', href: 'https://www.instagram.com/yurekamoney' },
+                { icon: 'megaphone', label: 'Twitter', href: 'https://twitter.com/yurekamoney' },
+                { icon: 'heart', label: 'LinkedIn', href: 'https://www.linkedin.com/company/yurekamoney' },
+                { icon: 'computer', label: 'Website', href: 'https://yureka.one' },
+              ].map(({ icon, label, href }) => (
                 <a
                   key={label}
                   href={href}
+                  target="_blank"
+                  rel="noreferrer"
                   aria-label={label}
-                  className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center text-white/40 hover:text-white hover:border-white/25 hover:bg-white/8 transition-all duration-200"
+                  className="w-9 h-9 rounded-full border border-white/10 bg-white/[0.04] flex items-center justify-center hover:border-white/25 hover:bg-white/8 transition-all duration-200"
                 >
-                  <Icon size={14} strokeWidth={1.5} />
+                  <Icon3d name={icon} className="h-4 w-4 object-contain" alt="" />
                 </a>
               ))}
             </div>

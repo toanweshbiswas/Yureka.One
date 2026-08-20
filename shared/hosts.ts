@@ -5,18 +5,20 @@
  *   yureka.one / www.yureka.one  → marketing landing
  *   app.yureka.one               → waitlist / login / dashboard
  *   admin.yureka.one             → backoffice
+ *   brand.yureka.one             → partner portal
  *
  * Temporary sslip.io / nip.io hosts permanently redirect to the production
  * map above (cutover). Localhost stays all-in-one for local/dev.
  */
 
-export type SiteRole = 'landing' | 'app' | 'admin' | 'all'
+export type SiteRole = 'landing' | 'app' | 'admin' | 'brand' | 'all'
 
 const LANDING_HOSTS = new Set(['yureka.one', 'www.yureka.one'])
 const APP_HOSTS = new Set(['app.yureka.one'])
 const ADMIN_HOSTS = new Set(['admin.yureka.one'])
+const BRAND_HOSTS = new Set(['brand.yureka.one'])
 
-const APP_PATH_PREFIXES = [
+export const APP_PATH_PREFIXES = [
   '/login',
   '/signup',
   '/join-waitlist',
@@ -24,6 +26,8 @@ const APP_PATH_PREFIXES = [
   '/reset-password',
   '/dashboard',
 ] as const
+
+export const BRAND_PATH_PREFIXES = ['/brand'] as const
 
 function trimSlash(url: string) {
   return url.replace(/\/$/, '')
@@ -46,6 +50,10 @@ export function adminOrigin() {
   return envUrl('VITE_ADMIN_PORTAL_URL', 'https://admin.yureka.one')
 }
 
+export function brandOrigin() {
+  return envUrl('VITE_BRAND_URL', 'https://brand.yureka.one')
+}
+
 export function currentHostname() {
   if (typeof window === 'undefined') return ''
   return window.location.hostname.toLowerCase()
@@ -61,6 +69,7 @@ export function resolveSiteRole(hostname = currentHostname()): SiteRole {
   // Temporary hosts are redirected away; treat as combined until the jump.
   if (isTemporaryPublicHost(hostname)) return 'all'
   if (ADMIN_HOSTS.has(hostname)) return 'admin'
+  if (BRAND_HOSTS.has(hostname)) return 'brand'
   if (APP_HOSTS.has(hostname)) return 'app'
   if (LANDING_HOSTS.has(hostname)) return 'landing'
   // Unknown hosts (preview IPs, Elastic IP): keep combined SPA.
@@ -69,7 +78,7 @@ export function resolveSiteRole(hostname = currentHostname()): SiteRole {
 
 export function isSplitHostsEnabled(hostname = currentHostname()) {
   const role = resolveSiteRole(hostname)
-  return role === 'landing' || role === 'app' || role === 'admin'
+  return role === 'landing' || role === 'app' || role === 'admin' || role === 'brand'
 }
 
 /** Absolute URL helper — same-origin when hosts are combined. */
@@ -93,6 +102,10 @@ export function adminUrl(path = '/admin') {
   return absoluteUrl(adminOrigin(), path)
 }
 
+export function brandUrl(path = '/brand') {
+  return absoluteUrl(brandOrigin(), path)
+}
+
 function pathStartsWith(pathname: string, prefixes: readonly string[]) {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
@@ -102,6 +115,9 @@ export function productionUrlForPath(pathname: string, search = '', hash = '') {
   const rest = `${pathname}${search}${hash}`
   if (pathname === '/admin' || pathname.startsWith('/admin/')) {
     return `${adminOrigin()}${rest === '/admin' ? '/admin' : rest}`
+  }
+  if (pathStartsWith(pathname, BRAND_PATH_PREFIXES)) {
+    return `${brandOrigin()}${rest === '/brand' ? '/brand' : rest}`
   }
   if (pathStartsWith(pathname, APP_PATH_PREFIXES)) {
     return `${appOrigin()}${rest}`

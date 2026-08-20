@@ -40,6 +40,11 @@ import {
   listAllOffers,
   upsertOffer,
 } from '../goldback/store.js'
+import { blogToApi, deleteBlog, getBlogById, listBlogs, upsertBlog } from '../cms/blogStore.js'
+import { slugFromTitle } from '../cms/blogHtml.js'
+import { notifyUsersNewBlog } from '../cms/notifyBlog.js'
+import { uploadBlogImage } from '../cms/blogMedia.js'
+import { raw as expressRaw } from 'express'
 
 function ok<T>(res: Response, data: T, status = 200) {
   res.status(status).json({ data, status, timestamp: new Date().toISOString() })
@@ -461,6 +466,137 @@ export function registerAdminRoutes(app: Express) {
       ok(res, await buildAdminOverview())
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to load overview')
+    }
+  })
+
+  // ─── Blog ───
+  app.get('/api/admin/blogs', requireAdmin, async (_req, res) => {
+    try {
+      const posts = await listBlogs({ includeDrafts: true })
+      ok(res, posts.map(blogToApi))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load blogs')
+    }
+  })
+
+  app.get('/api/admin/blogs/slug', requireAdmin, (req, res) => {
+    ok(res, { slug: slugFromTitle(String(req.query.title || '')) })
+  })
+
+  app.post(
+    '/api/admin/blogs/upload',
+    requireAdmin,
+    requireRole('admin', 'superadmin'),
+    expressRaw({ type: () => true, limit: '8mb' }),
+    async (req, res) => {
+      try {
+        const kind = String(req.query.kind || req.header('x-image-kind') || 'cover') === 'inline' ? 'inline' : 'cover'
+        const filename = String(req.header('x-filename') || req.query.filename || 'image.jpg')
+        const contentType = String(req.header('x-content-type') || req.header('content-type') || 'image/jpeg')
+          .split(';')[0]
+          .trim()
+        const body = req.body as Buffer | { data?: string } | undefined
+        const buffer = Buffer.isBuffer(body)
+          ? body
+          : body && typeof body === 'object' && 'data' in body && body.data
+            ? Buffer.from(String(body.data), 'base64')
+            : Buffer.alloc(0)
+        const uploaded = await uploadBlogImage({ buffer, filename, contentType, kind })
+        ok(res, uploaded, 201)
+      } catch (e: any) {
+        const msg = e?.message || 'Failed to upload image'
+        fail(res, msg.includes('not configured') ? 503 : 400, msg)
+      }
+    }
+  )
+
+  app.post('/api/admin/blogs', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const title = String(req.body?.title || '').trim()
+      if (!title) return fail(res, 400, 'title required')
+      const blog = await upsertBlog({
+        id: req.body?.id,
+        title,
+        slug: req.body?.slug,
+        excerpt: req.body?.excerpt,
+        content: req.body?.content,
+        contentFormat: req.body?.contentFormat === 'markdown' ? 'markdown' : 'html',
+        author: req.body?.author,
+        category: req.body?.category,
+        image: req.body?.image,
+        featured: Boolean(req.body?.featured),
+        status: req.body?.status === 'published' ? 'published' : 'draft',
+      })
+
+      let notify: { queued?: boolean; sent?: number; failed?: number; total?: number } | null = null
+      if (req.body?.notify && blog.status === 'published') {
+        notify = { queued: true }
+        void notifyUsersNewBlog(blog)
+          .then((result) => {
+            console.log(`[blogs] notified ${result.sent}/${result.total} for ${blog.slug}`)
+          })
+          .catch((err) => {
+            console.error('[blogs] notify failed:', (err as Error)?.message || err)
+          })
+      }
+
+      ok(res, { ...blogToApi(blog), notify }, req.body?.id ? 200 : 201)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to save blog')
+    }
+  })
+
+  app.patch('/api/admin/blogs/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const existing = await getBlogById(String(req.params.id || ''))
+      if (!existing) return fail(res, 404, 'Blog not found')
+      const title = String(req.body?.title || existing.title).trim()
+      if (!title) return fail(res, 400, 'title required')
+      const blog = await upsertBlog({
+        ...existing,
+        ...req.body,
+        id: existing.id,
+        title,
+        contentFormat: req.body?.contentFormat === 'markdown' ? 'markdown' : req.body?.contentFormat || existing.contentFormat,
+      })
+
+      let notify: { queued?: boolean } | null = null
+      if (req.body?.notify && blog.status === 'published') {
+        notify = { queued: true }
+        void notifyUsersNewBlog(blog)
+          .then((result) => {
+            console.log(`[blogs] notified ${result.sent}/${result.total} for ${blog.slug}`)
+          })
+          .catch((err) => {
+            console.error('[blogs] notify failed:', (err as Error)?.message || err)
+          })
+      }
+
+      ok(res, { ...blogToApi(blog), notify })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to update blog')
+    }
+  })
+
+  app.delete('/api/admin/blogs/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const deleted = await deleteBlog(String(req.params.id || ''))
+      if (!deleted) return fail(res, 404, 'Blog not found')
+      ok(res, { deleted: true })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to delete blog')
+    }
+  })
+
+  app.post('/api/admin/blogs/:id/notify', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const blog = await getBlogById(String(req.params.id || ''))
+      if (!blog) return fail(res, 404, 'Blog not found')
+      if (blog.status !== 'published') return fail(res, 400, 'Publish the post before emailing users')
+      const result = await notifyUsersNewBlog(blog)
+      ok(res, result)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to email users')
     }
   })
 }

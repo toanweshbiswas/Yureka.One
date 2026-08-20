@@ -432,7 +432,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
 
           if (!isApiError(bRes)) {
-            const mapped = (bRes.data ?? []).map(fromApiBlog).filter(b => b.id && b.title && b.title !== 'Untitled Journal');
+            const mapped = (bRes.data ?? []).map(fromApiBlog).filter(b => b.id && b.title && b.title !== 'Untitled Journal' && b.title !== 'Untitled Blog');
             setBlogs(mapped);
           } else {
             setBlogs([]);

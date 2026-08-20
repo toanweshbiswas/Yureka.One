@@ -1,5 +1,6 @@
 import React from 'react';
 import SEO from '@shared/SEO';
+import { brandUrl, goExternal, isSplitHostsEnabled } from '@shared/hosts';
 
 /**
  * The "For Brands" page is the standalone Yureka Partnership Deck — a
@@ -11,6 +12,7 @@ import SEO from '@shared/SEO';
  * covers the sitewide navbar/footer so the route renders as the deck alone.
  */
 const ForBrands: React.FC = () => {
+  const portalHref = isSplitHostsEnabled() ? brandUrl('/brand/login') : '/brand/login'
   return (
     <>
       <SEO
@@ -24,6 +26,13 @@ const ForBrands: React.FC = () => {
         style={{ width: '100vw', height: '100vh' }}
         allow="fullscreen"
       />
+      <button
+        type="button"
+        onClick={() => goExternal(portalHref)}
+        className="fixed bottom-6 right-6 z-[10000] rounded-2xl bg-clay text-black px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] shadow-lg"
+      >
+        Partner login
+      </button>
     </>
   );
 };

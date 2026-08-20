@@ -10,7 +10,7 @@
     <link rel="apple-touch-icon" href="/logos/yureka-logo-192.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="/logos/yureka-logo-192.png" />
     <link rel="apple-touch-icon" sizes="512x512" href="/logos/yureka-logo-512.png" />
-    <meta name="description" content="Turn everyday spending into 24K digital gold. Yureka's AI concierge orders for you, earns Yureka Goldback rewards up to 16% ROI, and builds your credit profile automatically." />
+    <meta name="description" content="Turn everyday spending into 24K digital gold. Yureka's AI concierge orders for you, pays Goldback up to 16% ROI, and builds your credit profile." />
     <meta name="keywords" content="AI wealth app india, wealth operating system india, convert cashback to gold, earn gold on spending, yureka goldback, agentic commerce india, AI shopping agent india, build credit without credit card, digital gold rewards india, yureka one" />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://yureka.one" />
@@ -39,8 +39,16 @@
           "alternateName": ["Yureka One", "Yureka"],
           "url": "https://yureka.one",
           "logo": "https://yureka.one/logos/yureka-logo.png",
+          "email": "support@yureka.one",
           "foundingDate": "2026",
-          "founder": { "@type": "Person", "name": "Anwesh Biswas" },
+          "founder": { "@type": "Person", "name": "Anwesh Biswas", "url": "https://yureka.one/about" },
+          "contactPoint": {
+            "@type": "ContactPoint",
+            "email": "support@yureka.one",
+            "contactType": "customer support",
+            "areaServed": "IN",
+            "availableLanguage": ["English", "Hindi"]
+          },
           "description": "Yureka.One is India's first AI-native Wealth Operating System, converting everyday transactions into 24K digital gold rewards and RBI-compliant alternative credit profiles.",
           "areaServed": "IN",
           "sameAs": [
@@ -93,6 +101,12 @@
     <meta property="og:image:height" content="630" />
 
     <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@yurekamoney" />
+    <meta name="twitter:url" content="https://yureka.one" />
+    <meta name="twitter:title" content="Yureka.One — Spend like always. Build wealth by default." />
+    <meta name="twitter:description" content="India's first AI-native Wealth OS: an AI that shops for you, pays you in digital gold, and turns your transactions into a credit profile." />
+    <meta name="twitter:image" content="https://yureka.one/og-image.jpg" />
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:site" content="@yurekamoney" />
     <meta property="twitter:url" content="https://yureka.one" />
@@ -139,9 +153,26 @@
         });
       }
     </script>
+    <style>
+      #crawler-content { color: #111; background: #fff; padding: 1.25rem; max-width: 46rem; }
+      #crawler-content h1 { font-size: 1.75rem; margin: 0.75rem 0; }
+      #crawler-content h2 { font-size: 1.15rem; margin: 1rem 0 0.4rem; }
+      #crawler-content nav, #crawler-content footer { margin: 1rem 0; }
+      html.hydrated #crawler-content { display: none !important; }
+    </style>
 </head>
   <body>
+    <!--CRAWLER_CONTENT-->
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
+  <script>
+    var cId = "291471";
+    (function () {
+      var s = document.createElement("script");
+      s.async = true;
+      s.src = "https://cdn0.cuelinks.com/js/cuelinksv2.js";
+      document.body.appendChild(s);
+    })();
+  </script>
 </body>
 </html>

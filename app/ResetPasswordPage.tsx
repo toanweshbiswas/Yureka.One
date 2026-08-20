@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
 import { motion } from 'motion/react'
-import { getSupabaseBrowser } from '@shared/auth'
+import { establishRecoverySession, friendlyAuthError, getSupabaseBrowser } from '@shared/auth'
 import { landingUrl } from '@shared/hosts'
 
 const ResetPasswordPage: React.FC = () => {
@@ -11,6 +11,7 @@ const ResetPasswordPage: React.FC = () => {
   const next = useMemo(() => searchParams.get('next') || '/dashboard', [searchParams])
 
   const [busy, setBusy] = useState(true)
+  const [canReset, setCanReset] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
 
@@ -19,41 +20,39 @@ const ResetPasswordPage: React.FC = () => {
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
+    let cancelled = false
+
     const run = async () => {
       setBusy(true)
       setError(null)
       setInfo(null)
+      setCanReset(false)
 
-      const sb = getSupabaseBrowser()
-      if (!sb) {
-        setError('Password reset is temporarily unavailable. Please try again later.')
+      const { session, error: sessionError } = await establishRecoverySession()
+      if (cancelled) return
+
+      if (!session?.user) {
+        setError(friendlyAuthError(sessionError))
         setBusy(false)
         return
       }
 
-      // Supabase client is configured with `detectSessionInUrl`, so this will
-      // exchange `access_token`/`refresh_token` params automatically.
-      const { data, error: sessionError } = await sb.auth.getSession()
-      if (sessionError) {
-        setError(sessionError.message)
-        setBusy(false)
-        return
-      }
-
-      if (!data?.session?.user) {
-        setError('This reset link is invalid or expired. Please request a new one.')
-        setBusy(false)
-        return
-      }
-
+      setCanReset(true)
       setBusy(false)
     }
 
     void run()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canReset) {
+      setError('This reset link is invalid or expired. Please request a new one from the login page.')
+      return
+    }
     if (!password || password.length < 8) {
       setError('Password must be at least 8 characters')
       return
@@ -77,7 +76,8 @@ const ResetPasswordPage: React.FC = () => {
     setUpdating(false)
 
     if (updateError) {
-      setError(updateError.message)
+      setError(friendlyAuthError(updateError.message))
+      setCanReset(false)
       return
     }
 
@@ -127,7 +127,9 @@ const ResetPasswordPage: React.FC = () => {
         </h1>
 
         <p className="text-sm text-white/40 mb-8 leading-relaxed">
-          Choose a new password. Once updated, you can sign in immediately.
+          {canReset
+            ? 'Choose a new password. Once updated, you can sign in immediately.'
+            : 'Open the latest reset link from your email, using the same browser you used to request it.'}
         </p>
 
         {error && (
@@ -139,38 +141,44 @@ const ResetPasswordPage: React.FC = () => {
           <p className="mb-6 text-xs text-clay bg-clay/10 border border-clay/20 rounded-2xl px-4 py-3">{info}</p>
         )}
 
-        <form onSubmit={handleUpdate} className="space-y-3 text-left mb-5">
-          <input
-            className="w-full rounded-2xl bg-black/50 border border-white/10 px-4 py-3.5 text-sm text-white focus:outline-none focus:border-clay/40"
-            placeholder="New password (min 8 chars)"
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-          <input
-            className="w-full rounded-2xl bg-black/50 border border-white/10 px-4 py-3.5 text-sm text-white focus:outline-none focus:border-clay/40"
-            placeholder="Confirm new password"
-            type="password"
-            required
-            minLength={8}
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            autoComplete="new-password"
-          />
+        {canReset ? (
+          <form onSubmit={handleUpdate} className="space-y-3 text-left mb-5">
+            <input
+              className="w-full rounded-2xl bg-black/50 border border-white/10 px-4 py-3.5 text-sm text-white focus:outline-none focus:border-clay/40"
+              placeholder="New password (min 8 chars)"
+              type="password"
+              required
+              minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+            <input
+              className="w-full rounded-2xl bg-black/50 border border-white/10 px-4 py-3.5 text-sm text-white focus:outline-none focus:border-clay/40"
+              placeholder="Confirm new password"
+              type="password"
+              required
+              minLength={8}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+            />
 
-          <button
-            type="submit"
-            disabled={updating}
-            className="w-full bg-clay text-black py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.25em] flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
-          >
-            {updating ? <Loader2 size={18} className="animate-spin" /> : 'Update password'}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={updating}
+              className="w-full bg-clay text-black py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.25em] flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+            >
+              {updating ? <Loader2 size={18} className="animate-spin" /> : 'Update password'}
+            </button>
+          </form>
+        ) : null}
 
         <p className="mt-8 text-[10px] font-black uppercase tracking-[0.35em] text-white/25">
+          <Link to="/login?mode=forgot" className="hover:text-clay transition-colors">
+            Request a new link
+          </Link>
+          <span className="mx-3">·</span>
           <Link to={`/login?next=${encodeURIComponent(next)}`} className="hover:text-clay transition-colors">
             Back to login
           </Link>
@@ -185,4 +193,3 @@ const ResetPasswordPage: React.FC = () => {
 }
 
 export default ResetPasswordPage
-
