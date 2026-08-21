@@ -617,6 +617,82 @@ export async function listAllAccounts(): Promise<GoldbackBalance[]> {
   return Object.values(readFileStore().accounts)
 }
 
+/** Admin: set absolute balance or apply signed delta (paise). Records an `adjust` ledger row. */
+export async function adminAdjustGoldback(opts: {
+  userId: string
+  /** Absolute balance in paise. Prefer this when provided. */
+  balancePaise?: number
+  /** Signed delta in paise (positive credit / negative debit). Used when balancePaise omitted. */
+  deltaPaise?: number
+  note?: string
+}): Promise<{ entry: GoldbackLedgerEntry; balance: GoldbackBalance }> {
+  const userId = String(opts.userId || '').trim()
+  if (!userId) throw new Error('userId required')
+
+  const current = await getBalance(userId)
+  let nextBalance = current.balancePaise
+  if (opts.balancePaise != null && Number.isFinite(Number(opts.balancePaise))) {
+    nextBalance = Math.max(0, Math.round(Number(opts.balancePaise)))
+  } else if (opts.deltaPaise != null && Number.isFinite(Number(opts.deltaPaise))) {
+    nextBalance = Math.max(0, current.balancePaise + Math.round(Number(opts.deltaPaise)))
+  } else {
+    throw new Error('balancePaise or deltaPaise required')
+  }
+
+  const amountPaise = nextBalance - current.balancePaise
+  const now = new Date().toISOString()
+  const entry: GoldbackLedgerEntry = {
+    id: randomUUID(),
+    userId,
+    type: 'adjust',
+    amountPaise,
+    offerId: null,
+    status: amountPaise >= 0 ? 'earned' : 'redeemed',
+    idempotencyKey: `admin-adjust:${userId}:${now}:${amountPaise}`,
+    meta: { note: opts.note || 'Admin adjustment', previous: current.balancePaise, next: nextBalance },
+    createdAt: now,
+  }
+  const balance: GoldbackBalance = { userId, balancePaise: nextBalance, updatedAt: now }
+
+  const sb = sbClient()
+  if (sb) {
+    const { error: upsertErr } = await sb.from('goldback_accounts').upsert({
+      user_id: userId,
+      balance_paise: nextBalance,
+      updated_at: now,
+    })
+    if (!upsertErr) {
+      const { error: ledErr } = await sb.from('goldback_ledger').insert({
+        id: entry.id,
+        user_id: userId,
+        type: entry.type,
+        amount_paise: entry.amountPaise,
+        offer_id: null,
+        status: entry.status,
+        idempotency_key: entry.idempotencyKey,
+        meta: entry.meta,
+        created_at: now,
+      })
+      if (!ledErr) {
+        const snap = readFileStore()
+        snap.accounts[userId] = balance
+        snap.ledger.unshift(entry)
+        writeFileStore(snap)
+        return { entry, balance }
+      }
+      noteSchemaError(ledErr)
+    } else {
+      noteSchemaError(upsertErr)
+    }
+  }
+
+  const snap = readFileStore()
+  snap.accounts[userId] = balance
+  snap.ledger.unshift(entry)
+  writeFileStore(snap)
+  return { entry, balance }
+}
+
 export async function listAllClicks(limit = 500): Promise<
   { id: string; userId: string; offerId: string; createdAt: string }[]
 > {

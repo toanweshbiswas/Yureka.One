@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import {
     Compass,
@@ -16,6 +17,10 @@ import WelcomeBanner from './WelcomeBanner';
 import { googleAvatarUrl } from '@shared/userProfile';
 import Icon3d from '@shared/Icon3d';
 import YurekaBrandMark from '@shared/YurekaBrandMark';
+import {
+    restoreDashboardPosition,
+    saveDashboardScroll,
+} from '@shared/dashboardScroll';
 
 
 // Sub-components (to be built)
@@ -102,6 +107,8 @@ const NotificationBell = () => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [isOpen, setIsOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
 
     const applyInbox = (payload: { items?: InboxNotification[]; unreadCount?: number } | InboxNotification[] | null | undefined) => {
         const items = Array.isArray(payload) ? payload : payload?.items || [];
@@ -131,6 +138,27 @@ const NotificationBell = () => {
         const interval = setInterval(load, 30000);
         return () => clearInterval(interval);
     }, [user?.id, user?.email]);
+
+    // Close on any pointer outside the bell + panel (full viewport — not trapped by header blur).
+    useEffect(() => {
+        if (!isOpen) return;
+        const onPointerDown = (e: PointerEvent) => {
+            const target = e.target as Node | null;
+            if (!target) return;
+            if (rootRef.current?.contains(target)) return;
+            if (panelRef.current?.contains(target)) return;
+            setIsOpen(false);
+        };
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setIsOpen(false);
+        };
+        document.addEventListener('pointerdown', onPointerDown, true);
+        document.addEventListener('keydown', onKey);
+        return () => {
+            document.removeEventListener('pointerdown', onPointerDown, true);
+            document.removeEventListener('keydown', onKey);
+        };
+    }, [isOpen]);
 
     const handleOpen = async () => {
         const next = !isOpen;
@@ -166,11 +194,100 @@ const NotificationBell = () => {
         if (!isApiError(res) && res.data) applyInbox(res.data);
     };
 
+    const overlay =
+        typeof document !== 'undefined'
+            ? createPortal(
+                  <AnimatePresence>
+                      {isOpen && (
+                          <>
+                              <motion.button
+                                  type="button"
+                                  aria-label="Close notifications"
+                                  initial={{ opacity: 0 }}
+                                  animate={{ opacity: 1 }}
+                                  exit={{ opacity: 0 }}
+                                  transition={{ duration: 0.2 }}
+                                  onClick={() => setIsOpen(false)}
+                                  className="fixed inset-0 z-[90] cursor-default bg-black/40"
+                              />
+                              <motion.div
+                                  ref={panelRef}
+                                  role="dialog"
+                                  aria-label="Notifications"
+                                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                                  transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+                                  className="fixed top-[4.5rem] right-3 z-[95] w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-3xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-2xl sm:right-5 md:right-10"
+                              >
+                                  <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] p-5">
+                                      <h3 className="text-sm font-bold uppercase tracking-widest text-white">Notifications</h3>
+                                      <span className="font-mono text-[10px] text-clay">{notifications.length} Active</span>
+                                  </div>
+
+                                  <div className="dashboard-scroll max-h-[60vh] overflow-y-auto p-2">
+                                      {notifications.length === 0 ? (
+                                          <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-white/30">
+                                              {loading ? 'Loading…' : 'No notifications yet'}
+                                          </div>
+                                      ) : (
+                                          <div className="space-y-1">
+                                              {notifications.map((n) => (
+                                                  <div
+                                                      key={n.id}
+                                                      onClick={() => handleOpenItem(n)}
+                                                      className="group relative flex cursor-pointer flex-col gap-3 rounded-2xl p-4 transition-colors hover:bg-white/[0.03]"
+                                                  >
+                                                      <button
+                                                          type="button"
+                                                          onClick={(e) => handleDismiss(e, n.id)}
+                                                          className="absolute right-3 top-3 p-1 text-white/20 hover:text-white/70"
+                                                          aria-label="Dismiss notification"
+                                                      >
+                                                          <X size={12} />
+                                                      </button>
+                                                      <div className="flex gap-4">
+                                                          <div
+                                                              className={`mt-2 h-2 w-2 shrink-0 rounded-full ${
+                                                                  n.readAt ? 'bg-white/20' : 'bg-clay shadow-[0_0_8px_#00933b]'
+                                                              }`}
+                                                          />
+                                                          <div className="flex-1 pr-4">
+                                                              <h4 className="mb-1 text-sm font-bold text-white">{n.title}</h4>
+                                                              <p className="text-xs leading-relaxed text-white/60">{n.body}</p>
+                                                          </div>
+                                                      </div>
+                                                      {n.imageUrl && (
+                                                          <div className="relative ml-6 mt-1 h-32 w-full overflow-hidden rounded-xl border border-white/5">
+                                                              <img src={n.imageUrl} alt="" className="h-full w-full object-cover" />
+                                                          </div>
+                                                      )}
+                                                      <div className="pl-6">
+                                                          <p className="font-mono text-[9px] uppercase tracking-widest text-white/20">
+                                                              {n.createdAt ? new Date(n.createdAt).toLocaleDateString() : ''}
+                                                          </p>
+                                                      </div>
+                                                  </div>
+                                              ))}
+                                          </div>
+                                      )}
+                                  </div>
+                              </motion.div>
+                          </>
+                      )}
+                  </AnimatePresence>,
+                  document.body,
+              )
+            : null;
+
     return (
-        <div className="relative z-[100]">
-            <button 
+        <div ref={rootRef} className="relative z-[100]">
+            <button
+                type="button"
                 onClick={handleOpen}
-                className="w-11 h-11 rounded-2xl border border-white/10 bg-white/[0.03] flex items-center justify-center text-white/35 hover:text-white hover:border-white/20 transition-all relative group"
+                aria-expanded={isOpen}
+                aria-haspopup="dialog"
+                className="group relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-white/35 transition-all hover:border-white/20 hover:text-white"
             >
                 <Icon3d
                     name="megaphone"
@@ -178,79 +295,12 @@ const NotificationBell = () => {
                     alt=""
                 />
                 {unreadCount > 0 && (
-                    <div className="absolute -top-1 -right-1 min-w-[1.125rem] h-[1.125rem] px-1 bg-clay rounded-full shadow-[0_0_12px_rgba(52,211,153,0.8)] flex items-center justify-center text-[8px] text-black font-black leading-none">
+                    <div className="absolute -right-1 -top-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-clay px-1 text-[8px] font-black leading-none text-black shadow-[0_0_12px_rgba(52,211,153,0.8)]">
                         {unreadCount}
                     </div>
                 )}
             </button>
-
-            <AnimatePresence>
-                {isOpen && (
-                    <>
-                        <motion.div 
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            onClick={() => setIsOpen(false)}
-                            className="fixed inset-0 z-40"
-                        />
-                        <motion.div 
-                            initial={{ opacity: 0, y: 8, scale: 0.98 }} 
-                            animate={{ opacity: 1, y: 0, scale: 1 }} 
-                            exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                            transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
-                            className="fixed sm:absolute top-[4.5rem] sm:top-[120%] right-3 sm:right-0 w-[min(22rem,calc(100vw-1.5rem))] bg-black/90 backdrop-blur-2xl border border-white/10 shadow-2xl rounded-3xl z-50 overflow-hidden"
-                        >
-                            <div className="p-5 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                                <h3 className="font-bold text-white text-sm tracking-widest uppercase">Notifications</h3>
-                                <span className="text-[10px] text-clay font-mono">{notifications.length} Active</span>
-                            </div>
-                            
-                            <div className="max-h-[60vh] overflow-y-auto dashboard-scroll p-2">
-                                {notifications.length === 0 ? (
-                                    <div className="p-8 text-center text-white/30 text-xs font-bold uppercase tracking-widest">
-                                        {loading ? 'Loading…' : 'No notifications yet'}
-                                    </div>
-                                ) : (
-                                    <div className="space-y-1">
-                                        {notifications.map(n => (
-                                            <div 
-                                                key={n.id} 
-                                                onClick={() => handleOpenItem(n)}
-                                                className="p-4 rounded-2xl hover:bg-white/[0.03] transition-colors cursor-pointer group flex flex-col gap-3 relative"
-                                            >
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => handleDismiss(e, n.id)}
-                                                    className="absolute top-3 right-3 text-white/20 hover:text-white/70 p-1"
-                                                    aria-label="Dismiss notification"
-                                                >
-                                                    <X size={12} />
-                                                </button>
-                                                <div className="flex gap-4">
-                                                    <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${n.readAt ? 'bg-white/20' : 'bg-clay shadow-[0_0_8px_#00933b]'}`} />
-                                                    <div className="flex-1 pr-4">
-                                                        <h4 className="text-white text-sm font-bold mb-1">{n.title}</h4>
-                                                        <p className="text-white/60 text-xs leading-relaxed">{n.body}</p>
-                                                    </div>
-                                                </div>
-                                                {n.imageUrl && (
-                                                    <div className="w-full h-32 rounded-xl overflow-hidden mt-1 border border-white/5 relative ml-6">
-                                                        <img src={n.imageUrl} alt="" className="w-full h-full object-cover" />
-                                                    </div>
-                                                )}
-                                                <div className="pl-6">
-                                                    <p className="text-[9px] uppercase tracking-widest text-white/20 font-mono">
-                                                        {n.createdAt ? new Date(n.createdAt).toLocaleDateString() : ''}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </motion.div>
-                    </>
-                )}
-            </AnimatePresence>
+            {overlay}
         </div>
     );
 };
@@ -278,6 +328,51 @@ const DashboardLayout: React.FC = () => {
 
     const activeTab = NAV_ITEMS.find(i => i.path && (location.pathname === i.path || location.pathname.startsWith(i.path + '/')))?.id
         || (location.pathname === '/dashboard' || location.pathname === '/dashboard/' ? 'home' : 'home');
+
+    const mainRef = useRef<HTMLElement | null>(null)
+    const prevPathRef = useRef(location.pathname)
+    const prevSearchRef = useRef(location.search)
+
+    const onMainScroll = useCallback(() => {
+        // Don't persist scroll while the in-app store chrome is fullscreen.
+        if (new URLSearchParams(location.search).has('url')) return
+        saveDashboardScroll(location.pathname)
+    }, [location.pathname, location.search])
+
+    useEffect(() => {
+        const pathChanged = prevPathRef.current !== location.pathname
+        const searchChanged = prevSearchRef.current !== location.search
+        const leftEmbedded =
+            new URLSearchParams(prevSearchRef.current).has('url') &&
+            !new URLSearchParams(location.search).has('url')
+        prevPathRef.current = location.pathname
+        prevSearchRef.current = location.search
+
+        if (new URLSearchParams(location.search).has('url')) return
+        if (!pathChanged && !searchChanged && !leftEmbedded && !location.hash) return
+
+        restoreDashboardPosition({
+            pathname: location.pathname,
+            hash: location.hash,
+        })
+    }, [location.pathname, location.search, location.hash])
+
+    useEffect(() => {
+        const onShow = () => {
+            if (document.visibilityState && document.visibilityState !== 'visible') return
+            if (new URLSearchParams(location.search).has('url')) return
+            restoreDashboardPosition({
+                pathname: location.pathname,
+                hash: location.hash,
+            })
+        }
+        window.addEventListener('pageshow', onShow)
+        document.addEventListener('visibilitychange', onShow)
+        return () => {
+            window.removeEventListener('pageshow', onShow)
+            document.removeEventListener('visibilitychange', onShow)
+        }
+    }, [location.pathname, location.search, location.hash])
 
     useEffect(() => {
         if (!KEEP_ALIVE_TABS.includes(activeTab as typeof KEEP_ALIVE_TABS[number])) return;
@@ -542,14 +637,19 @@ const DashboardLayout: React.FC = () => {
                 </div>
             </aside>
 
-            <main className={`flex-1 relative min-w-0 min-h-0 ${
+            <main
+                ref={mainRef}
+                onScroll={onMainScroll}
+                className={`flex-1 relative min-w-0 min-h-0 ${
                 isEmbeddedBrowse
                     ? 'flex flex-col overflow-hidden'
                     : 'overflow-y-auto overflow-x-hidden dashboard-scroll pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:pb-10'
             }`}>
                 {!isEmbeddedBrowse && (
                 <div
-                    className="sticky top-0 z-30 flex items-center justify-between gap-3 px-4 sm:px-5 md:px-10 py-3 md:py-4 bg-[#070707]/80 backdrop-blur-xl border-b border-white/[0.05]"
+                    className={`sticky top-0 z-30 items-center justify-between gap-3 px-4 sm:px-5 md:px-10 py-3 md:py-4 bg-[#070707]/80 backdrop-blur-xl border-b border-white/[0.05] ${
+                        activeTab === 'home' ? 'hidden md:flex' : 'flex'
+                    }`}
                     style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))' }}
                 >
                     <div className="flex items-center gap-3 min-w-0">

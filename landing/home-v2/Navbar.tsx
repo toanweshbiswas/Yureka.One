@@ -15,6 +15,7 @@ interface NavbarProps {
 }
 
 const NAV_LINKS = [
+  { name: 'Gifting', path: '/#gifting', desc: 'Send a gift card without signing up' },
   { name: 'Brands', path: '/brands', desc: 'Top reward partner brands' },
   { name: 'About', path: '/about', desc: 'Who builds Yureka' },
   { name: 'FAQ', path: '/faq', desc: 'Goldback, AI, credit, pricing' },

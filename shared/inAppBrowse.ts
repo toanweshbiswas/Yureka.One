@@ -35,58 +35,10 @@ export function browseHost(raw: string | null | undefined): string {
 }
 
 /**
- * These hosts refuse iframes (X-Frame-Options / CSP) or rate-limit embedded
- * WebViews ("max requests exceeded", blank grocery SPAs). Open in Safari/Chrome.
- *
- * Flipkart, Myntra, Ajio, Meesho, travel, etc. load in the in-app browser on PWA.
+ * Almost every CueLinks / grocery / fashion merchant refuses iframes or hands
+ * off to a native app. Only Flipkart is known-safe to embed in the PWA frame.
  */
-const EXTERNAL_ONLY_SUFFIXES = [
-  'amazon.in',
-  'amazon.com',
-  'blinkit.com',
-  'grofers.com',
-  'bigbasket.com',
-  'zeptonow.com',
-  'swiggy.com',
-  'jiomart.com',
-  'bookmyshow.com',
-  'makemytrip.com',
-  'goibibo.com',
-  'airindia.com',
-  'uber.com',
-]
-
-const PREFER_DIRECT_SITE_SUFFIXES = [
-  'amazon.in',
-  'amazon.com',
-  'blinkit.com',
-  'grofers.com',
-  'bigbasket.com',
-  'zeptonow.com',
-  'swiggy.com',
-  'jiomart.com',
-  'bookmyshow.com',
-]
-
-export function mustOpenExternally(raw: string | null | undefined): boolean {
-  const host = browseHost(raw)
-  if (!host) return false
-  return EXTERNAL_ONLY_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
-}
-
-export function openStoreInSystemBrowser(raw: string | null | undefined): boolean {
-  const url = sanitizeBrowseUrl(raw)
-  if (!url || typeof window === 'undefined') return false
-  const opened = window.open(url, '_blank', 'noopener,noreferrer')
-  return Boolean(opened)
-}
-
-/** Some merchants' affiliate redirects hand off to the native app; prefer web URL directly. */
-export function preferDirectSiteOpen(raw: string | null | undefined): boolean {
-  const host = browseHost(raw)
-  if (!host) return false
-  return PREFER_DIRECT_SITE_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
-}
+const IFRAME_OK_SUFFIXES = ['flipkart.com']
 
 /** CueLinks / Impact-style click id so conversions in Safari still map to this user. */
 export function stampAffiliateSubId(raw: string, userId: string): string {
@@ -120,63 +72,184 @@ export function isAffiliateRedirectUrl(raw: string | null | undefined): boolean 
   }
 }
 
+export function mustOpenExternally(raw: string | null | undefined): boolean {
+  const safe = sanitizeBrowseUrl(raw)
+  if (!safe) return false
+  if (isAffiliateRedirectUrl(safe)) return true
+  const host = browseHost(safe)
+  if (!host) return true
+  return !IFRAME_OK_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
+}
+
+export function openStoreInSystemBrowser(raw: string | null | undefined): boolean {
+  const url = sanitizeBrowseUrl(raw)
+  if (!url || typeof window === 'undefined') return false
+  const opened = window.open(url, '_blank', 'noopener,noreferrer')
+  return Boolean(opened)
+}
+
+/**
+ * Prefer the merchant website over affiliate redirects for ANY store URL.
+ * Affiliate redirects frequently Universal-Link into installed apps.
+ */
+export function preferDirectSiteOpen(raw: string | null | undefined): boolean {
+  if (!raw || isAffiliateRedirectUrl(raw)) return false
+  return Boolean(browseHost(raw))
+}
+
+function withWebSource(u: URL) {
+  if (!u.searchParams.get('source')) u.searchParams.set('source', 'web')
+  if (!u.searchParams.get('utm_source')) u.searchParams.set('utm_source', 'yureka')
+  return u
+}
+
+function stripAppDeepPath(u: URL) {
+  const path = u.pathname || '/'
+  if (
+    path.startsWith('/dl/') ||
+    path.startsWith('/app/') ||
+    path.startsWith('/open/') ||
+    path.startsWith('/deeplink') ||
+    path === '/gp/aw/c.html'
+  ) {
+    u.pathname = '/'
+  }
+}
+
 /** Prefer mobile-web entry points — still may open the native app on some iOS builds. */
 export function mobileWebBrowseUrl(raw: string | null | undefined): string | null {
   const safe = sanitizeBrowseUrl(raw)
   if (!safe) return null
   try {
     const u = new URL(safe)
-    const host = u.hostname.replace(/^www\./i, '').toLowerCase()
+    let host = u.hostname.replace(/^www\./i, '').toLowerCase()
+
+    // Collapse m.* app gateways to www.* when possible.
+    if (host.startsWith('m.') && host.split('.').length >= 3) {
+      host = host.slice(2)
+      u.hostname = `www.${host}`
+    }
+
     if (host === 'amazon.in' || host.endsWith('.amazon.in')) {
-      u.pathname = '/gp/aw/c.html'
-      u.search = ''
+      u.hostname = 'www.amazon.in'
+      const path = u.pathname.replace(/\/+$/, '') || '/'
+      if (
+        path === '/' ||
+        path === '/gp/aw/c.html' ||
+        path === '/gp/aw/h.html' ||
+        path === '/gp/aw' ||
+        path === '/ref=nav_logo'
+      ) {
+        u.pathname = '/'
+        u.search = ''
+        u.searchParams.set('ref_', 'nav_logo')
+      }
       return u.toString()
     }
     if (host === 'amazon.com' || host.endsWith('.amazon.com')) {
-      u.pathname = '/gp/aw/c.html'
-      u.search = ''
+      u.hostname = 'www.amazon.com'
+      const path = u.pathname.replace(/\/+$/, '') || '/'
+      if (
+        path === '/' ||
+        path === '/gp/aw/c.html' ||
+        path === '/gp/aw/h.html' ||
+        path === '/gp/aw'
+      ) {
+        u.pathname = '/'
+        u.search = ''
+        u.searchParams.set('ref_', 'nav_logo')
+      }
       return u.toString()
     }
-    if (host === 'flipkart.com') {
+    if (host === 'flipkart.com' || host.endsWith('.flipkart.com')) {
       u.hostname = 'www.flipkart.com'
-      if (u.pathname.startsWith('/dl/')) u.pathname = '/'
-      return u.toString()
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
     }
-    if (host === 'myntra.com') {
+    if (host === 'myntra.com' || host.endsWith('.myntra.com')) {
       u.hostname = 'www.myntra.com'
-      return u.toString()
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
+    }
+    if (host === 'ajio.com' || host.endsWith('.ajio.com')) {
+      u.hostname = 'www.ajio.com'
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
+    }
+    if (host === 'meesho.com' || host.endsWith('.meesho.com')) {
+      u.hostname = 'www.meesho.com'
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
     }
     if (host === 'bookmyshow.com' || host.endsWith('.bookmyshow.com')) {
       u.hostname = 'in.bookmyshow.com'
       if (u.pathname === '/') u.pathname = '/explore/home'
-      return u.toString()
+      return withWebSource(u).toString()
     }
     if (host === 'swiggy.com' || host.endsWith('.swiggy.com')) {
       u.hostname = 'www.swiggy.com'
       if (!u.pathname || u.pathname === '/') u.pathname = '/instamart'
-      u.searchParams.set('source', 'web')
-      return u.toString()
+      return withWebSource(u).toString()
     }
     if (host === 'zeptonow.com' || host.endsWith('.zeptonow.com')) {
       u.hostname = 'www.zeptonow.com'
-      u.searchParams.set('source', 'web')
-      return u.toString()
+      return withWebSource(u).toString()
     }
     if (host === 'jiomart.com' || host.endsWith('.jiomart.com')) {
       u.hostname = 'www.jiomart.com'
-      u.searchParams.set('source', 'web')
-      return u.toString()
+      return withWebSource(u).toString()
     }
     if (host === 'bigbasket.com' || host.endsWith('.bigbasket.com')) {
       u.hostname = 'www.bigbasket.com'
-      u.searchParams.set('source', 'web')
-      return u.toString()
+      return withWebSource(u).toString()
     }
     if (host === 'blinkit.com' || host === 'grofers.com') {
-      u.searchParams.set('source', 'web')
-      return u.toString()
+      return withWebSource(u).toString()
     }
-    return safe
+    if (host === 'uber.com' || host.endsWith('.uber.com')) {
+      u.hostname = 'www.uber.com'
+      if (!u.pathname || u.pathname === '/') u.pathname = '/in/en/'
+      return withWebSource(u).toString()
+    }
+    if (host === 'makemytrip.com' || host.endsWith('.makemytrip.com')) {
+      u.hostname = 'www.makemytrip.com'
+      return withWebSource(u).toString()
+    }
+    if (host === 'goibibo.com' || host.endsWith('.goibibo.com')) {
+      u.hostname = 'www.goibibo.com'
+      return withWebSource(u).toString()
+    }
+    if (host === 'airindia.com' || host.endsWith('.airindia.com')) {
+      u.hostname = 'www.airindia.com'
+      return withWebSource(u).toString()
+    }
+    if (host === 'nykaa.com' || host.endsWith('.nykaa.com')) {
+      u.hostname = 'www.nykaa.com'
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
+    }
+    if (host === 'tatacliq.com' || host.endsWith('.tatacliq.com')) {
+      u.hostname = 'www.tatacliq.com'
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
+    }
+    if (host === 'croma.com' || host.endsWith('.croma.com')) {
+      u.hostname = 'www.croma.com'
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
+    }
+    if (host === 'shopsy.in' || host.endsWith('.shopsy.in')) {
+      u.hostname = 'www.shopsy.in'
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
+    }
+
+    // Generic CueLinks merchant: force www + strip app deep links + web markers.
+    if (!u.hostname.startsWith('www.') && host.split('.').length <= 3) {
+      u.hostname = `www.${host}`
+    }
+    stripAppDeepPath(u)
+    return withWebSource(u).toString()
   } catch {
     return safe
   }

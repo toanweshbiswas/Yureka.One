@@ -10,6 +10,7 @@ import Loader from '@landing/home-v2/Loader';
 import Navbar from '@landing/home-v2/Navbar';
 import ScrollDownCue from '@landing/home-v2/ScrollDownCue';
 import BrandsSection from '@landing/home-v2/BrandsSection';
+import GiftingSection from '@landing/home-v2/GiftingSection';
 import MetricsTechnology from '@landing/home-v2/MetricsTechnology';
 import Architecture from '@landing/home-v2/Architecture';
 import FAQSection from '@landing/home-v2/FAQSection';
@@ -73,6 +74,7 @@ const MainPage: React.FC = () => {
           <HeroMobile entranceComplete={entranceComplete} />
         )}
         <BrandsSection />
+        <GiftingSection />
         <MetricsTechnology />
         <Architecture />
         <FAQSection />

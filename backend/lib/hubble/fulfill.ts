@@ -5,6 +5,11 @@ import {
 import { applyHubbleOrderResult, getOrderById } from './store.js'
 import type { StoredOrder } from './types.js'
 import { notifyGiftCardFailed, notifyGiftCardFulfilled } from '../notifications/notify.js'
+import {
+  sendGiftCardRecipientEmail,
+  sendGiftCardSenderConfirmationEmail,
+} from '../mail/appEmails.js'
+import { mailUrls } from '../mail/layout.js'
 
 async function notifyGiftCardOutcome(order: StoredOrder) {
   const payload = {
@@ -16,8 +21,47 @@ async function notifyGiftCardOutcome(order: StoredOrder) {
   }
   if (order.status === 'SUCCESS') {
     await notifyGiftCardFulfilled(payload)
+    await notifyGiftRecipientByEmail(order)
   } else if (order.status === 'FAILED') {
     await notifyGiftCardFailed(payload)
+  }
+}
+
+async function notifyGiftRecipientByEmail(order: StoredOrder) {
+  if (!order.isGift || !order.recipientEmail) return
+  try {
+    await sendGiftCardRecipientEmail({
+      to: order.recipientEmail,
+      recipientName: order.recipientName,
+      senderName: order.customerName,
+      productTitle: order.productTitle,
+      amountInr: order.amountInr,
+      giftMessage: order.giftMessage,
+      vouchers: (order.vouchers || []).map((v) => ({
+        cardNumber: v.cardNumber,
+        cardPin: v.cardPin,
+        validTill: v.validTill,
+      })),
+    })
+  } catch (e: any) {
+    console.error('[giftcards] recipient email failed:', e?.message || e)
+  }
+
+  if (order.customerEmail && !/noreply@|@example\./i.test(order.customerEmail)) {
+    try {
+      const urls = mailUrls()
+      await sendGiftCardSenderConfirmationEmail({
+        to: order.customerEmail,
+        senderName: order.customerName,
+        recipientName: order.recipientName,
+        recipientEmail: order.recipientEmail,
+        productTitle: order.productTitle,
+        amountInr: order.amountInr,
+        orderUrl: `${urls.app}/dashboard/giftcards/orders/${order.id}`,
+      })
+    } catch (e: any) {
+      console.error('[giftcards] sender confirmation email failed:', e?.message || e)
+    }
   }
 }
 

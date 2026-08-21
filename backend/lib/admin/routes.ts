@@ -16,6 +16,7 @@ import {
   bulkUpdateWaitlistStatus,
   createWaitlistEntry,
   deleteAdmin,
+  deleteWaitlistEntry,
   findAdminByEmail,
   findAdminByInviteHash,
   findWaitlistByEmail,
@@ -25,6 +26,7 @@ import {
   saveAdminInvite,
   setAdminPassword,
   updateWaitlistStatus,
+  updateWaitlistUser,
   upsertAdmin,
 } from './store.js'
 import { sendApprovalEmail, sendAdminInviteEmail, sendWaitlistRejectedEmail, sendUserInviteEmail, sendAccountReadyEmail } from '../mail/appEmails.js'
@@ -39,6 +41,7 @@ import {
   listAllLedger,
   listAllOffers,
   upsertOffer,
+  adminAdjustGoldback,
 } from '../goldback/store.js'
 import { blogToApi, deleteBlog, getBlogById, listBlogs, upsertBlog } from '../cms/blogStore.js'
 import { slugFromTitle } from '../cms/blogHtml.js'
@@ -79,6 +82,28 @@ export function registerAdminRoutes(app: Express) {
       waitlist: adminBackendMode() === 'supabase' ? 'primary' : 'local',
       goldback: goldbackBackendMode() === 'supabase' ? 'primary' : 'local',
     })
+  })
+
+  /** Public catalog for Super Browse / home explore grid */
+  app.get('/api/super-browse/stores', async (_req, res) => {
+    try {
+      const { listSuperBrowseStores } = await import('../superBrowse/store.js')
+      const rows = await listSuperBrowseStores({ includeInactive: false })
+      ok(
+        res,
+        rows.map((s) => ({
+          id: s.id,
+          name: s.name,
+          domain: s.domain,
+          url: s.url,
+          logoUrl: s.logoUrl,
+          cashback: s.cashback || undefined,
+          bg: s.bg,
+        })),
+      )
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load stores')
+    }
   })
 
   app.post('/api/admin/login', async (req, res) => {
@@ -597,6 +622,181 @@ export function registerAdminRoutes(app: Express) {
       ok(res, result)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to email users')
+    }
+  })
+
+  // ─── Users CRUD + drill-down ───
+  app.get('/api/admin/users/:key/activity', requireAdmin, async (req, res) => {
+    try {
+      const { buildUserActivity } = await import('./userActivity.js')
+      const activity = await buildUserActivity(String(req.params.key || ''))
+      if (!activity) return fail(res, 404, 'User not found')
+      ok(res, activity)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load user activity')
+    }
+  })
+
+  app.patch('/api/admin/users/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const id = String(req.params.id || '').trim()
+      const row = await updateWaitlistUser(id, {
+        fullName: req.body?.fullName,
+        mobileNumber: req.body?.mobileNumber,
+        status: req.body?.status,
+        yurekaScore: req.body?.yurekaScore,
+        scoreDecision: req.body?.scoreDecision,
+        rewardPoints: req.body?.rewardPoints,
+      })
+      if (!row) return fail(res, 404, 'User not found')
+      ok(res, row)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to update user')
+    }
+  })
+
+  app.delete('/api/admin/users/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const deleted = await deleteWaitlistEntry(String(req.params.id || ''))
+      if (!deleted) return fail(res, 404, 'User not found')
+      ok(res, { deleted: true })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to delete user')
+    }
+  })
+
+  app.post('/api/admin/goldback/adjust', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const userId = String(req.body?.userId || '').trim()
+      if (!userId) return fail(res, 400, 'userId required')
+      const result = await adminAdjustGoldback({
+        userId,
+        balancePaise: req.body?.balancePaise != null ? Number(req.body.balancePaise) : undefined,
+        deltaPaise: req.body?.deltaPaise != null ? Number(req.body.deltaPaise) : undefined,
+        note: req.body?.note ? String(req.body.note) : undefined,
+      })
+      ok(res, result)
+    } catch (e: any) {
+      fail(res, 400, e?.message || 'Failed to adjust Goldback')
+    }
+  })
+
+  // ─── Push notifications ───
+  app.get('/api/admin/notifications', requireAdmin, async (req, res) => {
+    try {
+      const { listAllNotifications } = await import('../notifications/store.js')
+      const limit = Math.min(500, Math.max(1, Number(req.query.limit) || 100))
+      ok(res, await listAllNotifications(limit))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load notifications')
+    }
+  })
+
+  app.post('/api/admin/notifications/broadcast', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const title = String(req.body?.title || '').trim()
+      const body = String(req.body?.body || '').trim()
+      if (!title) return fail(res, 400, 'title required')
+      const { broadcastNotifications } = await import('../notifications/store.js')
+      const { listWaitlist } = await import('./store.js')
+
+      let recipients: { userId: string; email?: string | null }[] = []
+      if (Array.isArray(req.body?.userIds) && req.body.userIds.length) {
+        recipients = req.body.userIds.map((id: string) => ({ userId: String(id) }))
+      } else if (req.body?.email) {
+        const email = String(req.body.email).trim().toLowerCase()
+        recipients = [{ userId: email, email }]
+      } else {
+        const status = typeof req.body?.audience === 'string' ? req.body.audience : 'accepted'
+        const rows = await listWaitlist({ status: status === 'all' ? 'all' : status })
+        recipients = rows.map((r) => ({ userId: r.email, email: r.email }))
+      }
+
+      const result = await broadcastNotifications({
+        recipients,
+        title,
+        body,
+        type: req.body?.type || 'info',
+        href: req.body?.href || '/dashboard',
+        imageUrl: req.body?.imageUrl || null,
+      })
+      ok(res, { ...result, recipients: recipients.length })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to broadcast')
+    }
+  })
+
+  // ─── Super Browse stores ───
+  app.get('/api/admin/super-browse', requireAdmin, async (_req, res) => {
+    try {
+      const { listSuperBrowseStores } = await import('../superBrowse/store.js')
+      ok(res, await listSuperBrowseStores({ includeInactive: true }))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load Super Browse stores')
+    }
+  })
+
+  app.post('/api/admin/super-browse', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const name = String(req.body?.name || '').trim()
+      const url = String(req.body?.url || '').trim()
+      if (!name || !url) return fail(res, 400, 'name and url (website) required')
+      const { upsertSuperBrowseStore } = await import('../superBrowse/store.js')
+      const row = await upsertSuperBrowseStore({
+        id: req.body?.id,
+        name,
+        url,
+        domain: req.body?.domain,
+        logoUrl: req.body?.logoUrl,
+        cashback: req.body?.cashback,
+        bg: req.body?.bg,
+        active: req.body?.active !== false,
+        sortOrder: req.body?.sortOrder,
+      })
+      ok(res, row, 201)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to save store')
+    }
+  })
+
+  app.post('/api/admin/super-browse/reorder', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((id: unknown) => String(id)) : []
+      if (!ids.length) return fail(res, 400, 'ids array required')
+      const { reorderSuperBrowseStores } = await import('../superBrowse/store.js')
+      ok(res, await reorderSuperBrowseStores(ids))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to reorder stores')
+    }
+  })
+
+  app.patch('/api/admin/super-browse/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { listSuperBrowseStores, upsertSuperBrowseStore } = await import('../superBrowse/store.js')
+      const id = String(req.params.id || '')
+      const existing = (await listSuperBrowseStores({ includeInactive: true })).find((s) => s.id === id)
+      if (!existing) return fail(res, 404, 'Store not found')
+      const row = await upsertSuperBrowseStore({
+        ...existing,
+        ...req.body,
+        id,
+        name: req.body?.name ?? existing.name,
+        url: req.body?.url ?? existing.url,
+      })
+      ok(res, row)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to update store')
+    }
+  })
+
+  app.delete('/api/admin/super-browse/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { deleteSuperBrowseStore } = await import('../superBrowse/store.js')
+      const deleted = await deleteSuperBrowseStore(String(req.params.id || ''))
+      if (!deleted) return fail(res, 404, 'Store not found')
+      ok(res, { deleted: true })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to delete store')
     }
   })
 }

@@ -4,10 +4,10 @@ import { motion, useReducedMotion } from 'motion/react'
 import { ArrowRight } from 'lucide-react'
 import {
   EXPLORE_SCENES,
-  brandFavicon,
   sceneOpenPath,
   type ExploreScene,
 } from '@shared/exploreScenes'
+import { BrandLogo } from '@shared/BrandLogo'
 
 const spring = { type: 'spring' as const, bounce: 0, duration: 0.4 }
 const MotionLink = motion.create(Link)
@@ -26,8 +26,8 @@ function SceneCard({ scene, index }: { scene: ExploreScene; index: number }) {
         to={sceneOpenPath(scene)}
         whileTap={{ scale: 0.97 }}
         transition={spring}
-        className={`group relative isolate block overflow-hidden rounded-[1.7rem] text-white outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${
-          hero ? 'min-h-[228px] sm:min-h-[256px]' : 'min-h-[152px] sm:min-h-[164px]'
+        className={`group relative isolate block overflow-hidden rounded-[1.5rem] text-white outline-none focus-visible:ring-2 focus-visible:ring-white/50 ${
+          hero ? 'min-h-[200px] sm:min-h-[220px]' : 'min-h-[140px] sm:min-h-[148px]'
         }`}
       >
         <div className="absolute inset-0 bg-[#0c0d10]" />
@@ -57,16 +57,21 @@ function SceneCard({ scene, index }: { scene: ExploreScene; index: number }) {
         {scene.brands.length > 0 && (
           <div className="pointer-events-none absolute inset-0 overflow-hidden opacity-[0.12] mix-blend-screen">
             {scene.brands.map((brand, i) => (
-              <img
+              <span
                 key={brand.domain}
-                src={brandFavicon(brand.domain)}
-                alt=""
-                className="absolute h-16 w-16 rounded-full blur-[0.5px]"
+                className="absolute h-16 w-16 overflow-hidden rounded-full"
                 style={{
                   top: `${22 + i * 20}%`,
                   left: `${36 + i * 14}%`,
                 }}
-              />
+              >
+                <BrandLogo
+                  domain={brand.domain}
+                  name={brand.name}
+                  className="flex h-16 w-16 items-center justify-center"
+                  imgClassName="h-16 w-16 object-contain"
+                />
+              </span>
             ))}
           </div>
         )}
@@ -96,7 +101,13 @@ function SceneCard({ scene, index }: { scene: ExploreScene; index: number }) {
                   style={{ marginLeft: i === 0 ? 0 : -8, zIndex: scene.brands.length - i }}
                   title={brand.name}
                 >
-                  <img src={brandFavicon(brand.domain)} alt={brand.name} className="h-5 w-5" />
+                  <BrandLogo
+                    domain={brand.domain}
+                    name={brand.name}
+                    className="flex h-5 w-5 items-center justify-center"
+                    imgClassName="h-5 w-5 object-contain"
+                    alt={brand.name}
+                  />
                 </span>
               ))}
             </div>

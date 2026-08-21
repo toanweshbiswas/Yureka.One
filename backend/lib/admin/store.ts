@@ -855,3 +855,118 @@ export async function patchWaitlistMetadata(
   writeFile(store)
   return { row: store.waitlist[idx], meta }
 }
+
+export async function updateWaitlistUser(
+  id: string,
+  patch: {
+    fullName?: string | null
+    mobileNumber?: string | null
+    status?: WaitlistRow['status']
+    yurekaScore?: number | null
+    scoreDecision?: string | null
+    rewardPoints?: number | null
+  },
+): Promise<WaitlistRow | null> {
+  const existing = await findWaitlistById(id)
+  if (!existing) return null
+
+  let prevMeta: Record<string, any> = {}
+  try {
+    prevMeta = existing.notes ? JSON.parse(existing.notes) : {}
+  } catch {
+    prevMeta = {}
+  }
+
+  const meta = { ...prevMeta }
+  if (patch.scoreDecision !== undefined) meta.scoreDecision = patch.scoreDecision
+  if (patch.rewardPoints !== undefined) {
+    meta.rewardPoints =
+      patch.rewardPoints == null || !Number.isFinite(Number(patch.rewardPoints))
+        ? null
+        : Math.round(Number(patch.rewardPoints))
+  }
+
+  const now = new Date().toISOString()
+  const next: WaitlistRow = {
+    ...existing,
+    fullName: patch.fullName !== undefined ? patch.fullName : existing.fullName,
+    mobileNumber: patch.mobileNumber !== undefined ? patch.mobileNumber : existing.mobileNumber,
+    status: patch.status !== undefined ? patch.status : existing.status,
+    yurekaScore:
+      patch.yurekaScore !== undefined
+        ? patch.yurekaScore == null || !Number.isFinite(Number(patch.yurekaScore))
+          ? null
+          : Math.round(Number(patch.yurekaScore))
+        : existing.yurekaScore,
+    scoreDecision:
+      patch.scoreDecision !== undefined
+        ? patch.scoreDecision
+        : existing.scoreDecision,
+    notes: JSON.stringify(meta),
+    updatedAt: now,
+  }
+
+  const sb = getSupabase()
+  if (sb && supabaseWaitlistAllowed()) {
+    try {
+      const { data, error } = await withTimeout(
+        sb
+          .from('waitlist')
+          .update({
+            full_name: next.fullName,
+            mobile_number: next.mobileNumber,
+            status: next.status,
+            yureka_score: next.yurekaScore,
+            notes: next.notes,
+            updated_at: now,
+          })
+          .eq('id', id)
+          .select('*')
+          .single(),
+        SUPABASE_WAITLIST_TIMEOUT_MS,
+        'supabase updateWaitlistUser',
+      )
+      if (error && isMissingSchemaError(error.message)) disableSupabaseSchema(error)
+      if (!error && data) return mapWaitlist(data)
+    } catch (e) {
+      tripSupabaseCircuit(e)
+    }
+  }
+
+  const store = readFile()
+  const idx = store.waitlist.findIndex((w) => w.id === id)
+  if (idx < 0) return null
+  store.waitlist[idx] = next
+  writeFile(store)
+  return next
+}
+
+export async function deleteWaitlistEntry(id: string): Promise<boolean> {
+  const rowId = String(id || '').trim()
+  if (!rowId) return false
+  let removed = false
+
+  const sb = getSupabase()
+  if (sb && supabaseWaitlistAllowed()) {
+    try {
+      const { data, error } = await withTimeout(
+        sb.from('waitlist').delete().eq('id', rowId).select('id'),
+        SUPABASE_WAITLIST_TIMEOUT_MS,
+        'supabase deleteWaitlistEntry',
+      )
+      if (error && isMissingSchemaError(error.message)) disableSupabaseSchema(error)
+      else if (!error) removed = Boolean(data?.length)
+    } catch (e) {
+      tripSupabaseCircuit(e)
+    }
+  }
+
+  const store = readFile()
+  const before = store.waitlist.length
+  store.waitlist = store.waitlist.filter((w) => w.id !== rowId)
+  if (store.waitlist.length !== before) {
+    writeFile(store)
+    removed = true
+  }
+  return removed
+}

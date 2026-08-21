@@ -147,6 +147,32 @@ const GiftCardOrderPage: React.FC = () => {
           </span>
         </div>
 
+        {order.isGift && (
+          <div className="rounded-2xl border border-clay/25 bg-clay/10 px-4 py-3 text-sm text-white/70">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-clay mb-1">Gift order</p>
+            <p>
+              Sent to{' '}
+              <span className="font-semibold text-white">
+                {order.recipientName || 'recipient'}
+              </span>
+              {order.recipientEmail ? (
+                <>
+                  {' '}
+                  <span className="text-white/45">({order.recipientEmail})</span>
+                </>
+              ) : null}
+            </p>
+            {order.giftMessage ? (
+              <p className="mt-2 text-white/50 italic">“{order.giftMessage}”</p>
+            ) : null}
+            {order.status === 'SUCCESS' ? (
+              <p className="mt-2 text-[12px] text-white/45">
+                Voucher details were emailed to the recipient. Codes are also below if you need to resend them.
+              </p>
+            ) : null}
+          </div>
+        )}
+
         {processing && (
           <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-white/55">
             <Loader2 className="animate-spin text-clay shrink-0" size={18} />

@@ -33,7 +33,12 @@ export function hostnameFromUrl(pageUrl?: string | null): string | null {
 }
 
 export function faviconUrl(domain: string): string {
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
+  const host = String(domain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, '')
+  if (!host) return ''
+  return `https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`
 }
 
 export function merchantLogoUrl(merchant?: string | null, pageUrl?: string | null): string | null {

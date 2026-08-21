@@ -8,15 +8,11 @@ import {
   sanitizeBrowseUrl,
 } from '@shared/inAppBrowse'
 import { openTrackedStore } from '@shared/trackedBrowse'
-import { canUseInAppBrowse, isIosDevice } from '@shared/pwaDisplay'
+import { canUseInAppBrowse, systemBrowserLabel } from '@shared/pwaDisplay'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { InAppGiftCardBar } from './InAppGiftCardBar'
 
 const spring = { type: 'spring' as const, bounce: 0, duration: 0.35 }
-
-function browserLabel() {
-  return isIosDevice() ? 'Safari' : 'your browser'
-}
 
 function readIframePageUrl(iframe: HTMLIFrameElement | null): string | null {
   if (!iframe) return null
@@ -26,14 +22,25 @@ function readIframePageUrl(iframe: HTMLIFrameElement | null): string | null {
     return null
   }
 }
+
 function iframeLooksBlocked(iframe: HTMLIFrameElement): boolean {
   try {
-    const href = iframe.contentWindow?.location.href
+    const win = iframe.contentWindow
+    if (!win) return true
+    const href = win.location.href
     if (!href || href === 'about:blank') return true
-    const body = iframe.contentDocument?.body
-    if (body && !body.innerHTML.trim()) return true
+    const doc = iframe.contentDocument
+    if (doc) {
+      const body = doc.body
+      if (!body || !body.innerHTML.trim()) return true
+      const text = (body.innerText || '').slice(0, 400)
+      if (/refused to connect|blocked by|err_blocked|cannot be displayed|x-frame-options/i.test(text)) {
+        return true
+      }
+    }
     return false
   } catch {
+    // Cross-origin success looks the same as a blocked opaque frame.
     return false
   }
 }
@@ -75,6 +82,8 @@ export function InAppBrowserFrame({
     void openTrackedStore(safeSrc || '', user?.id || '')
   }, [safeSrc, user?.id])
 
+  const browserName = systemBrowserLabel()
+
   useEffect(() => {
     setEmbedFailed(false)
     setLoading(Boolean(frameSrc))
@@ -89,11 +98,12 @@ export function InAppBrowserFrame({
 
   useEffect(() => {
     if (!frameSrc || useExternal) return
+    // Fail faster on blank/blocked frames so Android doesn’t sit on a white loader.
     const t = window.setTimeout(() => {
       const el = iframeRef.current
       if (el && iframeLooksBlocked(el)) setEmbedFailed(true)
       setLoading(false)
-    }, 4500)
+    }, 2800)
     return () => window.clearTimeout(t)
   }, [frameSrc, frameKey, useExternal])
 
@@ -115,7 +125,19 @@ export function InAppBrowserFrame({
           whileTap={{ scale: 0.94 }}
           transition={spring}
           aria-label="Back"
-          onClick={() => navigate(returnTo)}
+          onClick={() => {
+            const dest = returnTo || '/dashboard/browse'
+            navigate(dest)
+            // Layout restores scroll/hash after the route settles.
+            window.setTimeout(() => {
+              void import('@shared/dashboardScroll').then((m) => {
+                m.restoreDashboardPosition({
+                  pathname: dest.split('?')[0].split('#')[0],
+                  hash: dest.includes('#') ? dest.slice(dest.indexOf('#')) : '',
+                })
+              })
+            }, 30)
+          }}
           className="flex h-11 w-11 items-center justify-center rounded-full text-white/80 hover:bg-white/[0.08]"
         >
           <ChevronLeft size={22} />
@@ -130,7 +152,7 @@ export function InAppBrowserFrame({
             type="button"
             whileTap={{ scale: 0.94 }}
             transition={spring}
-            aria-label={`Open in ${browserLabel()}`}
+            aria-label={`Open in ${browserName}`}
             onClick={openOutside}
             className="flex h-11 w-11 items-center justify-center rounded-full text-white/55 hover:bg-white/[0.08] hover:text-white"
           >
@@ -186,7 +208,7 @@ export function InAppBrowserFrame({
             </p>
             <p className="mt-2 max-w-[20rem] text-[14px] leading-snug text-white/50">
               This store blocks in-app windows (blank page or request limits).
-              Continue in {browserLabel()} to shop as usual.
+              Continue in {browserName} to shop as usual.
             </p>
             <motion.button
               type="button"
@@ -195,7 +217,7 @@ export function InAppBrowserFrame({
               onClick={openOutside}
               className="mt-6 min-h-[44px] rounded-full bg-white px-6 text-[15px] font-semibold text-black"
             >
-              Open in {browserLabel()}
+              Open in {browserName}
             </motion.button>
             {host && <InAppGiftCardBar pageUrl={pageUrl} host={host} />}
           </div>

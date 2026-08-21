@@ -5,6 +5,7 @@ export type SuperBrowseStore = {
   url: string
   cashback?: string
   bg: string
+  logoUrl?: string | null
 }
 
 export const SUPER_BROWSE_STORES: SuperBrowseStore[] = [
@@ -49,6 +50,46 @@ export function isEmbedHostAllowed(host: string): boolean {
   return EMBED_HOST_SUFFIXES.some((suffix) => h === suffix || h.endsWith(`.${suffix}`))
 }
 
-export function storeLogo(domain: string) {
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`
+export function storeLogo(domain: string, logoUrl?: string | null) {
+  const host = String(domain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .split('/')[0]
+  const custom = String(logoUrl || '').trim()
+  if (custom && /^https?:\/\//i.test(custom)) return custom
+  if (!host) return ''
+  // Prefer DuckDuckGo — Google s2 often blanks in PWA / Safari.
+  return `https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`
+}
+
+export function storeLogoFallbacks(domain: string, logoUrl?: string | null): string[] {
+  const host = String(domain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .split('/')[0]
+  const out: string[] = []
+  const custom = String(logoUrl || '').trim()
+  if (custom && /^https?:\/\//i.test(custom)) out.push(custom)
+  if (host) {
+    out.push(`https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`)
+    out.push(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`)
+  }
+  return out
+}
+
+/** Fetch live Super Browse catalog; falls back to seed list offline. */
+export async function fetchSuperBrowseStores(): Promise<SuperBrowseStore[]> {
+  try {
+    const res = await fetch('/api/super-browse/stores')
+    if (!res.ok) return SUPER_BROWSE_STORES
+    const json = (await res.json()) as { data?: SuperBrowseStore[] }
+    if (Array.isArray(json.data) && json.data.length) return json.data
+  } catch {
+    // keep seed
+  }
+  return SUPER_BROWSE_STORES
 }

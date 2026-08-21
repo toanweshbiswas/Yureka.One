@@ -10,8 +10,8 @@ import { cacheGet, cacheSet, cacheInvalidate, CACHE_TTL } from '@shared/dashboar
 import { notifyGoldbackUpdated } from '@shared/goldbackEvents'
 import { getExploreScene, matchesSceneBrands, sceneBrandNames } from '@shared/exploreScenes'
 import Icon3d from '@shared/Icon3d'
-import { stampAffiliateSubId } from '@shared/inAppBrowse'
-import { openTrackedStore } from '@shared/trackedBrowse'
+import { isAffiliateRedirectUrl, sanitizeBrowseUrl } from '@shared/inAppBrowse'
+import { openStoreBrowse } from '@shared/trackedBrowse'
 
 type Tab = 'goldback' | 'marketplace'
 
@@ -34,6 +34,18 @@ type MarketCache = {
   categories: string[]
   catalogTotal: number
 }
+
+type MarketplaceBrand = {
+  id: string
+  merchant: string
+  host: string | null
+  homeUrl: string | null
+  offerCount: number
+  imageUrl: string | null
+  categories: string[]
+}
+
+const BRANDS_CACHE_KEY = 'offers:brands:v1'
 
 function prettyLabel(value: string) {
   if (value === 'all') return 'All'
@@ -112,6 +124,10 @@ const OffersPage: React.FC = () => {
     const hit = cacheGet<MarketCache>(MARKET_CACHE_KEY, CACHE_TTL.offersMarketplace)
     return hit?.data.catalogTotal ?? 0
   })
+  const [brands, setBrands] = useState<MarketplaceBrand[]>(() => {
+    const hit = cacheGet<MarketplaceBrand[]>(BRANDS_CACHE_KEY, CACHE_TTL.offersMarketplace)
+    return hit?.data ?? []
+  })
   const [mLoading, setMLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [visibleCount, setVisibleCount] = useState(BATCH_SIZE)
@@ -121,8 +137,6 @@ const OffersPage: React.FC = () => {
   const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [searchOpen, setSearchOpen] = useState(false)
-
   const marketLoadedRef = useRef(marketAll.length > 0)
   const gbLoadedRef = useRef(offers.length > 0)
   const fetchGen = useRef(0)
@@ -141,10 +155,6 @@ const OffersPage: React.FC = () => {
     setVisibleCount(BATCH_SIZE)
   }, [category, debouncedQuery, tab, scene?.id])
 
-  useEffect(() => {
-    if (searchOpen) searchRef.current?.focus()
-  }, [searchOpen])
-
   const applyMarketPayload = useCallback((payload: MarketCache) => {
     setMarketAll(payload.items)
     setMarketCats(payload.categories)
@@ -160,15 +170,26 @@ const OffersPage: React.FC = () => {
     setError(null)
     try {
       if (opts?.refresh) await fetch('/api/marketplace/refresh', { method: 'POST' })
-      const res = await fetch('/api/marketplace/offers')
-      const json = await res.json()
+      const [offersRes, brandsRes] = await Promise.all([
+        fetch('/api/marketplace/offers'),
+        fetch('/api/marketplace/brands?limit=80'),
+      ])
+      const offersJson = await offersRes.json()
+      const brandsJson = await brandsRes.json()
       if (gen !== fetchGen.current) return
-      if (!res.ok || json.error) throw new Error(json.error || 'Could not load marketplace offers')
+      if (!offersRes.ok || offersJson.error) {
+        throw new Error(offersJson.error || 'Could not load marketplace offers')
+      }
       applyMarketPayload({
-        items: json.data.items || [],
-        categories: json.data.categories || [],
-        catalogTotal: json.data.catalogTotal || 0,
+        items: offersJson.data.items || [],
+        categories: offersJson.data.categories || [],
+        catalogTotal: offersJson.data.catalogTotal || 0,
       })
+      if (brandsRes.ok && !brandsJson.error && Array.isArray(brandsJson.data?.items)) {
+        const nextBrands = brandsJson.data.items as MarketplaceBrand[]
+        setBrands(nextBrands)
+        cacheSet(BRANDS_CACHE_KEY, nextBrands)
+      }
     } catch (e: any) {
       if (gen !== fetchGen.current) return
       if (!marketLoadedRef.current) {
@@ -270,12 +291,47 @@ const OffersPage: React.FC = () => {
   )
   const hasMoreGb = visibleCount < filteredGb.length
 
+  const filteredBrands = useMemo(() => {
+    const q = debouncedQuery.toLowerCase()
+    return brands.filter((b) => {
+      if (!b.homeUrl) return false
+      if (!matchesSceneBrands(`${b.merchant} ${b.host || ''} ${b.categories.join(' ')}`, scene)) {
+        return false
+      }
+      if (category !== 'all' && !b.categories.some((c) => c.toLowerCase() === category.toLowerCase())) {
+        return false
+      }
+      if (!q) return true
+      return `${b.merchant} ${b.host || ''}`.toLowerCase().includes(q)
+    })
+  }, [brands, debouncedQuery, scene, category])
+
+  const offersReturnTo = '/dashboard/offers'
+
+  const openBrandOrOffer = (
+    rawUrl: string,
+    title?: string,
+    affiliateUrl?: string | null,
+  ) => {
+    const dest = sanitizeBrowseUrl(rawUrl)
+    if (!dest) return
+    const aff = sanitizeBrowseUrl(affiliateUrl || '')
+    const knownOpenUrl =
+      aff && aff !== dest && isAffiliateRedirectUrl(aff) ? aff : undefined
+    void openStoreBrowse(dest, userId, {
+      knownOpenUrl,
+      title,
+      returnTo: offersReturnTo,
+      navigate,
+    })
+  }
+
   const handleGoldback = async (offer: GoldbackOffer) => {
     setBusyId(offer.id)
     setToast(null)
     await goldbackApi.click(userId, offer.id)
     const earn = await goldbackApi.earn(userId, offer.id, goldbackEarnKey(userId, offer.id))
-    void openTrackedStore(offer.url, userId, undefined, offer.merchant || offer.title)
+    openBrandOrOffer(offer.url, offer.merchant || offer.title)
     if (earn.error || !earn.data) {
       setToast(earn.error || 'Opened offer — earn credit failed')
     } else if (earn.data.created) {
@@ -296,13 +352,22 @@ const OffersPage: React.FC = () => {
   }
 
   const handleMarketplace = (offer: CueLinksOffer) => {
-    const link = offer.affiliateUrl || offer.url
-    if (!link) {
+    const merchantUrl = sanitizeBrowseUrl(offer.url)
+    const affiliateUrl = sanitizeBrowseUrl(offer.affiliateUrl)
+    // If CueLinks only gave an affiliate redirect, fall back to the brand homepage.
+    const brandHome =
+      brands.find((b) => b.merchant.toLowerCase() === String(offer.merchant || '').toLowerCase())
+        ?.homeUrl || null
+    const dest =
+      (merchantUrl && !isAffiliateRedirectUrl(merchantUrl) ? merchantUrl : null) ||
+      sanitizeBrowseUrl(brandHome) ||
+      merchantUrl ||
+      affiliateUrl
+    if (!dest) {
       setToast('No affiliate link for this offer')
       return
     }
-    const tracked = stampAffiliateSubId(link, userId)
-    void openTrackedStore(link, userId, tracked, offer.merchant || offer.title)
+    openBrandOrOffer(dest, offer.merchant || offer.title, affiliateUrl)
     setToast(`Opened ${offer.merchant}`)
   }
 
@@ -380,23 +445,27 @@ const OffersPage: React.FC = () => {
             {scene.brands.map((brand) => {
               const href = brand.embedUrl || `https://${brand.domain.replace(/^www\./, '')}`
               return (
-                <button
+                <motion.button
                   key={brand.domain}
                   type="button"
-                  onClick={() => void openTrackedStore(href, userId, undefined, brand.name)}
-                  className="rounded-full bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white/80 active:scale-[0.97]"
+                  whileTap={{ scale: 0.97 }}
+                  transition={spring}
+                  onClick={() => openBrandOrOffer(href, brand.name)}
+                  className="rounded-full bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white/80"
                 >
                   {brand.name}
-                </button>
+                </motion.button>
               )
             })}
-            <button
+            <motion.button
               type="button"
+              whileTap={{ scale: 0.97 }}
+              transition={spring}
               onClick={clearScene}
-              className="rounded-full bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white/80 active:scale-[0.97]"
+              className="rounded-full bg-white/10 px-3.5 py-2 text-[12px] font-semibold text-white/80"
             >
               Clear
-            </button>
+            </motion.button>
           </div>
         </div>
       )}
@@ -446,6 +515,67 @@ const OffersPage: React.FC = () => {
         )}
       </div>
 
+      {tab === 'marketplace' && filteredBrands.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3 px-0.5">
+            <p className="text-[12px] font-semibold tracking-[-0.01em] text-white/55">
+              Brands with offers
+            </p>
+            <p className="text-[11px] text-white/35">{filteredBrands.length} stores</p>
+          </div>
+          <div
+            className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none"
+            style={{
+              maskImage: 'linear-gradient(to right, #000 0%, #000 90%, transparent 100%)',
+              WebkitMaskImage: 'linear-gradient(to right, #000 0%, #000 90%, transparent 100%)',
+            }}
+          >
+            {filteredBrands.slice(0, 48).map((brand) => (
+              <motion.button
+                key={brand.id}
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                transition={spring}
+                onClick={() => {
+                  if (!brand.homeUrl) return
+                  openBrandOrOffer(brand.homeUrl, brand.merchant)
+                  setToast(`Opening ${brand.merchant}`)
+                }}
+                className="flex w-[4.6rem] shrink-0 flex-col items-center gap-1.5"
+              >
+                <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.06]">
+                  {brand.imageUrl ? (
+                    <img
+                      src={brand.imageUrl}
+                      alt=""
+                      className="h-full w-full object-contain p-1.5"
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <Icon3d name="bag" className="h-6 w-6 object-contain opacity-50" alt="" />
+                  )}
+                </span>
+                <span className="w-full truncate text-center text-[11px] font-medium text-white/75">
+                  {brand.merchant}
+                </span>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="relative">
+        <Search size={15} className="pointer-events-none absolute left-4 top-1/2 z-10 -translate-y-1/2 text-white/35" />
+        <input
+          ref={searchRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={tab === 'marketplace' ? 'Search coupons' : 'Search Goldback'}
+          className="w-full rounded-2xl border border-white/10 bg-white/[0.06] py-3 pl-11 pr-4 text-[15px] text-white placeholder:text-white/35 backdrop-blur-xl outline-none focus:border-white/25"
+        />
+      </div>
+
       <div className="relative">
         <div
           className="flex gap-2 overflow-x-auto pb-1 scrollbar-none"
@@ -454,18 +584,6 @@ const OffersPage: React.FC = () => {
             WebkitMaskImage: 'linear-gradient(to right, #000 0%, #000 88%, transparent 100%)',
           }}
         >
-          <motion.button
-            type="button"
-            whileTap={{ scale: 0.94 }}
-            transition={spring}
-            onClick={() => setSearchOpen((v) => !v)}
-            aria-label="Search offers"
-            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-              searchOpen || query ? 'bg-white text-black' : 'bg-white/[0.08] text-white/70'
-            }`}
-          >
-            <Search size={14} />
-          </motion.button>
           {chips.slice(0, 24).map((c) => {
             const active = category === c
             return (
@@ -485,27 +603,6 @@ const OffersPage: React.FC = () => {
           })}
         </div>
       </div>
-
-      <AnimatePresence initial={false}>
-        {searchOpen && (
-          <motion.div
-            initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6 }}
-            transition={spring}
-            className="relative"
-          >
-            <Search size={15} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/35" />
-            <input
-              ref={searchRef}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={tab === 'marketplace' ? 'Search coupons' : 'Search Goldback'}
-              className="w-full rounded-2xl border border-white/10 bg-white/[0.06] py-3 pl-11 pr-4 text-[15px] text-white placeholder:text-white/35 backdrop-blur-xl outline-none"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {toast && (

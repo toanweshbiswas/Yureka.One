@@ -2,14 +2,14 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   LogIn, LogOut, Loader2, Search, CheckCircle, XCircle, PauseCircle,
-  Clock, RefreshCw, Filter, ShieldCheck, Users, Coins, Store, Plus, Trash2, KeyRound,
-  Activity, Gift, LayoutDashboard, BookOpen, Building2,
+  Clock, RefreshCw, Filter, ShieldCheck, Users, Coins, Plus, Trash2, KeyRound,
+  Activity, Gift, LayoutDashboard, BookOpen, Layers,
 } from 'lucide-react'
 import { normalizeEmail } from '@backend/lib/mail/emailAddress'
 import type { AdminOverview } from '@backend/lib/admin/overview'
 import { GiftOrdersTab, OverviewTab, UsersTab, ScoreBadge, ScoreSignals, UserScoreAnalysis } from './admin/ActivityViews'
 import BlogsTab from './admin/BlogsTab'
-import BrandsTab from './admin/BrandsTab'
+import ClubHub, { type ClubSubTab } from './admin/ClubHub'
 import {
   Callout,
   ConfirmDialog,
@@ -26,7 +26,7 @@ import {
 } from './admin/ui'
 
 type AdminRole = 'viewer' | 'admin' | 'superadmin'
-type Tab = 'overview' | 'waitlist' | 'users' | 'gifts' | 'offers' | 'brands' | 'ledger' | 'blogs' | 'admins'
+type Tab = 'overview' | 'waitlist' | 'users' | 'gifts' | 'club' | 'ledger' | 'blogs' | 'admins'
 
 const ADMIN_TOKEN_KEY = 'yureka_admin_token'
 const ADMIN_ROLE_KEY = 'yureka_admin_role'
@@ -82,6 +82,7 @@ const AdminDashboard: React.FC = () => {
   const [authError, setAuthError] = useState<string | null>(null)
   const [signingIn, setSigningIn] = useState(false)
   const [tab, setTab] = useState<Tab>('overview')
+  const [clubSub, setClubSub] = useState<ClubSubTab>('offers')
   const [searchParams, setSearchParams] = useSearchParams()
   const inviteToken = searchParams.get('token') || ''
   const [invitePreview, setInvitePreview] = useState<{ email: string; role: string } | null>(null)
@@ -386,8 +387,8 @@ const AdminDashboard: React.FC = () => {
   }, [token])
 
   useEffect(() => {
-    if (token && tab === 'offers') fetchOffers()
-  }, [token, tab, fetchOffers])
+    if (token && (tab === 'club' && clubSub === 'offers')) fetchOffers()
+  }, [token, tab, clubSub, fetchOffers])
 
   const saveOffer = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -614,8 +615,7 @@ const AdminDashboard: React.FC = () => {
     { id: 'waitlist', label: 'Waitlist', icon: Users, hint: pendingCount ? `${pendingCount} pending` : undefined },
     { id: 'users', label: 'Users', icon: Activity, hint: overview ? String(overview.users.length) : undefined },
     { id: 'gifts', label: 'Gift cards', icon: Gift },
-    { id: 'offers', label: 'Offers', icon: Store },
-    { id: 'brands', label: 'Brands', icon: Building2 },
+    { id: 'club', label: 'Club', icon: Layers },
     { id: 'blogs', label: 'Blog', icon: BookOpen },
     { id: 'ledger', label: 'Goldback', icon: Coins },
     { id: 'admins', label: 'Admins', icon: ShieldCheck, hide: !isSuper },
@@ -623,7 +623,7 @@ const AdminDashboard: React.FC = () => {
   const navGroups: { label: string; ids: Tab[] }[] = [
     { label: 'Monitor', ids: ['overview'] },
     { label: 'People', ids: ['waitlist', 'users'] },
-    { label: 'Commerce', ids: ['gifts', 'offers', 'brands', 'ledger'] },
+    { label: 'Commerce', ids: ['gifts', 'club', 'ledger'] },
     { label: 'Site', ids: ['blogs'] },
     { label: 'Access', ids: ['admins'] },
   ]
@@ -701,7 +701,15 @@ const AdminDashboard: React.FC = () => {
         {tab === 'overview' && (
           <OverviewTab data={overview} loading={overviewLoading} error={overviewError} onRefresh={fetchOverview} />
         )}
-        {tab === 'users' && <UsersTab data={overview} loading={overviewLoading} />}
+        {tab === 'users' && (
+          <UsersTab
+            data={overview}
+            loading={overviewLoading}
+            token={token}
+            canWrite={canWrite}
+            onRefresh={fetchOverview}
+          />
+        )}
         {tab === 'gifts' && <GiftOrdersTab data={overview} loading={overviewLoading} />}
         {tab === 'waitlist' && (
           <section className="space-y-6">
@@ -897,75 +905,80 @@ const AdminDashboard: React.FC = () => {
 
         {tab === 'blogs' && <BlogsTab token={token} canWrite={canWrite} />}
 
-        {tab === 'brands' && <BrandsTab token={token} canWrite={canWrite} />}
+        {tab === 'club' && (
+          <ClubHub
+            sub={clubSub}
+            onSubChange={setClubSub}
+            token={token}
+            canWrite={canWrite}
+            offersPanel={
+              <div className="space-y-6">
+                {canWrite && (
+                  <form onSubmit={saveOffer} className={`${surfaceClass} p-5 grid md:grid-cols-2 gap-3`}>
+                    <h3 className="md:col-span-2 text-[15px] font-semibold tracking-[-0.015em] text-white flex items-center gap-2">
+                      <Plus size={16} /> New offer
+                    </h3>
+                    <input className={fieldClass} placeholder="Title" value={offerForm.title} onChange={(e) => setOfferForm({ ...offerForm, title: e.target.value })} required />
+                    <input className={fieldClass} placeholder="Merchant" value={offerForm.merchant} onChange={(e) => setOfferForm({ ...offerForm, merchant: e.target.value })} required />
+                    <input className={`${fieldClass} md:col-span-2`} placeholder="URL" value={offerForm.url} onChange={(e) => setOfferForm({ ...offerForm, url: e.target.value })} required />
+                    <input className={fieldClass} placeholder="Category" value={offerForm.category} onChange={(e) => setOfferForm({ ...offerForm, category: e.target.value })} />
+                    <input className={fieldClass} placeholder="Reward label" value={offerForm.rewardLabel} onChange={(e) => setOfferForm({ ...offerForm, rewardLabel: e.target.value })} />
+                    <input type="number" className={fieldClass} placeholder="Reward paise" value={offerForm.rewardPaise} onChange={(e) => setOfferForm({ ...offerForm, rewardPaise: Number(e.target.value) })} />
+                    <textarea className={`${fieldClass} md:col-span-2`} placeholder="Description" rows={2} value={offerForm.description} onChange={(e) => setOfferForm({ ...offerForm, description: e.target.value })} />
+                    <button type="submit" className={`${primaryBtnClass} md:col-span-2`}>Publish offer</button>
+                  </form>
+                )}
 
-        {tab === 'offers' && (
-          <section className="space-y-6">
-            <PageHeader title="Offers" subtitle="Deals that credit Goldback when members shop." />
-            {canWrite && (
-              <form onSubmit={saveOffer} className={`${surfaceClass} p-5 grid md:grid-cols-2 gap-3`}>
-                <h3 className="md:col-span-2 text-[15px] font-semibold tracking-[-0.015em] text-white flex items-center gap-2">
-                  <Plus size={16} /> New offer
-                </h3>
-                <input className={fieldClass} placeholder="Title" value={offerForm.title} onChange={(e) => setOfferForm({ ...offerForm, title: e.target.value })} required />
-                <input className={fieldClass} placeholder="Merchant" value={offerForm.merchant} onChange={(e) => setOfferForm({ ...offerForm, merchant: e.target.value })} required />
-                <input className={`${fieldClass} md:col-span-2`} placeholder="URL" value={offerForm.url} onChange={(e) => setOfferForm({ ...offerForm, url: e.target.value })} required />
-                <input className={fieldClass} placeholder="Category" value={offerForm.category} onChange={(e) => setOfferForm({ ...offerForm, category: e.target.value })} />
-                <input className={fieldClass} placeholder="Reward label" value={offerForm.rewardLabel} onChange={(e) => setOfferForm({ ...offerForm, rewardLabel: e.target.value })} />
-                <input type="number" className={fieldClass} placeholder="Reward paise" value={offerForm.rewardPaise} onChange={(e) => setOfferForm({ ...offerForm, rewardPaise: Number(e.target.value) })} />
-                <textarea className={`${fieldClass} md:col-span-2`} placeholder="Description" rows={2} value={offerForm.description} onChange={(e) => setOfferForm({ ...offerForm, description: e.target.value })} />
-                <button type="submit" className={`${primaryBtnClass} md:col-span-2`}>Publish offer</button>
-              </form>
-            )}
-
-            {offerError && <Callout tone="error">{offerError}</Callout>}
-            {offersLoading ? (
-              <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-clay" /></div>
-            ) : (
-              <div className="grid md:grid-cols-2 gap-3">
-                {offers.map((o) => (
-                  <Surface key={o.id} className="p-5">
-                    <div className="flex justify-between gap-3">
-                      <div>
-                        <p className="text-[17px] font-semibold tracking-[-0.015em]">{o.title}</p>
-                        <p className="text-white/40 text-[13px] mt-1">{o.merchant} · {o.category}</p>
-                      </div>
-                      <span className="text-clay text-[13px] font-semibold shrink-0 bg-clay/10 rounded-full px-2.5 py-1 h-fit">
-                        {o.rewardLabel || formatPaise(o.rewardPaise)}
-                      </span>
-                    </div>
-                    <p className="text-white/45 text-[15px] mt-3 line-clamp-2 leading-relaxed">{o.description}</p>
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className={`text-[12px] font-medium capitalize rounded-full px-2.5 py-1 ${o.active ? 'text-clay bg-clay/10' : 'text-white/35 bg-white/5'}`}>
-                        {o.active ? 'Live' : 'Off'}
-                      </span>
-                      {canWrite && (
-                        <button
-                          type="button"
-                          onClick={() => setPendingDelete({ id: o.id, title: o.title })}
-                          disabled={deletingOfferId === o.id}
-                          className={`${pressClass} text-red-300/60 hover:text-red-300 p-2 rounded-[10px] hover:bg-red-500/10 disabled:opacity-40`}
-                          aria-label={`Delete ${o.title}`}
-                        >
-                          {deletingOfferId === o.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                        </button>
-                      )}
-                    </div>
-                  </Surface>
-                ))}
-                {!offers.length && <EmptyState>No offers yet</EmptyState>}
+                {offerError && <Callout tone="error">{offerError}</Callout>}
+                {offersLoading ? (
+                  <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-clay" /></div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-3">
+                    {offers.map((o) => (
+                      <Surface key={o.id} className="p-5">
+                        <div className="flex justify-between gap-3">
+                          <div>
+                            <p className="text-[17px] font-semibold tracking-[-0.015em]">{o.title}</p>
+                            <p className="text-white/40 text-[13px] mt-1">{o.merchant} · {o.category}</p>
+                          </div>
+                          <span className="text-clay text-[13px] font-semibold shrink-0 bg-clay/10 rounded-full px-2.5 py-1 h-fit">
+                            {o.rewardLabel || formatPaise(o.rewardPaise)}
+                          </span>
+                        </div>
+                        <p className="text-white/45 text-[15px] mt-3 line-clamp-2 leading-relaxed">{o.description}</p>
+                        <div className="mt-4 flex items-center justify-between">
+                          <span className={`text-[12px] font-medium capitalize rounded-full px-2.5 py-1 ${o.active ? 'text-clay bg-clay/10' : 'text-white/35 bg-white/5'}`}>
+                            {o.active ? 'Live' : 'Off'}
+                          </span>
+                          {canWrite && (
+                            <button
+                              type="button"
+                              onClick={() => setPendingDelete({ id: o.id, title: o.title })}
+                              disabled={deletingOfferId === o.id}
+                              className={`${pressClass} text-red-300/60 hover:text-red-300 p-2 rounded-[10px] hover:bg-red-500/10 disabled:opacity-40`}
+                              aria-label={`Delete ${o.title}`}
+                            >
+                              {deletingOfferId === o.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                            </button>
+                          )}
+                        </div>
+                      </Surface>
+                    ))}
+                    {!offers.length && <EmptyState>No offers yet</EmptyState>}
+                  </div>
+                )}
+                <ConfirmDialog
+                  open={Boolean(pendingDelete)}
+                  title="Delete this offer?"
+                  body={pendingDelete ? `${pendingDelete.title} will be removed from the catalog. Members will no longer earn Goldback from it.` : ''}
+                  confirmLabel="Delete offer"
+                  busy={Boolean(pendingDelete && deletingOfferId === pendingDelete.id)}
+                  onCancel={() => setPendingDelete(null)}
+                  onConfirm={() => pendingDelete && removeOffer(pendingDelete.id)}
+                />
               </div>
-            )}
-            <ConfirmDialog
-              open={Boolean(pendingDelete)}
-              title="Delete this offer?"
-              body={pendingDelete ? `${pendingDelete.title} will be removed from the catalog. Members will no longer earn Goldback from it.` : ''}
-              confirmLabel="Delete offer"
-              busy={Boolean(pendingDelete && deletingOfferId === pendingDelete.id)}
-              onCancel={() => setPendingDelete(null)}
-              onConfirm={() => pendingDelete && removeOffer(pendingDelete.id)}
-            />
-          </section>
+            }
+          />
         )}
 
         {tab === 'ledger' && (

@@ -24,6 +24,17 @@ function paymentFromRow(row: any): Pick<StoredOrder, 'paymentStatus' | 'razorpay
   }
 }
 
+function giftFromRow(row: any): Pick<StoredOrder, 'isGift' | 'recipientName' | 'recipientEmail' | 'giftMessage' | 'guestToken'> {
+  const nested = row?.raw_response?.gift || {}
+  return {
+    isGift: Boolean(row.is_gift ?? nested.isGift),
+    recipientName: row.recipient_name || nested.recipientName || null,
+    recipientEmail: row.recipient_email || nested.recipientEmail || null,
+    giftMessage: row.gift_message || nested.giftMessage || null,
+    guestToken: row.guest_token || row?.raw_response?.guestToken || nested.guestToken || null,
+  }
+}
+
 type FileStore = {
   orders: Array<Omit<StoredOrder, 'vouchers'> & { vouchers: StoredVoucher[] }>
   webhookKeys: string[]
@@ -118,6 +129,11 @@ export type CreateLocalOrderInput = {
   customerName?: string | null
   customerEmail?: string | null
   customerPhone?: string | null
+  isGift?: boolean
+  recipientName?: string | null
+  recipientEmail?: string | null
+  giftMessage?: string | null
+  guestToken?: string | null
   paymentStatus?: StoredOrder['paymentStatus']
   razorpayOrderId?: string | null
   razorpayPaymentId?: string | null
@@ -132,6 +148,8 @@ function createFileOrder(order: StoredOrder): StoredOrder {
 
 export async function createLocalOrder(input: CreateLocalOrderInput): Promise<StoredOrder> {
   const now = new Date().toISOString()
+  const isGift = Boolean(input.isGift)
+  const guestToken = input.guestToken || randomUUID().replace(/-/g, '')
   const order: StoredOrder = {
     id: randomUUID(),
     userId: input.userId,
@@ -147,6 +165,11 @@ export async function createLocalOrder(input: CreateLocalOrderInput): Promise<St
     customerName: input.customerName || null,
     customerEmail: input.customerEmail || null,
     customerPhone: input.customerPhone || null,
+    isGift,
+    recipientName: isGift ? input.recipientName || null : null,
+    recipientEmail: isGift ? input.recipientEmail || null : null,
+    giftMessage: isGift ? input.giftMessage || null : null,
+    guestToken,
     paymentStatus: input.paymentStatus || 'unpaid',
     razorpayOrderId: input.razorpayOrderId || null,
     razorpayPaymentId: input.razorpayPaymentId || null,
@@ -155,36 +178,69 @@ export async function createLocalOrder(input: CreateLocalOrderInput): Promise<St
     updatedAt: now,
   }
 
+  const giftPayload = isGift
+    ? {
+        isGift: true,
+        recipientName: order.recipientName,
+        recipientEmail: order.recipientEmail,
+        giftMessage: order.giftMessage,
+        guestToken: order.guestToken,
+      }
+    : { guestToken: order.guestToken }
+
   const sb = sbClient()
   if (sb) {
-    const { data, error } = await sb
-      .from('hubble_orders')
-      .insert({
-        id: order.id,
-        user_id: order.userId,
-        reference_id: order.referenceId,
-        product_id: order.productId,
-        product_title: order.productTitle,
-        amount_inr: order.amountInr,
-        denomination: order.denomination,
-        quantity: order.quantity,
-        status: order.status,
-        customer_name: order.customerName,
-        customer_email: order.customerEmail,
-        customer_phone: order.customerPhone,
-        razorpay_order_id: order.razorpayOrderId,
-        razorpay_payment_id: order.razorpayPaymentId,
-        payment_status: order.paymentStatus,
-        raw_response: {
-          payment: {
-            status: order.paymentStatus,
-            razorpayOrderId: order.razorpayOrderId,
-            razorpayPaymentId: order.razorpayPaymentId,
-          },
+    const baseRow: Record<string, unknown> = {
+      id: order.id,
+      user_id: order.userId,
+      reference_id: order.referenceId,
+      product_id: order.productId,
+      product_title: order.productTitle,
+      amount_inr: order.amountInr,
+      denomination: order.denomination,
+      quantity: order.quantity,
+      status: order.status,
+      customer_name: order.customerName,
+      customer_email: order.customerEmail,
+      customer_phone: order.customerPhone,
+      razorpay_order_id: order.razorpayOrderId,
+      razorpay_payment_id: order.razorpayPaymentId,
+      payment_status: order.paymentStatus,
+      raw_response: {
+        payment: {
+          status: order.paymentStatus,
+          razorpayOrderId: order.razorpayOrderId,
+          razorpayPaymentId: order.razorpayPaymentId,
         },
-      })
-      .select('*')
-      .single()
+        guestToken: order.guestToken,
+        ...(isGift
+          ? {
+              gift: {
+                isGift: true,
+                recipientName: order.recipientName,
+                recipientEmail: order.recipientEmail,
+                giftMessage: order.giftMessage,
+              },
+            }
+          : {}),
+      },
+    }
+
+    const withGiftCols = {
+      ...baseRow,
+      is_gift: order.isGift,
+      recipient_name: order.recipientName,
+      recipient_email: order.recipientEmail,
+      gift_message: order.giftMessage,
+      guest_token: order.guestToken,
+    }
+
+    let data: any = null
+    let error: { message?: string } | null = null
+    ;({ data, error } = await sb.from('hubble_orders').insert(withGiftCols).select('*').single())
+    if (error && /is_gift|recipient_name|recipient_email|gift_message|guest_token|column/i.test(String(error.message || ''))) {
+      ;({ data, error } = await sb.from('hubble_orders').insert(baseRow).select('*').single())
+    }
     if (error) {
       if (isMissingSchemaError(error.message)) {
         disableSupabaseSchema(error)
@@ -408,6 +464,7 @@ function rowToOrder(row: any, vouchers: StoredVoucher[]): StoredOrder {
     customerName: row.customer_name,
     customerEmail: row.customer_email,
     customerPhone: row.customer_phone,
+    ...giftFromRow(row),
     ...paymentFromRow(row),
     vouchers,
     createdAt: row.created_at,
@@ -446,7 +503,41 @@ export async function getOrderById(id: string, userId?: string): Promise<StoredO
 
   const snap = readFileStore()
   const order = snap.orders.find((o) => o.id === id && (!userId || o.userId === userId))
-  return order ? { ...emptyPayment(), ...order } : null
+  return order ? { ...emptyPayment(), isGift: false, recipientName: null, recipientEmail: null, giftMessage: null, guestToken: null, ...order } : null
+}
+
+export async function getOrderByGuestToken(guestToken: string): Promise<StoredOrder | null> {
+  const token = String(guestToken || '').trim()
+  if (!token) return null
+
+  const sb = sbClient()
+  if (sb) {
+    const { data, error } = await sb.from('hubble_orders').select('*').eq('guest_token', token).maybeSingle()
+    if (error) {
+      if (isMissingSchemaError(error.message) || /guest_token|column/i.test(error.message)) {
+        // Fall through to scan raw_response / file store
+      } else {
+        throw new Error(error.message)
+      }
+    } else if (data) {
+      return getOrderById(data.id)
+    }
+
+    // Fallback: scan recent orders for token in raw_response (pre-migration).
+    const { data: rows } = await sb
+      .from('hubble_orders')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(200)
+    const hit = (rows || []).find(
+      (row: any) =>
+        row?.raw_response?.guestToken === token || row?.raw_response?.gift?.guestToken === token,
+    )
+    if (hit) return getOrderById(hit.id)
+  }
+
+  const snap = readFileStore()
+  return snap.orders.find((o) => o.guestToken === token) || null
 }
 
 export async function getOrderByHubbleId(hubbleOrderId: string): Promise<StoredOrder | null> {

@@ -17,11 +17,18 @@ export function isPasswordRecoveryCallback(
   hash = typeof window !== 'undefined' ? window.location.hash : '',
 ): boolean {
   const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search)
-  return (
+  const hashP = hashParams(hash)
+  const onResetPath =
     pathname === '/reset-password' ||
     pathname.startsWith('/reset-password/') ||
+    pathname === '/brand/reset-password' ||
+    pathname.startsWith('/brand/reset-password/')
+  return (
+    onResetPath ||
     params.get('type') === 'recovery' ||
-    hashParams(hash).get('type') === 'recovery'
+    hashP.get('type') === 'recovery' ||
+    Boolean(params.get('token_hash')) ||
+    Boolean(hashP.get('token_hash'))
   )
 }
 

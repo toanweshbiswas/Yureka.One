@@ -8,6 +8,7 @@ import {
   stampAffiliateSubId,
   sanitizeBrowseUrl,
 } from '@shared/inAppBrowse'
+import { canUseInAppBrowse, isAndroidDevice } from '@shared/pwaDisplay'
 import { getAuthAccessToken } from '@shared/auth'
 
 export type TrackedOpen = {
@@ -54,7 +55,10 @@ export function storeBrowseTarget(
 ): StoreBrowseTarget | null {
   const safe = sanitizeBrowseUrl(url)
   if (!safe) return null
-  if (mustOpenExternally(safe)) return { mode: 'external', url: safe }
+  // Outside installed PWA (or on Android/iOS browser tabs), never route into a blank iframe.
+  if (mustOpenExternally(safe) || !canUseInAppBrowse()) {
+    return { mode: 'external', url: safe }
+  }
   const path = browsePath({
     url: safe,
     title: opts?.title,
@@ -75,8 +79,17 @@ export async function openStoreBrowse(
     navigate?: (path: string) => void
   },
 ) {
-  const target = storeBrowseTarget(url, { title: opts?.title, returnTo: opts?.returnTo })
+  const returnTo = opts?.returnTo || '/dashboard/browse'
+  const target = storeBrowseTarget(url, { title: opts?.title, returnTo })
   if (!target) return
+
+  try {
+    const { rememberBrowseReturn, saveDashboardScroll } = await import('@shared/dashboardScroll')
+    rememberBrowseReturn(returnTo)
+    saveDashboardScroll(returnTo.split('?')[0].split('#')[0])
+  } catch {
+    /* ignore */
+  }
 
   if (target.mode === 'in-app') {
     void resolveTrackedOpen(url, userId, true)
@@ -91,16 +104,33 @@ function launchUrl(raw: string) {
   const safe = sanitizeBrowseUrl(raw)
   if (!safe) return
   const target = isAffiliateRedirectUrl(safe) ? safe : mobileWebBrowseUrl(safe) || safe
-  const opened = window.open(target, '_blank', 'noopener,noreferrer')
-  if (!opened) window.location.assign(target)
+
+  // Android Chrome / PWA often blocks or sticks on about:blank popups.
+  // Prefer a single real navigation target.
+  try {
+    const opened = window.open(target, '_blank', 'noopener,noreferrer')
+    if (opened) {
+      try {
+        opened.opener = null
+      } catch {
+        /* ignore */
+      }
+      return
+    }
+  } catch {
+    /* fall through */
+  }
+
+  // Last resort: same-tab open so the user still reaches the store.
+  window.location.assign(target)
 }
 
-function externalOpenTarget(destUrl: string, openUrl?: string | null) {
+function externalOpenTarget(destUrl: string, openUrl?: string | null, userId = '') {
   const direct = mobileWebBrowseUrl(destUrl) || destUrl
   if (preferDirectSiteOpen(destUrl)) return direct
-  const affiliate = openUrl ? stampAffiliateSubId(openUrl, '') : null
-  if (affiliate && isAffiliateRedirectUrl(affiliate)) return affiliate
-  return openUrl ? mobileWebBrowseUrl(openUrl) || direct : direct
+  const stamped = openUrl ? stampAffiliateSubId(openUrl, userId) : null
+  if (stamped && isAffiliateRedirectUrl(stamped)) return stamped
+  return stamped ? mobileWebBrowseUrl(stamped) || direct : direct
 }
 
 /** Record click, open tracked / store link immediately — no intermediate screen. */
@@ -122,11 +152,21 @@ export async function openTrackedStore(
     return
   }
 
+  // Android: resolve first, then open once. The about:blank → replace pattern
+  // frequently leaves a stuck loading tab on Chrome Android / PWAs.
+  if (isAndroidDevice()) {
+    const tracked = await resolveTrackedOpen(url, userId, true)
+    const dest = tracked?.destUrl || fallback
+    const openUrl = tracked?.openUrl ? stampAffiliateSubId(tracked.openUrl, userId) : null
+    launchUrl(externalOpenTarget(dest, openUrl, userId))
+    return
+  }
+
   const popup = window.open('about:blank', '_blank')
   const tracked = await resolveTrackedOpen(url, userId, true)
   const dest = tracked?.destUrl || fallback
   const openUrl = tracked?.openUrl ? stampAffiliateSubId(tracked.openUrl, userId) : null
-  const target = externalOpenTarget(dest, openUrl)
+  const target = externalOpenTarget(dest, openUrl, userId)
   if (popup && !popup.closed) {
     try {
       popup.opener = null

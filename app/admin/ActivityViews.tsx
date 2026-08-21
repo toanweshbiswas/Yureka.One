@@ -294,9 +294,35 @@ export function OverviewTab({
   )
 }
 
-export function UsersTab({ data, loading }: { data: AdminOverview | null; loading: boolean }) {
+export function UsersTab({
+  data,
+  loading,
+  token,
+  canWrite,
+  onRefresh,
+}: {
+  data: AdminOverview | null
+  loading: boolean
+  token: string | null
+  canWrite: boolean
+  onRefresh?: () => void
+}) {
   const [q, setQ] = useState('')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [activity, setActivity] = useState<any | null>(null)
+  const [activityLoading, setActivityLoading] = useState(false)
+  const [activityError, setActivityError] = useState<string | null>(null)
+  const [edit, setEdit] = useState({
+    waitlistId: '',
+    fullName: '',
+    status: 'accepted',
+    yurekaScore: '',
+    rewardPoints: '',
+    goldbackPaise: '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
+
   const rows = useMemo(() => {
     const list = data?.users || []
     const s = q.trim().toLowerCase()
@@ -310,11 +336,125 @@ export function UsersTab({ data, loading }: { data: AdminOverview | null; loadin
     )
   }, [data?.users, q])
 
+  const loadActivity = async (u: AdminOverview['users'][number]) => {
+    setActivityLoading(true)
+    setActivityError(null)
+    setActivity(null)
+    const key = encodeURIComponent(u.email || u.key)
+    try {
+      const res = await fetch(`/api/admin/users/${key}/activity`, {
+        headers: token ? { 'X-Admin-Session': token } : {},
+      })
+      const json = await res.json()
+      if (!res.ok || json.error) {
+        setActivityError(json.error || 'Failed to load activity')
+      } else {
+        setActivity(json.data)
+        setEdit({
+          waitlistId: json.data?.waitlistId || '',
+          fullName: u.name || '',
+          status: u.status || 'accepted',
+          yurekaScore: u.score != null ? String(u.score) : '',
+          rewardPoints: json.data?.saved?.rewardPoints != null ? String(json.data.saved.rewardPoints) : '',
+          goldbackPaise: String(u.goldbackPaise ?? 0),
+        })
+      }
+    } catch {
+      setActivityError('Failed to load activity')
+    }
+    setActivityLoading(false)
+  }
+
+  const openUser = (u: AdminOverview['users'][number]) => {
+    const next = expanded === u.key ? null : u.key
+    setExpanded(next)
+    setSaveMsg(null)
+    if (next) void loadActivity(u)
+  }
+
+  const saveUser = async () => {
+    if (!canWrite || !edit.waitlistId) {
+      setSaveMsg('No waitlist row linked — create via Waitlist first.')
+      return
+    }
+    setSaving(true)
+    setSaveMsg(null)
+    try {
+      const patchRes = await fetch(`/api/admin/users/${encodeURIComponent(edit.waitlistId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'X-Admin-Session': token } : {}),
+        },
+        body: JSON.stringify({
+          fullName: edit.fullName || null,
+          status: edit.status,
+          yurekaScore: edit.yurekaScore === '' ? null : Number(edit.yurekaScore),
+          rewardPoints: edit.rewardPoints === '' ? null : Number(edit.rewardPoints),
+        }),
+      })
+      const patchJson = await patchRes.json()
+      if (!patchRes.ok || patchJson.error) {
+        setSaveMsg(patchJson.error || 'Update failed')
+        setSaving(false)
+        return
+      }
+
+      const userId = activity?.email || activity?.key
+      if (userId && edit.goldbackPaise !== '') {
+        const goldRes = await fetch('/api/admin/goldback/adjust', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'X-Admin-Session': token } : {}),
+          },
+          body: JSON.stringify({
+            userId,
+            balancePaise: Math.round(Number(edit.goldbackPaise) || 0),
+            note: 'Admin user panel',
+          }),
+        })
+        const goldJson = await goldRes.json()
+        if (!goldRes.ok || goldJson.error) {
+          setSaveMsg(goldJson.error || 'Goldback adjust failed')
+          setSaving(false)
+          return
+        }
+      }
+
+      setSaveMsg('Saved')
+      onRefresh?.()
+      if (expanded) {
+        const u = rows.find((r) => r.key === expanded)
+        if (u) void loadActivity(u)
+      }
+    } catch {
+      setSaveMsg('Save failed')
+    }
+    setSaving(false)
+  }
+
+  const deleteUser = async () => {
+    if (!canWrite || !edit.waitlistId) return
+    if (!confirm('Delete this waitlist / user row?')) return
+    const res = await fetch(`/api/admin/users/${encodeURIComponent(edit.waitlistId)}`, {
+      method: 'DELETE',
+      headers: token ? { 'X-Admin-Session': token } : {},
+    })
+    const json = await res.json()
+    if (!res.ok || json.error) {
+      setSaveMsg(json.error || 'Delete failed')
+      return
+    }
+    setExpanded(null)
+    onRefresh?.()
+  }
+
   return (
     <section className="space-y-6">
       <PageHeader
         title="Users"
-        subtitle="Click a member to open per-user score analysis — spend, order mix, and Gmail flags."
+        subtitle="Drill into transactions, top categories, and savings. Edit score, Goldback, and reward points."
       />
       <div className="relative">
         <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
@@ -332,7 +472,7 @@ export function UsersTab({ data, loading }: { data: AdminOverview | null; loadin
               <th className="px-4 py-3 font-black">User</th>
               <th className="px-4 py-3 font-black">Phone</th>
               <th className="px-4 py-3 font-black">Status</th>
-                <th className="px-4 py-3 font-black">Yureka Score</th>
+              <th className="px-4 py-3 font-black">Yureka Score</th>
               <th className="px-4 py-3 font-black">Goldback</th>
               <th className="px-4 py-3 font-black">Gifts</th>
               <th className="px-4 py-3 font-black">Clicks</th>
@@ -346,7 +486,7 @@ export function UsersTab({ data, loading }: { data: AdminOverview | null; loadin
                 <React.Fragment key={u.key}>
                   <tr
                     className={`border-t border-white/[0.06] cursor-pointer transition ${open ? 'bg-white/[0.03]' : 'hover:bg-white/[0.02]'}`}
-                    onClick={() => setExpanded(open ? null : u.key)}
+                    onClick={() => openUser(u)}
                   >
                     <td className="px-4 py-3 min-w-[12rem]">
                       <p className="font-bold truncate">{u.name || u.email || u.key}</p>
@@ -379,8 +519,79 @@ export function UsersTab({ data, loading }: { data: AdminOverview | null; loadin
                   </tr>
                   {open ? (
                     <tr className="border-t border-white/[0.04] bg-white/[0.02]">
-                      <td colSpan={8} className="px-4 py-4">
+                      <td colSpan={8} className="px-4 py-4 space-y-5">
                         <UserScoreAnalysis metrics={u.scoreMetrics} />
+                        {activityLoading && <p className="text-[13px] text-white/40">Loading activity…</p>}
+                        {activityError && <p className="text-[13px] text-red-300">{activityError}</p>}
+                        {activity && (
+                          <div className="space-y-4">
+                            <div className="grid sm:grid-cols-3 gap-2">
+                              <Surface className="px-3 py-3">
+                                <p className="text-[11px] text-white/40">Tx since start</p>
+                                <p className="text-[18px] font-semibold tabular-nums mt-1">{activity.transactions.sinceStart}</p>
+                                <p className="text-[11px] text-white/35 mt-1">Spend {formatInr(Math.round(activity.transactions.totalSpendInr || 0))}</p>
+                              </Surface>
+                              <Surface className="px-3 py-3">
+                                <p className="text-[11px] text-white/40">Amount saved</p>
+                                <p className="text-[13px] mt-2 text-white/70">Discounts {formatInr(Math.round(activity.saved.discountsInr || 0))}</p>
+                                <p className="text-[13px] text-white/70">Gold {formatPaise(activity.saved.goldbackEarnedPaise || 0)} earned</p>
+                                <p className="text-[13px] text-white/70">Points {Number(activity.saved.rewardPoints || 0).toLocaleString('en-IN')}</p>
+                              </Surface>
+                              <Surface className="px-3 py-3">
+                                <p className="text-[11px] text-white/40">Top categories</p>
+                                <div className="mt-2 space-y-1">
+                                  {(activity.topCategories || []).map((c: any) => (
+                                    <p key={c.category} className="text-[13px] flex justify-between gap-2">
+                                      <span className="truncate capitalize">{c.category}</span>
+                                      <span className="tabular-nums text-white/50 shrink-0">{formatInr(Math.round(c.spendInr))}</span>
+                                    </p>
+                                  ))}
+                                  {!activity.topCategories?.length && <p className="text-[12px] text-white/30">No category data</p>}
+                                </div>
+                              </Surface>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35 mb-2">Last transactions</p>
+                              <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                                {(activity.transactions.last || []).map((t: any) => (
+                                  <div key={t.id} className="rounded-lg border border-white/[0.06] px-3 py-2 flex justify-between gap-3 text-[13px]">
+                                    <div className="min-w-0">
+                                      <p className="font-medium truncate">{t.merchant}</p>
+                                      <p className="text-[11px] text-white/35 capitalize">{t.category}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="tabular-nums font-semibold">{formatInr(Math.round(t.amountInr))}</p>
+                                      <p className="text-[10px] text-white/30">{t.at ? timeAgo(t.at) : '—'}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                                {!activity.transactions.last?.length && <p className="text-[12px] text-white/30">No ledger transactions cached</p>}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {canWrite && (
+                          <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4 space-y-3">
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Edit score / Goldback / points</p>
+                            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
+                              <input className={fieldClass} placeholder="Name" value={edit.fullName} onChange={(e) => setEdit({ ...edit, fullName: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                              <select className={fieldClass} value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })} onClick={(e) => e.stopPropagation()}>
+                                <option value="pending">pending</option>
+                                <option value="accepted">accepted</option>
+                                <option value="on_hold">on_hold</option>
+                                <option value="rejected">rejected</option>
+                              </select>
+                              <input className={fieldClass} type="number" placeholder="Yureka score" value={edit.yurekaScore} onChange={(e) => setEdit({ ...edit, yurekaScore: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                              <input className={fieldClass} type="number" placeholder="Goldback paise" value={edit.goldbackPaise} onChange={(e) => setEdit({ ...edit, goldbackPaise: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                              <input className={fieldClass} type="number" placeholder="Reward points" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                            </div>
+                            <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
+                              <button type="button" disabled={saving} onClick={() => void saveUser()} className="rounded-xl bg-clay text-black px-3 py-2 text-xs font-black disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>
+                              <button type="button" onClick={() => void deleteUser()} className="rounded-xl bg-red-500/20 text-red-300 px-3 py-2 text-xs font-bold">Delete user</button>
+                              {saveMsg && <span className="text-[12px] text-white/50 self-center">{saveMsg}</span>}
+                            </div>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ) : null}

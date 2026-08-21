@@ -292,3 +292,94 @@ export async function sendBlogPublishedEmail(opts: {
     replyTo: 'support@yureka.one',
   })
 }
+
+export async function sendGiftCardRecipientEmail(opts: {
+  to: string
+  recipientName?: string | null
+  senderName?: string | null
+  productTitle: string
+  amountInr: number
+  giftMessage?: string | null
+  vouchers: Array<{ cardNumber?: string | null; cardPin?: string | null; validTill?: string | null }>
+}) {
+  const name = firstName(opts.recipientName)
+  const sender = (opts.senderName || 'Someone').trim() || 'Someone'
+  const amount = `₹${Number(opts.amountInr || 0).toLocaleString('en-IN')}`
+  const message = (opts.giftMessage || '').trim()
+  const voucherBlocks = (opts.vouchers || [])
+    .map((v, i) => {
+      const lines = [
+        v.cardNumber ? `Card number: ${v.cardNumber}` : null,
+        v.cardPin ? `PIN: ${v.cardPin}` : null,
+        v.validTill ? `Valid till: ${v.validTill}` : null,
+      ].filter(Boolean)
+      if (!lines.length) return null
+      return `<p style="color:#111;line-height:1.55;margin:12px 0 0;padding:12px 14px;background:#f4f4f4;border-radius:12px"><strong>Voucher ${i + 1}</strong><br/>${lines.join('<br/>')}</p>`
+    })
+    .filter(Boolean)
+    .join('')
+
+  const textVouchers = (opts.vouchers || [])
+    .map((v, i) => {
+      const lines = [
+        v.cardNumber ? `Card number: ${v.cardNumber}` : null,
+        v.cardPin ? `PIN: ${v.cardPin}` : null,
+        v.validTill ? `Valid till: ${v.validTill}` : null,
+      ].filter(Boolean)
+      return lines.length ? `Voucher ${i + 1}\n${lines.join('\n')}` : null
+    })
+    .filter(Boolean)
+    .join('\n\n')
+
+  const { html } = brandedEmail({
+    preheader: `${sender} sent you a ${opts.productTitle} gift card`,
+    heading: 'You received a gift card',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi ${name},</p>
+      <p style="color:#444;line-height:1.55"><strong>${sender}</strong> sent you a <strong>${opts.productTitle}</strong> gift card worth <strong>${amount}</strong> via Yureka.</p>
+      ${message ? `<p style="color:#444;line-height:1.55;padding:12px 14px;background:#f7faf8;border-left:3px solid #00933b;border-radius:8px">“${message.replace(/</g, '&lt;')}”</p>` : ''}
+      ${voucherBlocks || '<p style="color:#666;line-height:1.55">Your voucher details will follow shortly from the sender if they are not shown above.</p>'}
+    `,
+    footerNote: 'Keep this email private — anyone with the card number and PIN can redeem the balance.',
+  })
+
+  return sendMail({
+    to: opts.to,
+    subject: `${sender} sent you a ${opts.productTitle} gift card`,
+    text: `Hi ${name},\n\n${sender} sent you a ${opts.productTitle} gift card worth ${amount} via Yureka.\n${message ? `\nMessage: ${message}\n` : ''}\n${textVouchers || 'Voucher details will follow from the sender.'}\n\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendGiftCardSenderConfirmationEmail(opts: {
+  to: string
+  senderName?: string | null
+  recipientName?: string | null
+  recipientEmail: string
+  productTitle: string
+  amountInr: number
+  orderUrl: string
+}) {
+  const name = firstName(opts.senderName)
+  const recipient = (opts.recipientName || opts.recipientEmail).trim()
+  const amount = `₹${Number(opts.amountInr || 0).toLocaleString('en-IN')}`
+  const { html } = brandedEmail({
+    preheader: `Gift card sent to ${recipient}`,
+    heading: 'Gift card delivered',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi ${name},</p>
+      <p style="color:#444;line-height:1.55">Your <strong>${opts.productTitle}</strong> gift card (${amount}) was emailed to <strong>${recipient}</strong> (${opts.recipientEmail}).</p>
+    `,
+    ctaLabel: 'View order',
+    ctaUrl: opts.orderUrl,
+    footerNote: `Or open: ${opts.orderUrl}`,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Gift card sent to ${recipient}`,
+    text: `Hi ${name},\n\nYour ${opts.productTitle} gift card (${amount}) was emailed to ${recipient} (${opts.recipientEmail}).\n\nView order:\n${opts.orderUrl}\n\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}

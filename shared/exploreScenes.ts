@@ -39,8 +39,8 @@ export const EXPLORE_SCENES: ExploreScene[] = [
     ribbon: 'OFFERS',
     size: 'hero',
     embed: true,
-    brands: [{ name: 'Uber', domain: 'uber.com', aliases: ['uber'], embedUrl: 'https://m.uber.com/' }],
-    giftNeedles: ['ola', 'rapido', 'ride', 'cab', 'taxi'],
+    brands: [{ name: 'Uber', domain: 'uber.com', aliases: ['uber'], embedUrl: 'https://www.uber.com/in/en/' }],
+    giftNeedles: ['ola', 'rapido', 'uber', 'ride', 'rides', 'cab', 'taxi'],
     image: '/assets/3dicons/map-pin.png',
     imageClass: 'w-[58%] right-[-8%] bottom-[-18%]',
     to: sceneUrl('rides', 'marketplace'),
@@ -148,23 +148,41 @@ export function sceneMatchNeedles(scene: ExploreScene): string[] {
   return [...fromBrands, ...(scene.giftNeedles || [])]
 }
 
+/** Whole-token match so short needles like "ride" / "ola" don't hit "bride" / "cola". */
+function needleHitsHay(hay: string, needle: string): boolean {
+  const n = needle.toLowerCase().trim()
+  if (!n) return false
+  const nCompact = n.replace(/[^a-z0-9]+/g, '')
+  if (nCompact.length < 2) return false
+
+  const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // Word-ish boundary: start/end or non-alphanumeric around the needle.
+  if (new RegExp(`(?:^|[^a-z0-9])${escaped}(?:[^a-z0-9]|$)`, 'i').test(hay)) {
+    return true
+  }
+
+  // Compact (punctuation-stripped) match only for longer brand tokens — e.g. "makemytrip".
+  // Short tokens must stay whole-word only (avoids ride⊂bride, ola⊂cola).
+  if (nCompact.length < 5) return false
+  const compact = hay.replace(/[^a-z0-9]+/g, '')
+  return compact.includes(nCompact)
+}
+
 export function matchesSceneBrands(text: string, scene: ExploreScene | null): boolean {
   if (!scene) return true
   const needles = sceneMatchNeedles(scene)
   if (!needles.length) return true
   const hay = String(text || '').toLowerCase()
-  const compact = hay.replace(/[^a-z0-9]+/g, '')
-  return needles.some((needle) => {
-    const n = needle.toLowerCase().trim()
-    if (!n) return false
-    const nCompact = n.replace(/[^a-z0-9]+/g, '')
-    if (nCompact.length < 2) return false
-    return hay.includes(n) || (nCompact.length >= 3 && compact.includes(nCompact))
-  })
+  return needles.some((needle) => needleHitsHay(hay, needle))
 }
 
 export function brandFavicon(domain: string) {
-  return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`
+  const host = String(domain || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^www\./, '')
+  if (!host) return ''
+  return `https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`
 }
 
 export function sceneOpenPath(scene: ExploreScene) {

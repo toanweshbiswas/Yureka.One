@@ -83,6 +83,7 @@ const ContactPage = lazyWithRetry(() => import('@landing/ContactPage'));
 const FaqPage = lazyWithRetry(() => import('@landing/FaqPage'));
 const ForBrands = lazyWithRetry(() => import('@landing/ForBrands'));
 const ZwitchPage = lazyWithRetry(() => import('@landing/Zwitch/ZwitchPage'));
+const GiftOrderStatusPage = lazyWithRetry(() => import('@landing/GiftOrderStatusPage'));
 const NotFoundPage = lazyWithRetry(() => import('@landing/NotFoundPage'));
 
 // App (product)
@@ -98,6 +99,7 @@ const LANDING_PATH_PREFIXES = [
   '/blog',
   '/blogs',
   '/zwitch',
+  '/gift',
   '/privacy-policy',
   '/terms-of-service',
   '/security-protocol',
@@ -291,6 +293,7 @@ function LandingRoutes() {
   return (
     <Routes>
       <Route path="/" element={<MainPage />} />
+      <Route path="/gift/orders/:token" element={<GiftOrderStatusPage />} />
       <Route path="/zwitch" element={<><SEO {...staticPageMeta['/zwitch']} /><ZwitchPage /></>} />
       <Route path="/brands" element={<BrandExplorer />} />
       <Route path="/brands/:category" element={<BrandExplorer />} />
@@ -380,6 +383,7 @@ function CombinedRoutes() {
     <Routes>
       <Route path="/" element={<MarketingOrPwaHome />} />
       <Route path="/go" element={<OutboundBridge />} />
+      <Route path="/gift/orders/:token" element={<GiftOrderStatusPage />} />
       <Route path="/zwitch" element={<><SEO {...staticPageMeta['/zwitch']} /><ZwitchPage /></>} />
       <Route path="/brands" element={<BrandExplorer />} />
       <Route path="/brands/:category" element={<BrandExplorer />} />

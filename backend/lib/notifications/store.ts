@@ -2,7 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
-import type { NotifyUserInput, UserNotification } from './types.js'
+import type { NotifyUserInput, UserNotification, UserNotificationType } from './types.js'
 
 type FileStore = { items: UserNotification[] }
 
@@ -297,4 +297,38 @@ export async function listAllNotifications(limit = 300): Promise<UserNotificatio
     .items.slice()
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, limit)
+}
+
+/** Fan-out a push/inbox notification to many users (admin broadcast). */
+export async function broadcastNotifications(opts: {
+  recipients: { userId: string; email?: string | null }[]
+  title: string
+  body: string
+  type?: UserNotificationType
+  href?: string | null
+  imageUrl?: string | null
+}): Promise<{ sent: number; failed: number }> {
+  let sent = 0
+  let failed = 0
+  const dedupeBase = `broadcast:${Date.now()}`
+  for (const r of opts.recipients) {
+    const userId = String(r.userId || r.email || '').trim()
+    if (!userId) {
+      failed += 1
+      continue
+    }
+    const n = await notifyUser({
+      userId,
+      email: r.email,
+      title: opts.title,
+      body: opts.body,
+      type: opts.type || 'info',
+      href: opts.href,
+      imageUrl: opts.imageUrl,
+      dedupeKey: `${dedupeBase}:${userId}`,
+    })
+    if (n) sent += 1
+    else failed += 1
+  }
+  return { sent, failed }
 }

@@ -127,6 +127,10 @@ const GiftCardsPage: React.FC = () => {
   const [checkoutMode, setCheckoutMode] = useState<'razorpay' | 'direct_wallet' | 'disabled'>('disabled')
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
+  const [giftForSomeone, setGiftForSomeone] = useState(false)
+  const [recipientName, setRecipientName] = useState('')
+  const [recipientEmail, setRecipientEmail] = useState('')
+  const [giftMessage, setGiftMessage] = useState('')
   const deepLinkApplied = useRef(false)
 
   const checkoutProduct = searchParams.get('product')
@@ -233,6 +237,10 @@ const GiftCardsPage: React.FC = () => {
     if (!selected) {
       setAmount(null)
       setBuyError(null)
+      setGiftForSomeone(false)
+      setRecipientName('')
+      setRecipientEmail('')
+      setGiftMessage('')
       return
     }
 
@@ -279,6 +287,7 @@ const GiftCardsPage: React.FC = () => {
   const amountAllowed = Boolean(selected && amount != null && giftCardAmountAllowed(selected, amount).ok)
 
   const phoneDigits = customerPhone.replace(/\D/g, '').slice(-10)
+  const recipientEmailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim())
   const canBuy =
     checkoutEnabled &&
     !!selected &&
@@ -286,6 +295,7 @@ const GiftCardsPage: React.FC = () => {
     amountAllowed &&
     customerName.trim().length >= 2 &&
     phoneDigits.length === 10 &&
+    (!giftForSomeone || (recipientName.trim().length >= 2 && recipientEmailOk)) &&
     !buying
 
   const placeOrder = async () => {
@@ -297,6 +307,16 @@ const GiftCardsPage: React.FC = () => {
     if (phoneDigits.length !== 10) {
       setBuyError('Enter a valid 10-digit mobile number.')
       return
+    }
+    if (giftForSomeone) {
+      if (recipientName.trim().length < 2) {
+        setBuyError('Enter the recipient’s name.')
+        return
+      }
+      if (!recipientEmailOk) {
+        setBuyError('Enter a valid recipient email.')
+        return
+      }
     }
     setBuying(true)
     setBuyError(null)
@@ -313,6 +333,14 @@ const GiftCardsPage: React.FC = () => {
       customerName: customerName.trim(),
       customerEmail: user?.email || 'noreply@yureka.one',
       customerPhone: phoneDigits,
+      isGift: giftForSomeone,
+      ...(giftForSomeone
+        ? {
+            recipientName: recipientName.trim(),
+            recipientEmail: recipientEmail.trim().toLowerCase(),
+            giftMessage: giftMessage.trim() || undefined,
+          }
+        : {}),
     }
 
     const parseJson = async (res: Response) => {
@@ -724,7 +752,7 @@ const GiftCardsPage: React.FC = () => {
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white focus:outline-none focus:border-clay/40"
-                      placeholder="Name on the voucher"
+                      placeholder="Name on the receipt"
                       autoComplete="name"
                     />
                   </div>
@@ -741,6 +769,78 @@ const GiftCardsPage: React.FC = () => {
                       autoComplete="tel"
                     />
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setGiftForSomeone((v) => !v)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition active:scale-[0.99] ${
+                      giftForSomeone
+                        ? 'border-clay/40 bg-clay/10'
+                        : 'border-white/10 bg-white/[0.03]'
+                    }`}
+                  >
+                    <div>
+                      <p className="text-[13px] font-semibold tracking-[-0.02em] text-white">Gift someone</p>
+                      <p className="mt-0.5 text-[11px] text-white/45">
+                        We’ll email the voucher codes to them
+                      </p>
+                    </div>
+                    <span
+                      className={`relative h-6 w-11 shrink-0 rounded-full transition ${
+                        giftForSomeone ? 'bg-clay' : 'bg-white/15'
+                      }`}
+                      aria-hidden
+                    >
+                      <span
+                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                          giftForSomeone ? 'left-[1.375rem]' : 'left-0.5'
+                        }`}
+                      />
+                    </span>
+                  </button>
+
+                  {giftForSomeone && (
+                    <div className="space-y-3 rounded-xl border border-clay/20 bg-clay/[0.06] p-3">
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">
+                          Recipient name
+                        </p>
+                        <input
+                          type="text"
+                          value={recipientName}
+                          onChange={(e) => setRecipientName(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white focus:outline-none focus:border-clay/40"
+                          placeholder="Who is this for?"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">
+                          Recipient email
+                        </p>
+                        <input
+                          type="email"
+                          value={recipientEmail}
+                          onChange={(e) => setRecipientEmail(e.target.value)}
+                          className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white focus:outline-none focus:border-clay/40"
+                          placeholder="friend@email.com"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">
+                          Message <span className="normal-case tracking-normal text-white/25">(optional)</span>
+                        </p>
+                        <textarea
+                          value={giftMessage}
+                          onChange={(e) => setGiftMessage(e.target.value.slice(0, 280))}
+                          rows={3}
+                          className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white focus:outline-none focus:border-clay/40"
+                          placeholder="Happy birthday — enjoy this on me"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {buyError && (
@@ -766,12 +866,16 @@ const GiftCardsPage: React.FC = () => {
                       <Loader2 size={14} className="animate-spin" />{' '}
                       {checkoutMode === 'razorpay' ? 'Opening payment…' : 'Placing order…'}
                     </>
+                  ) : giftForSomeone ? (
+                    <>Gift {amount != null ? formatInr(amount) : ''}</>
                   ) : (
                     <>Pay {amount != null ? formatInr(amount) : ''}</>
                   )}
                 </button>
                 <p className="text-[11px] text-white/30 leading-relaxed">
-                  You pay on Razorpay first. After the payment succeeds, the gift card code appears on the next page.
+                  {giftForSomeone
+                    ? 'You pay on Razorpay first. After payment succeeds, we email the voucher codes to your recipient and confirm to you.'
+                    : 'You pay on Razorpay first. After the payment succeeds, the gift card code appears on the next page.'}
                 </p>
               </div>
             </motion.aside>

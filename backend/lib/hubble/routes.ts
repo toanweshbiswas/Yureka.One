@@ -15,6 +15,7 @@ import {
   applyHubbleOrderResult,
   claimWebhookEvent,
   createLocalOrder,
+  getOrderByGuestToken,
   getOrderById,
   getOrderByRazorpayOrderId,
   listOrdersForUser,
@@ -33,7 +34,7 @@ import {
   handleWalletLowWebhook,
   requireHubbleWebhookSignature,
 } from './webhooks.js'
-import { productUserIdOrFail } from '../auth/userId.js'
+import { productUserIdOrFail, resolveProductUserId } from '../auth/userId.js'
 import {
   createRazorpayOrder,
   getRazorpayPayment,
@@ -82,6 +83,14 @@ function sanitizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '')
   if (digits.length >= 10) return digits.slice(-10)
   return ''
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function guestStatusPath(guestToken: string) {
+  return `/gift/orders/${guestToken}`
 }
 
 export function registerGiftcardRoutes(app: Express) {
@@ -252,8 +261,6 @@ export function registerGiftcardRoutes(app: Express) {
   })
 
   async function buildCheckoutDraft(req: Request, res: Response) {
-    const userId = userIdFrom(req, res)
-    if (!userId) return null
     const productId = String(req.body?.productId || '').trim()
     const denomination = Number(req.body?.denomination)
     const quantity = Math.max(1, Number(req.body?.quantity) || 1)
@@ -279,8 +286,9 @@ export function registerGiftcardRoutes(app: Express) {
 
     const amount = denomination * quantity
     const customerName = sanitizeName(String(req.body?.customerName || req.body?.name || 'Yureka User'))
-    const customerEmail = String(req.body?.customerEmail || req.body?.email || 'noreply@yureka.one')
+    const customerEmail = String(req.body?.customerEmail || req.body?.email || '')
       .trim()
+      .toLowerCase()
       .slice(0, 120)
     const customerPhone = sanitizePhone(String(req.body?.customerPhone || req.body?.phone || ''))
     if (!/^\d{10}$/.test(customerPhone)) {
@@ -288,15 +296,78 @@ export function registerGiftcardRoutes(app: Express) {
       return null
     }
 
+    const wantGuest = Boolean(req.body?.guestCheckout)
+    const resolvedAuth = resolveProductUserId(req)
+    let userId = resolvedAuth
+    let isGuest = false
+
+    if (!userId) {
+      if (!wantGuest) {
+        const required = productUserIdOrFail(req)
+        if ('error' in required) {
+          fail(res, 401, required.error)
+          return null
+        }
+        userId = required.userId
+      } else {
+        if (!isValidEmail(customerEmail)) {
+          fail(res, 400, 'Enter your email so we can send the order confirmation')
+          return null
+        }
+        userId = `guest:${customerEmail}`
+        isGuest = true
+      }
+    }
+
+    if (!customerEmail && !isGuest) {
+      // Logged-in buyers may omit email in body; keep a placeholder for Hubble.
+    }
+    const resolvedEmail =
+      customerEmail ||
+      (userId.includes('@') ? userId : '') ||
+      'noreply@yureka.one'
+
+    const isGift = Boolean(req.body?.isGift || req.body?.giftForSomeone || wantGuest)
+    const recipientName = isGift
+      ? sanitizeName(String(req.body?.recipientName || ''))
+      : ''
+    const recipientEmail = isGift
+      ? String(req.body?.recipientEmail || '')
+          .trim()
+          .toLowerCase()
+          .slice(0, 120)
+      : ''
+    const giftMessage = isGift
+      ? String(req.body?.giftMessage || '')
+          .trim()
+          .slice(0, 280)
+      : ''
+
+    if (isGift) {
+      if (recipientName.length < 2) {
+        fail(res, 400, 'Enter the recipient’s name')
+        return null
+      }
+      if (!isValidEmail(recipientEmail)) {
+        fail(res, 400, 'Enter a valid recipient email')
+        return null
+      }
+    }
+
     return {
       userId,
+      isGuest,
       card,
       amount,
       denomination,
       quantity,
       customerName,
-      customerEmail,
+      customerEmail: resolvedEmail,
       customerPhone,
+      isGift,
+      recipientName: isGift ? recipientName : null,
+      recipientEmail: isGift ? recipientEmail : null,
+      giftMessage: isGift && giftMessage ? giftMessage : null,
     }
   }
 
@@ -323,6 +394,10 @@ export function registerGiftcardRoutes(app: Express) {
         customerName: draft.customerName,
         customerEmail: draft.customerEmail,
         customerPhone: draft.customerPhone,
+        isGift: draft.isGift,
+        recipientName: draft.recipientName,
+        recipientEmail: draft.recipientEmail,
+        giftMessage: draft.giftMessage,
         paymentStatus: 'unpaid',
       })
 
@@ -342,6 +417,7 @@ export function registerGiftcardRoutes(app: Express) {
         res,
         {
           orderId: local.id,
+          guestToken: local.guestToken,
           keyId: publicRazorpayKeyId(),
           razorpayOrderId: rzp.id,
           amountPaise: rzp.amount,
@@ -352,7 +428,9 @@ export function registerGiftcardRoutes(app: Express) {
             email: draft.customerEmail,
             contact: draft.customerPhone,
           },
-          statusUrl: `/dashboard/giftcards/orders/${local.id}`,
+          statusUrl: local.guestToken
+            ? guestStatusPath(local.guestToken)
+            : `/dashboard/giftcards/orders/${local.id}`,
         },
         201,
       )
@@ -368,9 +446,8 @@ export function registerGiftcardRoutes(app: Express) {
       return fail(res, 503, 'Gift cards are temporarily unavailable')
     }
     try {
-      const userId = userIdFrom(req, res)
-      if (!userId) return
       const localId = String(req.body?.orderId || req.body?.localOrderId || '').trim()
+      const guestToken = String(req.body?.guestToken || '').trim()
       const razorpayOrderId = String(req.body?.razorpay_order_id || req.body?.razorpayOrderId || '').trim()
       const razorpayPaymentId = String(req.body?.razorpay_payment_id || req.body?.razorpayPaymentId || '').trim()
       const signature = String(req.body?.razorpay_signature || req.body?.razorpaySignature || '').trim()
@@ -378,8 +455,18 @@ export function registerGiftcardRoutes(app: Express) {
         return fail(res, 400, 'Missing Razorpay payment details')
       }
 
-      const order = await getOrderById(localId, userId)
-      if (!order) return fail(res, 404, 'Order not found')
+      let order = null as Awaited<ReturnType<typeof getOrderById>>
+      if (guestToken) {
+        const byToken = await getOrderByGuestToken(guestToken)
+        if (!byToken || byToken.id !== localId) return fail(res, 404, 'Order not found')
+        order = byToken
+      } else {
+        const userId = userIdFrom(req, res)
+        if (!userId) return
+        order = await getOrderById(localId, userId)
+        if (!order) return fail(res, 404, 'Order not found')
+      }
+
       if (order.razorpayOrderId && order.razorpayOrderId !== razorpayOrderId) {
         return fail(res, 400, 'Payment does not match this order')
       }
@@ -410,15 +497,31 @@ export function registerGiftcardRoutes(app: Express) {
         razorpayPaymentId,
       })
 
-      const paid = (await getOrderById(order.id, userId)) || order
+      const paid = (await getOrderById(order.id)) || order
       const fulfilled = await fulfillGiftCardWithHubble(paid)
       ok(res, {
         order: fulfilled,
-        statusUrl: `/dashboard/giftcards/orders/${order.id}`,
+        guestToken: fulfilled.guestToken || guestToken || null,
+        statusUrl: fulfilled.guestToken
+          ? guestStatusPath(fulfilled.guestToken)
+          : `/dashboard/giftcards/orders/${order.id}`,
       })
     } catch (e: any) {
       console.error('[giftcards] verify failed:', e?.message || e)
       fail(res, 502, e?.message || 'Failed to confirm payment')
+    }
+  })
+
+  /** Public order status for guest (landing) checkout — token is the capability. */
+  app.get('/api/giftcards/guest/orders/:token', async (req, res) => {
+    try {
+      const token = String(req.params.token || '').trim()
+      if (!token) return fail(res, 400, 'Missing order token')
+      const order = await getOrderByGuestToken(token)
+      if (!order) return fail(res, 404, 'Order not found')
+      ok(res, order)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load order')
     }
   })
 
@@ -489,6 +592,10 @@ export function registerGiftcardRoutes(app: Express) {
         customerName: draft.customerName,
         customerEmail: draft.customerEmail,
         customerPhone: draft.customerPhone,
+        isGift: draft.isGift,
+        recipientName: draft.recipientName,
+        recipientEmail: draft.recipientEmail,
+        giftMessage: draft.giftMessage,
         paymentStatus: 'paid',
       })
       const fulfilled = await fulfillGiftCardWithHubble(local)

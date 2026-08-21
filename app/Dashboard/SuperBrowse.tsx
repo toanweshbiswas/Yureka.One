@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { Mic, Search } from 'lucide-react'
-import { SUPER_BROWSE_STORES, storeLogo, type SuperBrowseStore } from '@shared/superBrowseStores'
+import { SUPER_BROWSE_STORES, fetchSuperBrowseStores, type SuperBrowseStore } from '@shared/superBrowseStores'
+import { BrandLogo } from '@shared/BrandLogo'
 import { sanitizeBrowseUrl } from '@shared/inAppBrowse'
 import {
   openStoreBrowse,
@@ -50,13 +51,15 @@ function StoreTile({
       <motion.span
         whileTap={{ scale: 0.94 }}
         transition={spring}
-        className="relative flex h-[3.85rem] w-[3.85rem] items-center justify-center overflow-visible rounded-[1.15rem] shadow-[0_8px_18px_rgba(0,0,0,0.28)]"
+        className="relative flex h-[3.85rem] w-[3.85rem] items-center justify-center overflow-hidden rounded-[1.15rem] shadow-[0_8px_18px_rgba(0,0,0,0.28)]"
         style={{ background: store.bg }}
       >
-        <img
-          src={storeLogo(store.domain)}
-          alt=""
-          className="h-9 w-9 object-contain"
+        <BrandLogo
+          domain={store.domain}
+          name={store.name}
+          logoUrl={store.logoUrl}
+          className="flex h-9 w-9 items-center justify-center"
+          imgClassName="h-9 w-9 object-contain"
         />
         {store.cashback && <CashbackBadge pct={store.cashback} />}
       </motion.span>
@@ -107,6 +110,24 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
   const userId = user?.id || ''
   const [draft, setDraft] = useState('')
   const [links, setLinks] = useState<Record<string, TrackedOpen>>({})
+  const [stores, setStores] = useState<SuperBrowseStore[]>(SUPER_BROWSE_STORES)
+
+  useEffect(() => {
+    let cancelled = false
+    void fetchSuperBrowseStores().then((next) => {
+      if (!cancelled && next.length) setStores(next)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    // Landing on Browse should keep the Super Browse grid in view after store returns.
+    void import('@shared/dashboardScroll').then((m) => {
+      m.restoreDashboardPosition({ pathname: '/dashboard/browse' })
+    })
+  }, [])
 
   useEffect(() => {
     if (!userId) return
@@ -142,7 +163,7 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
   })
 
   return (
-    <div className="space-y-5">
+    <div id="super-browse" className="space-y-5 scroll-mt-24">
       {showChrome && (
         <form
           onSubmit={(e) => {
@@ -171,7 +192,7 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
       </div>
 
       <div className="grid grid-cols-4 gap-x-2 gap-y-5">
-        {SUPER_BROWSE_STORES.map((store) => (
+        {stores.map((store) => (
           <StoreTile
             key={store.id}
             store={store}

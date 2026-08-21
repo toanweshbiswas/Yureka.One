@@ -2,6 +2,7 @@ import type { Express, Request, Response } from 'express'
 import { readLedgerCache, runGmailScanner, writeLedgerCache } from '../ledger/scannerRunner.js'
 import { consumeLedgerResync, getLedgerResyncQuota } from '../ledger/resyncQuota.js'
 import { blogToApi, getBlogBySlug, listBlogs } from '../cms/blogStore.js'
+import { sendAppPasswordResetEmail } from '../auth/passwordReset.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
   res.status(status).json({ data, status, timestamp: new Date().toISOString() })
@@ -25,6 +26,20 @@ function fail(res: Response, status: number, error: string, extra?: Record<strin
 export function registerPublicApiRoutes(app: Express) {
   app.get('/api/v1/health', (_req, res) => {
     ok(res, { status: 'ok', env: process.env.NODE_ENV || 'development' })
+  })
+
+  app.post('/api/auth/reset-password', async (req: Request, res: Response) => {
+    try {
+      const email = String(req.body?.email || '').trim()
+      const redirectTo = typeof req.body?.redirectTo === 'string' ? req.body.redirectTo : undefined
+      if (!email) return fail(res, 400, 'Email is required')
+      await sendAppPasswordResetEmail({ email, redirectTo })
+      // Always succeed from the client's perspective (no account enumeration).
+      ok(res, { queued: true })
+    } catch (e: any) {
+      console.error('[auth] reset-password:', e?.message || e)
+      fail(res, 500, e?.message || 'Could not send reset email')
+    }
   })
 
   app.get('/api/v1/cms/cards', (_req, res) => {

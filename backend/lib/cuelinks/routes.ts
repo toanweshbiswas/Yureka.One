@@ -6,6 +6,7 @@ import {
   listCueLinksOffers,
   listCueLinksOffersForHost,
 } from './client.js'
+import { listCueLinksBrands } from './brands.js'
 import { listOffers as listGoldbackOffers } from '../goldback/store.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
@@ -91,6 +92,24 @@ export function registerCuelinksRoutes(app: Express) {
       } catch (e: any) {
         console.error('[marketplace] list failed:', e?.message || e)
         fail(res, 502, 'Failed to load marketplace offers')
+      }
+    })
+
+    app.get(`${prefix}/brands`, async (req, res) => {
+      if (!cuelinksConfigured()) {
+        return fail(res, 503, 'Marketplace is temporarily unavailable')
+      }
+      try {
+        const q = typeof req.query.q === 'string' ? req.query.q : ''
+        const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined
+        const result = await listCueLinksBrands({
+          q,
+          limit: Number.isFinite(limit) ? limit : undefined,
+        })
+        ok(res, result)
+      } catch (e: any) {
+        console.error('[marketplace] brands failed:', e?.message || e)
+        fail(res, 502, 'Failed to load marketplace brands')
       }
     })
 

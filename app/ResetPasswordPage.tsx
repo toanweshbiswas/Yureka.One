@@ -129,7 +129,7 @@ const ResetPasswordPage: React.FC = () => {
         <p className="text-sm text-white/40 mb-8 leading-relaxed">
           {canReset
             ? 'Choose a new password. Once updated, you can sign in immediately.'
-            : 'Open the latest reset link from your email, using the same browser you used to request it.'}
+            : 'Request a fresh link from login, then open it in the same browser (avoid email in-app browsers).'}
         </p>
 
         {error && (

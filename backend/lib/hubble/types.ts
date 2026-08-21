@@ -126,6 +126,13 @@ export interface StoredOrder {
   customerName: string | null
   customerEmail: string | null
   customerPhone: string | null
+  /** Buyer purchased this as a gift for someone else. */
+  isGift: boolean
+  recipientName: string | null
+  recipientEmail: string | null
+  giftMessage: string | null
+  /** Opaque token for public (guest) order status pages. */
+  guestToken: string | null
   paymentStatus: 'unpaid' | 'paid' | 'failed' | 'refunded'
   razorpayOrderId: string | null
   razorpayPaymentId: string | null
