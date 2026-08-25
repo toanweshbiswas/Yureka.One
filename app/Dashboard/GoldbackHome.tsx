@@ -3,12 +3,11 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import {
   ArrowRight,
   Loader2,
-  Mic,
   RefreshCw,
   Search,
   TrendingUp,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { formatPaise, goldbackApi } from '@backend/lib/goldback/client'
 import type { GoldbackBalance, GoldbackLedgerEntry, GoldbackOffer } from '@backend/lib/goldback/types'
@@ -23,7 +22,9 @@ import { SUPER_BROWSE_STORES, fetchSuperBrowseStores, type SuperBrowseStore } fr
 import { BrandLogo } from '@shared/BrandLogo'
 import { openStoreBrowse, prefetchSuperBrowseLinks, type TrackedOpen } from '@shared/trackedBrowse'
 import { onCatalogUpdate } from '@shared/catalogSync'
+import { canUseInAppBrowse, isLikelyMobile } from '@shared/pwaDisplay'
 import ExploreBrandScenes from './ExploreBrandScenes'
+import { SuperBrowseGrid } from './SuperBrowse'
 import NotificationBell from './NotificationBell'
 
 type HomeCache = {
@@ -143,9 +144,7 @@ function MobileHome({
   scorePct,
   avatarUrl,
   ledger,
-  exploreStores,
   onRefresh,
-  openStore,
   enter,
   settle,
 }: HomeViewProps) {
@@ -212,7 +211,7 @@ function MobileHome({
       </motion.header>
 
       <MotionLink
-        to="/dashboard/offers?tab=marketplace"
+        to="/dashboard/browse"
         initial={enter}
         animate={settle}
         transition={{ ...spring, delay: reduceMotion ? 0 : 0.03 }}
@@ -221,9 +220,8 @@ function MobileHome({
       >
         <Search size={16} className="shrink-0 text-white/40" />
         <span className="min-w-0 flex-1 text-[14px] tracking-[-0.01em] text-white/40">
-          Search across all stores
+          Search or open any store
         </span>
-        <Mic size={15} className="shrink-0 text-white/28" aria-hidden />
       </MotionLink>
 
       <motion.section
@@ -284,14 +282,13 @@ function MobileHome({
           </div>
         </div>
 
-        {/* Primary phone CTA — full width, ≥44pt, not buried in the vault card */}
         <MotionLink
-          to="/dashboard/offers?tab=marketplace"
+          to="/dashboard/browse"
           whileTap={{ scale: 0.985 }}
           transition={springSnappy}
           className="flex min-h-12 w-full items-center justify-between gap-3 rounded-[1.25rem] bg-white px-4 py-3.5 text-black shadow-[0_12px_28px_rgba(0,0,0,0.22)]"
         >
-          <span className="text-[15px] font-semibold tracking-[-0.02em]">Explore offers</span>
+          <span className="text-[15px] font-semibold tracking-[-0.02em]">Open Super Browser</span>
           <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">
             <ArrowRight size={15} />
           </span>
@@ -299,14 +296,15 @@ function MobileHome({
       </motion.section>
 
       <motion.section
+        id="explore-brands"
         initial={enter}
         animate={settle}
         transition={{ ...spring, delay: reduceMotion ? 0 : 0.07 }}
-        className="space-y-3"
+        className="scroll-mt-24 space-y-3"
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">For you</p>
-        {/* Same 2-col grid; scene craft (3D art, CTA, badge, ribbon) scaled for phone */}
-        <ExploreBrandScenes compact />
+        <span id="super-browse" className="sr-only" aria-hidden />
+        {/* Mobile Explore brands = Super Browse (store grid + in-app browser) */}
+        <SuperBrowseGrid showChrome={false} />
       </motion.section>
 
       <motion.section
@@ -331,66 +329,6 @@ function MobileHome({
               </span>
             </MotionLink>
           ))}
-        </div>
-      </motion.section>
-
-      <motion.section
-        id="explore-brands"
-        initial={enter}
-        animate={settle}
-        transition={{ ...spring, delay: reduceMotion ? 0 : 0.11 }}
-        className="scroll-mt-24 rounded-[1.7rem] border border-clay/25 bg-[linear-gradient(165deg,rgba(52,211,153,0.2)_0%,rgba(16,55,44,0.55)_55%,rgba(12,20,17,0.9)_100%)] p-4 shadow-[0_16px_36px_rgba(0,0,0,0.28)]"
-      >
-        {/* Legacy hash from older deep links */}
-        <span id="super-browse" className="sr-only" aria-hidden />
-        <div className="mb-3 flex items-end justify-between gap-3">
-          <div>
-            <p className="text-[15px] font-semibold tracking-[-0.02em] text-white">Explore brands</p>
-            <p className="mt-0.5 text-[12px] text-white/45">Tap a store to shop with Goldback</p>
-          </div>
-        </div>
-        <div className="grid grid-cols-4 gap-x-2.5 gap-y-3">
-          {exploreStores.slice(0, 8).map((store) => (
-            <motion.button
-              key={store.id}
-              type="button"
-              whileTap={{ scale: 0.94 }}
-              transition={springSnappy}
-              onClick={() => openStore(store.url, store.name, store.id)}
-              className="relative flex flex-col items-center gap-1.5"
-            >
-              <span
-                className="relative flex aspect-square w-full items-center justify-center rounded-[1.05rem] shadow-[0_8px_18px_rgba(0,0,0,0.2)]"
-                style={{ background: store.bg }}
-              >
-                <BrandLogo
-                  domain={store.domain}
-                  name={store.name}
-                  logoUrl={store.logoUrl}
-                  className="flex h-[68%] w-[68%] max-h-10 max-w-10 items-center justify-center"
-                  imgClassName="h-full w-full object-contain p-[6%]"
-                />
-                {store.cashback && (
-                  <span className="absolute -right-0.5 -top-0.5 z-10 rounded-full bg-[#10372c] px-1.5 py-0.5 text-[8px] font-bold leading-none text-white ring-2 ring-[#0c1411]">
-                    {store.cashback}
-                  </span>
-                )}
-              </span>
-              <span className="w-full truncate text-center text-[10px] font-medium text-white/70">
-                {store.name}
-              </span>
-            </motion.button>
-          ))}
-        </div>
-        <div className="mt-4 grid grid-cols-1 gap-2">
-          <MotionLink
-            to="/dashboard/browse"
-            whileTap={{ scale: 0.98 }}
-            transition={springSnappy}
-            className="flex min-h-11 items-center justify-center rounded-full bg-[#10372c] px-4 text-[13px] font-semibold text-white"
-          >
-            Explore all brands →
-          </MotionLink>
         </div>
       </motion.section>
 
@@ -1029,14 +967,18 @@ const GoldbackHome: React.FC = () => {
     scoreDecision,
   })
 
+  const navigate = useNavigate()
+
   const openStore = (url: string, title: string, storeId?: string) => {
     const known = storeId ? trackedLinks[storeId] : undefined
     const cue = known?.affiliate ? known.openUrl : undefined
     const cueOk = Boolean(cue)
+    const preferInApp = canUseInAppBrowse() || isLikelyMobile()
     void openStoreBrowse(url, userId, {
       title,
       returnTo: '/dashboard/home#explore-brands',
-      forceExternal: true,
+      forceExternal: !preferInApp,
+      navigate: preferInApp ? (path) => navigate(path) : undefined,
       knownOpenUrl: cueOk ? cue : undefined,
       preferWeb: !cueOk,
     })

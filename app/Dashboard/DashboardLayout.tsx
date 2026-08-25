@@ -61,7 +61,7 @@ const PRIMARY_NAV: NavItem[] = [
     { id: 'getaway', label: 'Join your getaway', icon: 'flash', path: '/dashboard/getaway' },
 ];
 
-const BROWSE_NAV: NavItem = { id: 'browse', label: 'Brands', icon: 'flash', path: '/dashboard/browse' };
+const BROWSE_NAV: NavItem = { id: 'browse', label: 'Explore', icon: 'flash', path: '/dashboard/browse' };
 
 const SECONDARY_NAV: NavItem[] = [
     { id: 'expenses', label: 'Expenses', icon: 'chart', path: '/dashboard/expenses' },
@@ -87,7 +87,7 @@ const TAB_ICONS: Record<string, typeof House> = {
 
 const TAB_LABELS: Record<string, string> = {
     home: 'Home',
-    browse: 'Explore brands',
+    browse: 'Explore',
     offers: 'Offers',
     giftcards: 'Gifts',
 };

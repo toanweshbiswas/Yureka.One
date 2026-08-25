@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
-import { Mic, Search } from 'lucide-react'
+import { Search } from 'lucide-react'
 import { SUPER_BROWSE_STORES, fetchSuperBrowseStores, type SuperBrowseStore } from '@shared/superBrowseStores'
 import { BrandLogo } from '@shared/BrandLogo'
 import { sanitizeBrowseUrl } from '@shared/inAppBrowse'
@@ -12,6 +12,7 @@ import {
 } from '@shared/trackedBrowse'
 import { onCatalogUpdate } from '@shared/catalogSync'
 import { useSupabase } from '@shared/SupabaseProvider'
+import { canUseInAppBrowse, isLikelyMobile } from '@shared/pwaDisplay'
 import { InAppBrowserFrame } from './InAppBrowser'
 
 const spring = { type: 'spring' as const, bounce: 0, duration: 0.35 }
@@ -31,14 +32,33 @@ function CashbackBadge({ pct }: { pct: string }) {
   )
 }
 
+function useSuperBrowseOpen() {
+  const navigate = useNavigate()
+  // Mobile (and installed PWA): keep shopping inside Yureka's Super Browser chrome.
+  const preferInApp = canUseInAppBrowse() || isLikelyMobile()
+  return (url: string, userId: string, opts?: { title?: string; knownOpenUrl?: string }) => {
+    const cueOk = Boolean(opts?.knownOpenUrl)
+    void openStoreBrowse(url, userId, {
+      title: opts?.title,
+      returnTo: '/dashboard/browse',
+      forceExternal: !preferInApp,
+      navigate: preferInApp ? (path) => navigate(path) : undefined,
+      knownOpenUrl: cueOk ? opts?.knownOpenUrl : undefined,
+      preferWeb: !cueOk,
+    })
+  }
+}
+
 function StoreTile({
   store,
   userId,
   knownOpen,
+  openStore,
 }: {
   store: SuperBrowseStore
   userId: string
   knownOpen?: TrackedOpen | null
+  openStore: ReturnType<typeof useSuperBrowseOpen>
 }) {
   const className = 'flex flex-col items-center gap-2'
   const inner = (
@@ -70,14 +90,9 @@ function StoreTile({
       className={className}
       onClick={() => {
         const cue = knownOpen?.affiliate ? knownOpen.openUrl : undefined
-        const cueOk = Boolean(cue)
-        void openStoreBrowse(store.url, userId, {
+        openStore(store.url, userId, {
           title: store.name,
-          returnTo: '/dashboard/browse',
-          forceExternal: true,
-          // CueLinks when catalog has a link; otherwise standard store URL.
-          knownOpenUrl: cueOk ? cue : undefined,
-          preferWeb: !cueOk,
+          knownOpenUrl: cue,
         })
       }}
     >
@@ -89,6 +104,7 @@ function StoreTile({
 export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean }) {
   const { user } = useSupabase()
   const userId = user?.id || ''
+  const openStore = useSuperBrowseOpen()
   const [draft, setDraft] = useState('')
   const [stores, setStores] = useState<SuperBrowseStore[]>(SUPER_BROWSE_STORES)
   const [trackedLinks, setTrackedLinks] = useState<Record<string, TrackedOpen>>({})
@@ -134,16 +150,13 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
   const openDraft = () => {
     const url = sanitizeBrowseUrl(draft.includes('://') ? draft : `https://${draft}`)
     if (!url) return
-    void openStoreBrowse(url, userId, {
-      returnTo: '/dashboard/browse',
-      forceExternal: true,
-    })
+    openStore(url, userId)
   }
 
   return (
-    <div id="explore-brands" className="space-y-5 scroll-mt-24">
+    <div id={showChrome ? 'explore-brands' : undefined} className="space-y-5 scroll-mt-24">
       {/* Legacy hash anchors from older deep links */}
-      <span id="super-browse" className="sr-only" aria-hidden />
+      {showChrome && <span id="super-browse" className="sr-only" aria-hidden />}
       {showChrome && (
         <form
           onSubmit={(e) => {
@@ -161,14 +174,14 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
             inputMode="url"
             autoCapitalize="off"
             autoCorrect="off"
+            enterKeyHint="go"
           />
-          <Mic size={16} className="shrink-0 text-white/28" aria-hidden />
         </form>
       )}
 
       <div>
         <h2 className="text-[1.65rem] font-semibold tracking-[-0.04em] text-white">Explore brands</h2>
-        <p className="mt-0.5 text-[13px] text-white/45">Browse every store from one place.</p>
+        <p className="mt-0.5 text-[13px] text-white/45">Shop inside Yureka's Super Browser.</p>
       </div>
 
       <div className="grid grid-cols-4 gap-x-2 gap-y-5">
@@ -178,16 +191,17 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
             store={store}
             userId={userId}
             knownOpen={trackedLinks[store.id]}
+            openStore={openStore}
           />
         ))}
       </div>
 
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
         <Link
           to="/dashboard/offers?tab=marketplace"
-          className="rounded-2xl bg-[linear-gradient(90deg,#5b6cff_0%,#7a4dff_100%)] px-4 py-3 text-center text-[13px] font-semibold text-white"
+          className="rounded-2xl bg-clay px-4 py-3 text-center text-[13px] font-semibold text-black"
         >
-          Explore all brands →
+          View marketplace offers →
         </Link>
         <button
           type="button"
@@ -196,37 +210,15 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
             const cue = trackedLinks.flipkart?.affiliate
               ? trackedLinks.flipkart.openUrl
               : undefined
-            const cueOk = Boolean(cue)
-            void openStoreBrowse('https://www.flipkart.com/', userId, {
+            openStore('https://www.flipkart.com/', userId, {
               title: 'Flipkart',
-              returnTo: '/dashboard/browse',
-              forceExternal: true,
-              knownOpenUrl: cueOk ? cue : undefined,
-              preferWeb: !cueOk,
+              knownOpenUrl: cue,
             })
           }}
         >
           Open Flipkart
         </button>
       </div>
-
-      {showChrome && (
-        <div className="space-y-3 pt-1">
-          <h3 className="text-[1.05rem] font-semibold tracking-[-0.02em] text-white">Curated for you</h3>
-          <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-2xl bg-[#16181d] px-3 py-4">
-              <p className="text-[13px] font-semibold leading-snug text-[#f5c542]">
-                20.2K+ pts. earned by 3.2K+ users
-              </p>
-            </div>
-            <div className="rounded-2xl bg-[#16181d] px-3 py-4">
-              <p className="text-[13px] font-semibold leading-snug text-[#f5c542]">
-                ₹ 40L+ saved by 9K+ users
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
