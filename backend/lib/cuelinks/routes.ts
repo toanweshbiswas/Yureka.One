@@ -7,6 +7,12 @@ import {
   listCueLinksOffersForHost,
 } from './client.js'
 import { listCueLinksBrands } from './brands.js'
+import {
+  clearCueLinksCampaignsCache,
+  cuelinksCampaignsConfigured,
+  fetchCueLinksCampaigns,
+  listCueLinksCampaigns,
+} from './campaigns.js'
 import { listOffers as listGoldbackOffers } from '../goldback/store.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
@@ -31,6 +37,7 @@ export function registerCuelinksRoutes(app: Express) {
     app.get(`${prefix}/health`, (_req, res) => {
       ok(res, {
         configured: cuelinksConfigured(),
+        campaignsConfigured: cuelinksCampaignsConfigured(),
       })
     })
 
@@ -113,14 +120,68 @@ export function registerCuelinksRoutes(app: Express) {
       }
     })
 
-    app.post(`${prefix}/refresh`, async (_req, res) => {
-      if (!cuelinksConfigured()) {
+    /**
+     * Full CueLinks campaign / brand catalog with pay-per-click flag and
+     * New User / Existing User commission rates from payout_categories.
+     *
+     * Query:
+     *   filter=all|cpc|ppc|new_existing
+     *   q=search
+     *   limit / offset
+     */
+    app.get(`${prefix}/campaigns`, async (req, res) => {
+      if (!cuelinksCampaignsConfigured()) {
+        return fail(res, 503, 'Marketplace campaigns are temporarily unavailable')
+      }
+      try {
+        const q = typeof req.query.q === 'string' ? req.query.q : ''
+        const filterRaw = typeof req.query.filter === 'string' ? req.query.filter : 'all'
+        const filter =
+          filterRaw === 'cpc' || filterRaw === 'ppc' || filterRaw === 'new_existing'
+            ? filterRaw
+            : 'all'
+        const limit = typeof req.query.limit === 'string' ? Number(req.query.limit) : undefined
+        const offset = typeof req.query.offset === 'string' ? Number(req.query.offset) : undefined
+        const result = await listCueLinksCampaigns({
+          q,
+          filter,
+          limit: Number.isFinite(limit) ? limit : undefined,
+          offset: Number.isFinite(offset) ? offset : undefined,
+        })
+        ok(res, result)
+      } catch (e: any) {
+        console.error('[marketplace] campaigns failed:', e?.message || e)
+        fail(res, 502, 'Failed to load marketplace campaigns')
+      }
+    })
+
+    app.post(`${prefix}/refresh`, async (req, res) => {
+      const { verifyAdminToken } = await import('../admin/auth.js')
+      const token = req.header('x-admin-session') || req.header('X-Admin-Session')
+      const session = verifyAdminToken(token)
+      if (!session || (session.role !== 'admin' && session.role !== 'superadmin')) {
+        return fail(res, 401, 'Unauthorized')
+      }
+      if (!cuelinksConfigured() && !cuelinksCampaignsConfigured()) {
         return fail(res, 503, 'Marketplace is temporarily unavailable')
       }
       try {
         clearCueLinksCache()
-        const snap = await fetchCueLinksOffers({ force: true })
-        ok(res, { loaded: snap.offers.length, catalogTotal: snap.totalCount })
+        clearCueLinksCampaignsCache()
+        const [offers, campaigns] = await Promise.all([
+          cuelinksConfigured()
+            ? fetchCueLinksOffers({ force: true })
+            : Promise.resolve({ offers: [], totalCount: 0, fetchedAt: Date.now() }),
+          cuelinksCampaignsConfigured()
+            ? fetchCueLinksCampaigns({ force: true })
+            : Promise.resolve({ campaigns: [], totalCount: 0, fetchedAt: Date.now() }),
+        ])
+        ok(res, {
+          loaded: offers.offers.length,
+          catalogTotal: offers.totalCount,
+          campaignsLoaded: campaigns.campaigns.length,
+          campaignsTotal: campaigns.totalCount,
+        })
       } catch (e: any) {
         fail(res, 502, 'Failed to refresh marketplace offers')
       }

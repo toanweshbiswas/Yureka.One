@@ -15,7 +15,8 @@ jobs:
     steps:
       - name: Google Indexing Action
         if: ${{ env.GCP_SA_KEY != '' }}
-        uses: robingenz/action-google-indexing@v1.0.2
+        # Pin to commit for v1.0.2 (not mutable tag) — supply-chain hardening
+        uses: robingenz/action-google-indexing@fd276ac89cfb1c73ab82bd383f402e296fc9b9cf # v1.0.2
         with:
           siteUrl: 'https://yureka.one'
           gcpServiceAccountKey: ${{ secrets.GCP_SA_KEY }}

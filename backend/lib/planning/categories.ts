@@ -54,11 +54,20 @@ const EDUCATION = [
 ]
 
 const INVESTMENT = [
-  'groww', 'zerodha', 'upstox', 'angel one', 'angelone', 'kuvera', 'smallcase',
-  'indmoney', 'etmoney', 'paytm money', 'hdfc securities', 'icici direct',
-  '5paisa', 'motilal', 'coin by zerodha', 'nps', 'ppf', 'elss', 'sip',
-  'mutual fund', 'demat', 'nsdl', 'cdsl', 'sovereign gold', 'digital gold',
+  'groww', 'zerodha', 'kite', 'upstox', 'angel one', 'angelone', 'angelbroking',
+  'kuvera', 'smallcase', 'indmoney', 'etmoney', 'paytm money', 'paytmmoney',
+  'hdfc securities', 'hdfcsec', 'icici direct', 'icicidirect', '5paisa', 'motilal',
+  'coin by zerodha', 'coin.zerodha', 'nps', 'ppf', 'elss', 'sip', 'xirr',
+  'mutual fund', 'mutualfund', 'demat', 'nsdl', 'cdsl', 'sovereign gold', 'digital gold',
   'jar app', 'gold sipp', 'epfo', 'provident fund', 'fixed deposit', 'recurring deposit',
+  'units allotted', 'units allocated', 'order executed', 'shares bought', 'shares sold',
+  'equity delivery', 'intraday', 'nav ', 'folio', 'camsonline', 'kfintech', 'mf central',
+  'mfcentral', 'bse star', 'nse india', 'cdslindia', 'nsdl.co', 'indianclearing',
+  'fyers', 'alice blue', 'aliceblue', 'sharekhan', 'edelweiss', 'geojit', 'iifl',
+  'sbi mutual', 'sbi mf', 'nippon india', 'axis mutual', 'uti mutual', 'parag parikh',
+  'ppfas', 'mirae', 'quant mf', 'motilal oswal', 'hdfc mf', 'icici pru',
+  'investment ·', 'growwmail', 'zrdha', 'zerodha broking', 'groww bse', 'bse groww',
+  'you invested', 'successfully invested', 'sip processed', 'systematic investment',
 ]
 
 function haystack(tx: Pick<PlanningTransaction, 'brandName' | 'sender' | 'description' | 'type'>): string {
@@ -73,6 +82,14 @@ export function isBillType(type?: string): boolean {
   const t = String(type || '').trim().toLowerCase()
   if (!t || t === 'transaction') return false
   return true
+}
+
+/** Groww / Zerodha / SIP / MF — Planning only; never count in Expenses totals. */
+export function isInvestmentTransaction(
+  tx: Pick<PlanningTransaction, 'brandName' | 'sender' | 'description' | 'type' | 'category'>,
+): boolean {
+  if (tx.category === 'investment') return true
+  return matches(haystack(tx), INVESTMENT)
 }
 
 export function categorizeTransaction(tx: PlanningTransaction): PlanningCategory {
@@ -133,17 +150,22 @@ export function isSameMonth(date: Date, now = new Date()): boolean {
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth()
 }
 
-export function transactionKey(tx: Pick<PlanningTransaction, 'brandName' | 'date' | 'amount' | 'sourceEmail'>): string {
+export function transactionKey(tx: Pick<PlanningTransaction, 'brandName' | 'date' | 'amount' | 'sourceEmail' | 'description'>): string {
   return [
     String(tx.brandName || '').trim().toLowerCase(),
     String(tx.date || '').trim().slice(0, 10),
     String(tx.amount || '').replace(/[₹$,\s,]/g, ''),
+    // Always key by inbox so extra Gmail spends ADD to primary instead of collapsing.
     String(tx.sourceEmail || '').trim().toLowerCase(),
+    String(tx.description || '').trim().toLowerCase().slice(0, 48),
   ].join('|')
 }
 
 export function needsReview(tx: PlanningTransaction, category: PlanningCategory): boolean {
+  if (tx.needsReview === false) return false
   if (tx.needsReview) return true
+  // Investment / broker mail is often sparse on brand wording — keep it in totals.
+  if (category === 'investment' && parseInr(tx.amount) > 0) return false
   if (category !== 'other') return false
   const brand = String(tx.brandName || '').trim().toLowerCase()
   if (!brand || brand === 'unknown' || brand === 'n/a' || brand === 'na') return true
@@ -152,11 +174,16 @@ export function needsReview(tx: PlanningTransaction, category: PlanningCategory)
 
 export function enrichTransaction(tx: PlanningTransaction): PlanningTransaction {
   const category = categorizeTransaction(tx)
-  return {
+  const withSource = {
     ...tx,
+    sourceEmail: tx.sourceEmail ? String(tx.sourceEmail).trim().toLowerCase() : tx.sourceEmail,
+  }
+  return {
+    ...withSource,
     category,
-    needsReview: needsReview(tx, category),
-    dedupeHash: tx.dedupeHash || transactionKey(tx),
+    needsReview: needsReview(withSource, category),
+    // Always recompute so inbox-scoped keys cannot be clobbered by a stale hash.
+    dedupeHash: transactionKey(withSource),
   }
 }
 

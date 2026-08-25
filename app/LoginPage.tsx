@@ -16,9 +16,11 @@ import { landingUrl } from '@shared/hosts'
 import { tryHandoffOAuthCodeToNativeApp } from '@shared/nativeAppHandoff'
 import { isPasswordRecoveryCallback } from '@shared/oauthHandoff'
 import YurekaBrandMark from '@shared/YurekaBrandMark'
+import { WAITLIST_REQUIRED } from '@shared/waitlistGate'
+import { captureGetawayRefFromSearch } from '@app/Dashboard/Getaway/getawayUtils'
 
 const LoginPage: React.FC = () => {
-  const { user, currentUserStatus, isLoading } = useSupabase()
+  const { user, currentUserStatus, isLoading, refreshUserStatus } = useSupabase()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [busy, setBusy] = useState(false)
@@ -57,6 +59,9 @@ const LoginPage: React.FC = () => {
     }
     navigate(`/login${nextPath !== '/dashboard' ? `?next=${encodeURIComponent(nextPath)}` : ''}`, { replace: true })
   }
+
+  // Persist promoter ref from ?ref= or nested ?next=…?ref= (before signup/OAuth).
+  captureGetawayRefFromSearch(location.search)
 
   useEffect(() => {
     if (document.querySelector('script[src*="accounts.google.com/gsi/client"]')) return
@@ -97,6 +102,13 @@ const LoginPage: React.FC = () => {
     if (!user) return
 
     if (currentUserStatus === 'accepted' || currentUserStatus === 'admin') {
+      navigate(nextPath.startsWith('/') ? nextPath : '/dashboard', { replace: true })
+      return
+    }
+    // --- Waitlist gate (open onboard unless WAITLIST_REQUIRED) ---
+    // if (pending/on-hold/rejected) → /waiting
+    // if (none) → /join-waitlist
+    if (!WAITLIST_REQUIRED) {
       navigate(nextPath.startsWith('/') ? nextPath : '/dashboard', { replace: true })
       return
     }
@@ -144,17 +156,31 @@ const LoginPage: React.FC = () => {
     }
     setBusy(true)
     const result = isSignup
-      ? await signUpWithEmail({ email, password, fullName })
+      ? await signUpWithEmail({
+          email,
+          password,
+          fullName,
+          emailRedirectTo: authCallbackUrl(nextPath),
+        })
       : await signInWithEmail(email, password)
-    setBusy(false)
     if (result.error) {
+      setBusy(false)
       setError(result.error)
       return
     }
     if ('needsEmailConfirm' in result && result.needsEmailConfirm) {
-      setInfo('Check your inbox to confirm this email, then sign in. If you are new, join the waitlist after confirming.')
+      setBusy(false)
+      setInfo('Check your inbox to confirm this email, then sign in to open your dashboard.')
       return
     }
+    // Session exists — resolve waitlist/status before the effect navigates so
+    // ProtectedRoute never sees a transient "none" and bounces back to login.
+    try {
+      await refreshUserStatus()
+    } catch {
+      /* navigate effect still handles open-waitlist signed-in users */
+    }
+    setBusy(false)
   }
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -212,8 +238,8 @@ const LoginPage: React.FC = () => {
           {isForgot
             ? 'Enter your email and we’ll send you a password reset link.'
             : isSignup
-              ? 'Sign up with email. Dashboard access still goes through the waitlist unless you were invited.'
-              : 'Sign in with email or Gmail. New here? Create an account, then join the waitlist.'}
+              ? 'Create an account with email, then open your dashboard.'
+              : 'Sign in with email or Gmail to open your dashboard.'}
         </p>
 
         {!isForgot && (
@@ -384,9 +410,14 @@ const LoginPage: React.FC = () => {
         )}
 
         <p className="mt-8 text-[10px] font-black uppercase tracking-[0.35em] text-white/25">
+          <Link to="/dashboard" className="hover:text-clay transition-colors">
+            Open dashboard
+          </Link>
+          {/* Waitlist paused — re-enable with VITE_WAITLIST_REQUIRED=true
           <Link to="/join-waitlist" className="hover:text-clay transition-colors">
             Join the waitlist
           </Link>
+          */}
           <span className="mx-3">·</span>
           <a href={landingUrl('/')} className="hover:text-clay transition-colors">
             Home

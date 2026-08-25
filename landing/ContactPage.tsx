@@ -46,9 +46,10 @@ const ContactPage: React.FC = () => (
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">Product access</p>
             <p className="text-white/70">
-              Membership is invite-gated.{' '}
-              <Link to="/join-waitlist" className="text-clay hover:underline">Join the waitlist</Link>
-              {' '}or sign in from the header.
+              Create an account and open the dashboard.{' '}
+              <Link to="/login" className="text-clay hover:underline">Get started</Link>
+              {' '}from the header, or sign in if you already have an account.
+              {/* Waitlist paused — Join the waitlist via /join-waitlist when VITE_WAITLIST_REQUIRED=true */}
             </p>
           </div>
         </div>

@@ -157,6 +157,26 @@ export const staticPageMeta: Record<string, PageMeta> = {
     description: 'Invite-only partner portal to publish offers and see how members interact with them.',
     robots: 'noindex, nofollow',
   },
+  '/ww': {
+    title: 'WanderWorld ops | Yureka.One',
+    description: 'Invite-only WanderWorld trips admin and promoter portal.',
+    robots: 'noindex, nofollow',
+  },
+  '/ww/login': {
+    title: 'WanderWorld login | Yureka.One',
+    description: 'Sign in to WanderWorld ops.',
+    robots: 'noindex, nofollow',
+  },
+  '/ww/signup': {
+    title: 'WanderWorld signup | Yureka.One',
+    description: 'Create a WanderWorld ops account (invite required).',
+    robots: 'noindex, nofollow',
+  },
+  '/ww/reset-password': {
+    title: 'WanderWorld reset password | Yureka.One',
+    description: 'Reset your WanderWorld ops password.',
+    robots: 'noindex, nofollow',
+  },
 
   // --- Future pages (serve correct meta even before page components are built) ---
   '/goldback': {

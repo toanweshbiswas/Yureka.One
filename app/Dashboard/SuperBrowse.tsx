@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { Mic, Search } from 'lucide-react'
 import { SUPER_BROWSE_STORES, fetchSuperBrowseStores, type SuperBrowseStore } from '@shared/superBrowseStores'
@@ -8,9 +8,9 @@ import { sanitizeBrowseUrl } from '@shared/inAppBrowse'
 import {
   openStoreBrowse,
   prefetchSuperBrowseLinks,
-  storeBrowseTarget,
   type TrackedOpen,
 } from '@shared/trackedBrowse'
+import { onCatalogUpdate } from '@shared/catalogSync'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { InAppBrowserFrame } from './InAppBrowser'
 
@@ -33,18 +33,13 @@ function CashbackBadge({ pct }: { pct: string }) {
 
 function StoreTile({
   store,
-  tracked,
   userId,
-  onInApp,
+  knownOpen,
 }: {
   store: SuperBrowseStore
-  tracked?: TrackedOpen
   userId: string
-  onInApp: (path: string) => void
+  knownOpen?: TrackedOpen | null
 }) {
-  const target = storeBrowseTarget(store.url, { title: store.name, returnTo: '/dashboard/browse' })
-  if (!target) return null
-
   const className = 'flex flex-col items-center gap-2'
   const inner = (
     <>
@@ -58,8 +53,8 @@ function StoreTile({
           domain={store.domain}
           name={store.name}
           logoUrl={store.logoUrl}
-          className="flex h-9 w-9 items-center justify-center"
-          imgClassName="h-9 w-9 object-contain"
+          className="flex h-[72%] w-[72%] max-h-11 max-w-11 items-center justify-center"
+          imgClassName="h-full w-full object-contain p-[6%]"
         />
         {store.cashback && <CashbackBadge pct={store.cashback} />}
       </motion.span>
@@ -69,35 +64,22 @@ function StoreTile({
     </>
   )
 
-  if (target.mode === 'external') {
-    return (
-      <button
-        type="button"
-        className={className}
-        onClick={() =>
-          void openStoreBrowse(store.url, userId, {
-            knownOpenUrl: tracked?.openUrl,
-            title: store.name,
-            returnTo: '/dashboard/browse',
-          })
-        }
-      >
-        {inner}
-      </button>
-    )
-  }
-
   return (
     <button
       type="button"
       className={className}
-      onClick={() =>
+      onClick={() => {
+        const cue = knownOpen?.affiliate ? knownOpen.openUrl : undefined
+        const cueOk = Boolean(cue)
         void openStoreBrowse(store.url, userId, {
           title: store.name,
           returnTo: '/dashboard/browse',
-          navigate: onInApp,
+          forceExternal: true,
+          // CueLinks when catalog has a link; otherwise standard store URL.
+          knownOpenUrl: cueOk ? cue : undefined,
+          preferWeb: !cueOk,
         })
-      }
+      }}
     >
       {inner}
     </button>
@@ -105,65 +87,63 @@ function StoreTile({
 }
 
 export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean }) {
-  const navigate = useNavigate()
   const { user } = useSupabase()
   const userId = user?.id || ''
   const [draft, setDraft] = useState('')
-  const [links, setLinks] = useState<Record<string, TrackedOpen>>({})
   const [stores, setStores] = useState<SuperBrowseStore[]>(SUPER_BROWSE_STORES)
+  const [trackedLinks, setTrackedLinks] = useState<Record<string, TrackedOpen>>({})
 
   useEffect(() => {
     let cancelled = false
-    void fetchSuperBrowseStores().then((next) => {
-      if (!cancelled && next.length) setStores(next)
-    })
+    const loadStores = () => {
+      void fetchSuperBrowseStores().then((next) => {
+        if (!cancelled && next.length) setStores(next)
+      })
+    }
+    loadStores()
+    const stop = onCatalogUpdate(() => loadStores())
     return () => {
       cancelled = true
+      stop()
     }
   }, [])
 
   useEffect(() => {
-    // Landing on Browse should keep the Super Browse grid in view after store returns.
+    if (!userId) return
+    let cancelled = false
+    const loadLinks = () => {
+      void prefetchSuperBrowseLinks(userId).then((links) => {
+        if (!cancelled) setTrackedLinks(links)
+      })
+    }
+    loadLinks()
+    const stop = onCatalogUpdate(() => loadLinks())
+    return () => {
+      cancelled = true
+      stop()
+    }
+  }, [userId])
+
+  useEffect(() => {
+    // Landing on Browse should keep the Explore brands grid in view after store returns.
     void import('@shared/dashboardScroll').then((m) => {
       m.restoreDashboardPosition({ pathname: '/dashboard/browse' })
     })
   }, [])
 
-  useEffect(() => {
-    if (!userId) return
-    const run = () => {
-      prefetchSuperBrowseLinks(userId).then((next) => {
-        if (!cancelled) setLinks(next)
-      })
-    }
-    let cancelled = false
-    let idle = 0
-    let timer = 0
-    if (typeof requestIdleCallback === 'function') {
-      idle = requestIdleCallback(run, { timeout: 5000 })
-    } else {
-      timer = window.setTimeout(run, 1200)
-    }
-    return () => {
-      cancelled = true
-      if (idle && typeof cancelIdleCallback === 'function') cancelIdleCallback(idle)
-      if (timer) window.clearTimeout(timer)
-    }
-  }, [userId])
-
   const openDraft = () => {
     const url = sanitizeBrowseUrl(draft.includes('://') ? draft : `https://${draft}`)
     if (!url) return
-    void openStoreBrowse(url, userId, { returnTo: '/dashboard/browse', navigate })
+    void openStoreBrowse(url, userId, {
+      returnTo: '/dashboard/browse',
+      forceExternal: true,
+    })
   }
 
-  const flipkartDemo = storeBrowseTarget('https://www.flipkart.com/', {
-    title: 'Flipkart',
-    returnTo: '/dashboard/browse',
-  })
-
   return (
-    <div id="super-browse" className="space-y-5 scroll-mt-24">
+    <div id="explore-brands" className="space-y-5 scroll-mt-24">
+      {/* Legacy hash anchors from older deep links */}
+      <span id="super-browse" className="sr-only" aria-hidden />
       {showChrome && (
         <form
           onSubmit={(e) => {
@@ -187,7 +167,7 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
       )}
 
       <div>
-        <h2 className="text-[1.65rem] font-semibold tracking-[-0.04em] text-white">Super Browse</h2>
+        <h2 className="text-[1.65rem] font-semibold tracking-[-0.04em] text-white">Explore brands</h2>
         <p className="mt-0.5 text-[13px] text-white/45">Browse every store from one place.</p>
       </div>
 
@@ -196,9 +176,8 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
           <StoreTile
             key={store.id}
             store={store}
-            tracked={links[store.id]}
             userId={userId}
-            onInApp={navigate}
+            knownOpen={trackedLinks[store.id]}
           />
         ))}
       </div>
@@ -208,37 +187,27 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
           to="/dashboard/offers?tab=marketplace"
           className="rounded-2xl bg-[linear-gradient(90deg,#5b6cff_0%,#7a4dff_100%)] px-4 py-3 text-center text-[13px] font-semibold text-white"
         >
-          See all stores →
+          Explore all brands →
         </Link>
-        {flipkartDemo?.mode === 'in-app' ? (
-          <button
-            type="button"
-            className="rounded-2xl border border-white/20 bg-transparent px-4 py-3 text-center text-[13px] font-semibold text-white"
-            onClick={() =>
-              void openStoreBrowse('https://www.flipkart.com/', userId, {
-                title: 'Flipkart',
-                returnTo: '/dashboard/browse',
-                navigate,
-              })
-            }
-          >
-            Show Demo
-          </button>
-        ) : (
-          <button
-            type="button"
-            className="rounded-2xl border border-white/20 bg-transparent px-4 py-3 text-center text-[13px] font-semibold text-white"
-            onClick={() =>
-              void openStoreBrowse('https://www.flipkart.com/', userId, {
-                knownOpenUrl: links.flipkart?.openUrl,
-                title: 'Flipkart',
-                returnTo: '/dashboard/browse',
-              })
-            }
-          >
-            Show Demo
-          </button>
-        )}
+        <button
+          type="button"
+          className="rounded-2xl border border-white/20 bg-transparent px-4 py-3 text-center text-[13px] font-semibold text-white"
+          onClick={() => {
+            const cue = trackedLinks.flipkart?.affiliate
+              ? trackedLinks.flipkart.openUrl
+              : undefined
+            const cueOk = Boolean(cue)
+            void openStoreBrowse('https://www.flipkart.com/', userId, {
+              title: 'Flipkart',
+              returnTo: '/dashboard/browse',
+              forceExternal: true,
+              knownOpenUrl: cueOk ? cue : undefined,
+              preferWeb: !cueOk,
+            })
+          }}
+        >
+          Open Flipkart
+        </button>
       </div>
 
       {showChrome && (

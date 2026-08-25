@@ -84,7 +84,7 @@ if [[ ! -f /etc/ssl/yureka-origin/fullchain.pem ]]; then
     -keyout /etc/ssl/yureka-origin/privkey.pem \
     -out /etc/ssl/yureka-origin/fullchain.pem \
     -subj "/CN=yureka.one" \
-    -addext "subjectAltName=DNS:yureka.one,DNS:www.yureka.one,DNS:app.yureka.one,DNS:admin.yureka.one"
+    -addext "subjectAltName=DNS:yureka.one,DNS:www.yureka.one,DNS:app.yureka.one,DNS:admin.yureka.one,DNS:brand.yureka.one,DNS:wanderworld.yureka.one"
 fi
 
 # Install nginx config (includes :443). Prefer real LE certs when present.
@@ -119,5 +119,7 @@ echo "Public URLs:"
 echo "  https://yureka.one/            (landing)"
 echo "  https://app.yureka.one/        (product)"
 echo "  https://admin.yureka.one/      (admin)"
+echo "  https://brand.yureka.one/      (brand portal)"
+echo "  https://wanderworld.yureka.one/ww (WanderWorld ops)"
 echo "  https://13-57-223-228.sslip.io/ (temporary fallback)"
 echo "DNS guide: docs/CLOUDFLARE_DNS.md"

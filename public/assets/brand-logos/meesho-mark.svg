@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Meesho">
+  <rect width="128" height="128" rx="28" fill="#4A1A5C"/>
+  <path fill="#F4A6C8" d="M28 86V42h14.2l13.4 28.6L69 42H83.2v44H71.6V58.4L58.4 86H50.8L37.6 58.4V86H28z"/>
+  <circle cx="98" cy="74" r="10" fill="#F4A6C8"/>
+</svg>

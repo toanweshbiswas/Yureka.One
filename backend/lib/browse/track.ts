@@ -1,7 +1,8 @@
 import { listCueLinksOffersForHost } from '../cuelinks/client.js'
 import { listOffers as listGoldbackOffers, recordClick } from '../goldback/store.js'
-import { browseHost, sanitizeBrowseUrl, stampAffiliateSubId } from '../../../shared/inAppBrowse.js'
+import { browseHost, isAffiliateRedirectUrl, sanitizeBrowseUrl, stampAffiliateSubId } from '../../../shared/inAppBrowse.js'
 import { SUPER_BROWSE_STORES } from '../../../shared/superBrowseStores.js'
+import { listSuperBrowseStores } from '../superBrowse/store.js'
 
 export type TrackedOpen = {
   openUrl: string
@@ -41,7 +42,10 @@ export async function resolveTrackedOpen(
       const bHit = hostMatches(b.url || b.affiliateUrl, host) ? 0 : 1
       return aHit - bHit
     })
-    const aff = ranked.find((o) => o.affiliateUrl)?.affiliateUrl
+    const aff = ranked.find((o) => {
+      const link = sanitizeBrowseUrl(o.affiliateUrl)
+      return Boolean(link && isAffiliateRedirectUrl(link))
+    })?.affiliateUrl
     if (aff) {
       openUrl = stampAffiliateSubId(aff, userId)
       affiliate = true
@@ -72,8 +76,27 @@ export async function resolveTrackedOpen(
 
 export async function resolveSuperBrowseLinks(userId: string) {
   const links: Record<string, TrackedOpen> = {}
-  for (const store of SUPER_BROWSE_STORES) {
-    links[store.id] = await resolveTrackedOpen(store.url, userId, { record: false })
+  let stores = SUPER_BROWSE_STORES
+  try {
+    const live = await listSuperBrowseStores()
+    if (live.length) {
+      stores = live.map((s) => ({
+        id: s.id,
+        name: s.name,
+        domain: s.domain,
+        url: s.url,
+        cashback: s.cashback || undefined,
+        bg: s.bg,
+        logoUrl: s.logoUrl,
+      }))
+    }
+  } catch {
+    /* seed fallback */
   }
+  await Promise.all(
+    stores.map(async (store) => {
+      links[store.id] = await resolveTrackedOpen(store.url, userId, { record: false })
+    }),
+  )
   return links
 }

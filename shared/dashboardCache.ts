@@ -44,6 +44,16 @@ export function cacheSet<T>(key: string, data: T) {
 export function cacheInvalidate(prefix?: string) {
   if (!prefix) {
     memory.clear()
+    try {
+      const remove: string[] = []
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const k = sessionStorage.key(i)
+        if (k?.startsWith('yureka-cache:')) remove.push(k)
+      }
+      remove.forEach((k) => sessionStorage.removeItem(k))
+    } catch {
+      /* ignore */
+    }
     return
   }
   for (const k of [...memory.keys()]) {

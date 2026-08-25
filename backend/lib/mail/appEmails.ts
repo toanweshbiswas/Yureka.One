@@ -171,6 +171,36 @@ export async function sendBrandInviteEmail(opts: {
   })
 }
 
+export async function sendWanderworldInviteEmail(opts: {
+  to: string
+  role: string
+  invitedBy?: string | null
+}) {
+  const urls = mailUrls()
+  const signupUrl = `${urls.wwSignup}&email=${encodeURIComponent(opts.to)}`
+  const inviter = (opts.invitedBy || '').trim()
+  const who = inviter ? `${inviter} invited you` : 'You have been invited'
+  const roleLabel = String(opts.role || 'promoter')
+  const { html } = brandedEmail({
+    preheader: `${who} to WanderWorld ops as ${roleLabel}`,
+    heading: 'Join WanderWorld',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi there,</p>
+      <p style="color:#444;line-height:1.55">${who} to the <strong>WanderWorld</strong> trips portal as <strong>${roleLabel}</strong>. Create an account with this email (or sign in if you already have one) on <strong>wanderworld.yureka.one</strong> — not the member app.</p>
+    `,
+    ctaLabel: 'Open WanderWorld',
+    ctaUrl: signupUrl,
+    footerNote: `Already have a password? Sign in: ${urls.wwLogin}`,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `You're invited to WanderWorld ops (${roleLabel})`,
+    text: `Hi,\n\n${who} to WanderWorld ops as ${roleLabel}.\nCreate an account on wanderworld.yureka.one:\n${signupUrl}\n\nSign in: ${urls.wwLogin}\n\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
 export async function sendWaitlistRejectedEmail(opts: { to: string; fullName?: string | null }) {
   const name = firstName(opts.fullName)
   const urls = mailUrls()
@@ -379,6 +409,138 @@ export async function sendGiftCardSenderConfirmationEmail(opts: {
     to: opts.to,
     subject: `Gift card sent to ${recipient}`,
     text: `Hi ${name},\n\nYour ${opts.productTitle} gift card (${amount}) was emailed to ${recipient} (${opts.recipientEmail}).\n\nView order:\n${opts.orderUrl}\n\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendDeletionRequestReceivedEmail(opts: {
+  to: string
+  fullName?: string | null
+  retentionDays: number
+}) {
+  const name = firstName(opts.fullName)
+  const urls = mailUrls()
+  const { html } = brandedEmail({
+    preheader: 'We received your account deletion request',
+    heading: 'Deletion request received',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi ${name},</p>
+      <p style="color:#444;line-height:1.55">We received your request to delete your Yureka account. An admin will review it. If approved, your data is held for <strong>${opts.retentionDays} days</strong> and then permanently deleted.</p>
+      <p style="color:#444;line-height:1.55">You can cancel from Profile while the request is still pending.</p>
+    `,
+    ctaLabel: 'Open profile',
+    ctaUrl: `${urls.app}/dashboard/profile`,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: 'We received your Yureka deletion request',
+    text: `Hi ${name},\n\nWe received your account deletion request. An admin will review it. If approved, data is held for ${opts.retentionDays} days then permanently deleted.\n\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendDeletionRequestAdminEmail(opts: {
+  to: string
+  memberEmail: string
+  fullName?: string | null
+  reason?: string | null
+  requestId: string
+}) {
+  const urls = mailUrls()
+  const who = opts.fullName ? `${opts.fullName} (${opts.memberEmail})` : opts.memberEmail
+  const reason = opts.reason ? `<p style="color:#444;line-height:1.55">Reason: ${opts.reason}</p>` : ''
+  const { html } = brandedEmail({
+    preheader: `Deletion request from ${opts.memberEmail}`,
+    heading: 'Account deletion needs review',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55"><strong>${who}</strong> asked to delete their account.</p>
+      ${reason}
+      <p style="color:#444;line-height:1.55">Request id: ${opts.requestId}</p>
+    `,
+    ctaLabel: 'Open admin deletions',
+    ctaUrl: `${urls.admin}/admin?tab=deletions`,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Deletion request: ${opts.memberEmail}`,
+    text: `${who} requested account deletion.\nReason: ${opts.reason || '—'}\nRequest: ${opts.requestId}\n\nReview: ${urls.admin}/admin?tab=deletions\n\n— Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendDeletionApprovedEmail(opts: {
+  to: string
+  fullName?: string | null
+  purgeAt: string
+  retentionDays: number
+}) {
+  const name = firstName(opts.fullName)
+  const when = new Date(opts.purgeAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })
+  const { html } = brandedEmail({
+    preheader: `Your account will be deleted after ${opts.retentionDays} days`,
+    heading: 'Deletion approved',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi ${name},</p>
+      <p style="color:#444;line-height:1.55">Your deletion request was approved. Access is suspended. We keep a copy of your records until <strong>${when}</strong> (${opts.retentionDays}-day retention), then permanently delete them.</p>
+      <p style="color:#444;line-height:1.55">Contact support@yureka.one before that date if this was a mistake.</p>
+    `,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: 'Yureka account deletion approved',
+    text: `Hi ${name},\n\nYour deletion request was approved. Records are retained until ${when}, then permanently deleted.\n\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendDeletionRejectedEmail(opts: {
+  to: string
+  fullName?: string | null
+  note?: string | null
+}) {
+  const name = firstName(opts.fullName)
+  const urls = mailUrls()
+  const note = opts.note
+    ? `<p style="color:#444;line-height:1.55">Note from admin: ${opts.note}</p>`
+    : ''
+  const { html } = brandedEmail({
+    preheader: 'Your deletion request was not approved',
+    heading: 'Deletion request declined',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi ${name},</p>
+      <p style="color:#444;line-height:1.55">Your account deletion request was not approved. Your account remains active.</p>
+      ${note}
+    `,
+    ctaLabel: 'Open dashboard',
+    ctaUrl: urls.appDashboard,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: 'Yureka deletion request declined',
+    text: `Hi ${name},\n\nYour account deletion request was not approved. Your account remains active.\n${opts.note ? `Note: ${opts.note}\n` : ''}\n— Team Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendDeletionPurgedEmail(opts: { to: string; fullName?: string | null }) {
+  const name = firstName(opts.fullName)
+  const { html } = brandedEmail({
+    preheader: 'Your Yureka account data has been deleted',
+    heading: 'Account permanently deleted',
+    bodyHtml: `
+      <p style="color:#444;line-height:1.55">Hi ${name},</p>
+      <p style="color:#444;line-height:1.55">Your Yureka account and associated personal records have been permanently deleted after the retention period.</p>
+    `,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: 'Your Yureka account has been deleted',
+    text: `Hi ${name},\n\nYour Yureka account and associated personal records have been permanently deleted.\n\n— Team Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })

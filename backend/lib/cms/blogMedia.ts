@@ -57,7 +57,7 @@ export async function uploadBlogImage(opts: {
   buffer: Buffer
   filename?: string
   contentType?: string
-  kind?: 'cover' | 'inline'
+  kind?: 'cover' | 'inline' | 'club' | 'wanderworld'
 }): Promise<{ url: string; path: string; bucket: string }> {
   const contentType = String(opts.contentType || '').toLowerCase() || 'image/jpeg'
   if (!ALLOWED[contentType]) {
@@ -71,7 +71,14 @@ export async function uploadBlogImage(opts: {
   const ext = extFrom(opts.filename || '', contentType)
   if (!ext) throw new Error('Could not determine image type')
 
-  const folder = opts.kind === 'inline' ? 'inline' : 'covers'
+  const folder =
+    opts.kind === 'inline'
+      ? 'inline'
+      : opts.kind === 'club'
+        ? 'club'
+        : opts.kind === 'wanderworld'
+          ? 'wanderworld'
+          : 'covers'
   const path = `${folder}/${randomUUID()}.${ext}`
   const sb = serviceClient()
   await ensureBucket(sb)

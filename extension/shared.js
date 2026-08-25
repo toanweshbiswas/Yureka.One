@@ -61,3 +61,32 @@ function offerCount(data) {
   const gold = (data.goldback && data.goldback.length) || 0
   return market + gold
 }
+
+/** Chrome Web Store / Affiliate Ads policy — consent before affiliate links. */
+const AFFILIATE_CONSENT_KEY = 'yurekaAffiliateConsent'
+
+function getAffiliateConsent() {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.sync.get([AFFILIATE_CONSENT_KEY], (data) => {
+        resolve(Boolean(data && data[AFFILIATE_CONSENT_KEY]))
+      })
+    } catch {
+      resolve(false)
+    }
+  })
+}
+
+function setAffiliateConsent(accepted) {
+  return new Promise((resolve) => {
+    try {
+      chrome.storage.sync.set({ [AFFILIATE_CONSENT_KEY]: Boolean(accepted) }, () => resolve())
+    } catch {
+      resolve()
+    }
+  })
+}
+
+const AFFILIATE_DISCLOSURE =
+  'Affiliate disclosure: Some deal links are affiliate links (including CueLinks partner programs). If you click and buy, Yureka may earn a commission at no extra cost to you.'
+

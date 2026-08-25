@@ -9,9 +9,10 @@ import {
 } from './store.js'
 import { productUserIdOrFail, resolveRequestEmail } from '../auth/userId.js'
 import { notifyGoldbackEarn } from '../notifications/notify.js'
+import { verifyAdminToken } from '../admin/auth.js'
 
-function requireUserId(req: Request, res: Response): string | null {
-  const result = productUserIdOrFail(req)
+async function requireUserId(req: Request, res: Response): Promise<string | null> {
+  const result = await productUserIdOrFail(req)
   if ('error' in result) {
     res.status(401).json({
       data: null,
@@ -41,9 +42,19 @@ function fail(res: Response, status: number, error: string) {
   })
 }
 
+function clientEarnAllowed(): boolean {
+  return process.env.ALLOW_CLIENT_GOLDBACK_EARN === 'true'
+}
+
 export function registerGoldbackRoutes(app: Express) {
   app.get('/api/goldback/health', (_req, res) => {
-    ok(res, { mode: goldbackBackendMode() })
+    ok(res, {
+      mode: goldbackBackendMode(),
+      openai: Boolean(
+        process.env.OPENAI_API_KEY || process.env.OpenAI_API_KEY || process.env.OPENAI_KEY,
+      ),
+      clientEarn: clientEarnAllowed(),
+    })
   })
 
   app.get('/api/goldback/offers', async (_req, res) => {
@@ -57,7 +68,7 @@ export function registerGoldbackRoutes(app: Express) {
 
   app.get('/api/goldback/balance', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const balance = await getBalance(userId)
       ok(res, balance)
@@ -68,7 +79,7 @@ export function registerGoldbackRoutes(app: Express) {
 
   app.get('/api/goldback/ledger', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const ledger = await listLedger(userId)
       ok(res, ledger)
@@ -79,7 +90,7 @@ export function registerGoldbackRoutes(app: Express) {
 
   app.post('/api/goldback/click', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const offerId = String(req.body?.offerId || '')
       if (!offerId) return fail(res, 400, 'offerId is required')
@@ -90,9 +101,33 @@ export function registerGoldbackRoutes(app: Express) {
     }
   })
 
+  /**
+   * Client self-serve earn is disabled by default (fraud). Credits land via
+   * admin adjust or ALLOW_CLIENT_GOLDBACK_EARN=true (dev only).
+   * Admin may POST with X-Admin-Session to credit a specific userId.
+   */
   app.post('/api/goldback/earn', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const adminToken = req.header('x-admin-session') || req.header('X-Admin-Session')
+      const admin = verifyAdminToken(adminToken)
+      if (admin && (admin.role === 'admin' || admin.role === 'superadmin')) {
+        const targetUserId = String(req.body?.userId || '').trim()
+        const offerId = String(req.body?.offerId || '')
+        if (!targetUserId || !offerId) return fail(res, 400, 'userId and offerId are required')
+        const idempotencyKey = String(req.body?.idempotencyKey || `admin-earn:${targetUserId}:${offerId}:${Date.now()}`)
+        const result = await creditEarn(targetUserId, offerId, idempotencyKey)
+        return ok(res, result)
+      }
+
+      if (!clientEarnAllowed()) {
+        return fail(
+          res,
+          403,
+          'Goldback earns are applied after verified conversion — self-serve earn is disabled'
+        )
+      }
+
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const offerId = String(req.body?.offerId || '')
       const idempotencyKey = String(req.body?.idempotencyKey || `earn:${userId}:${offerId}`)

@@ -6,6 +6,7 @@ import {
   Callout,
   EmptyState,
   FieldLabel,
+  ImageUrlField,
   PageHeader,
   Surface,
   fieldClass,
@@ -220,18 +221,18 @@ export default function SuperBrowseTab({ token, canWrite }: { token: string | nu
               type="url"
               value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })}
-              placeholder="https://www.amazon.in/"
+              placeholder="https://www.amazon.in/ap/signin"
             />
           </label>
-          <label className="block md:col-span-2">
-            <FieldLabel>Brand logo URL (optional — favicon used if empty)</FieldLabel>
-            <input
-              className={fieldClass}
-              value={form.logoUrl}
-              onChange={(e) => setForm({ ...form, logoUrl: e.target.value })}
-              placeholder="https://…"
-            />
-          </label>
+          <ImageUrlField
+            className="md:col-span-2"
+            label="Brand logo (optional — favicon used if empty)"
+            value={form.logoUrl}
+            onChange={(logoUrl) => setForm({ ...form, logoUrl })}
+            token={token}
+            canWrite={canWrite}
+            placeholder="or paste a logo URL"
+          />
           <label className="block">
             <FieldLabel>Cashback badge</FieldLabel>
             <input

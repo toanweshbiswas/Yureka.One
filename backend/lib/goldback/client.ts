@@ -9,15 +9,27 @@ interface Envelope<T> {
   timestamp?: string
 }
 
-async function goldbackFetch<T>(
+// Match api/client.ts: relative /api on deployed hosts; never call localhost from prod.
+const RAW_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
+const onLocalhost =
+  typeof window !== 'undefined' &&
+  /^(localhost|127\.|0\.0\.0\.0|\[?::1\]?)/.test(window.location.hostname)
+const pointsAtLocalhost = /^https?:\/\/(localhost|127\.|0\.0\.0\.0|\[?::1\]?)/i.test(RAW_BASE)
+const BASE_URL = !onLocalhost && pointsAtLocalhost ? '' : RAW_BASE
+
+async function goldbackFetchOnce<T>(
   path: string,
   userId: string,
-  init?: RequestInit
+  init: RequestInit | undefined,
+  timeoutMs: number,
 ): Promise<Envelope<T>> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
     const token = getAuthAccessToken()
-    const res = await fetch(path, {
+    const res = await fetch(`${BASE_URL}${path}`, {
       ...init,
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'x-user-id': userId,
@@ -45,14 +57,39 @@ async function goldbackFetch<T>(
       }
     }
     return json as Envelope<T>
-  } catch {
+  } catch (e: any) {
+    const aborted = e?.name === 'AbortError'
     return {
       data: null,
       status: 503,
-      error: 'Goldback API unreachable',
+      error: aborted ? 'Goldback API timed out — retrying…' : 'Goldback API unreachable',
       timestamp: new Date().toISOString(),
     }
+  } finally {
+    clearTimeout(timer)
   }
+}
+
+async function goldbackFetch<T>(
+  path: string,
+  userId: string,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<Envelope<T>> {
+  const { timeoutMs = 25_000, ...rest } = init || {}
+  const first = await goldbackFetchOnce<T>(path, userId, rest, timeoutMs)
+  // One retry on cold-start / proxy blips (unreachable or abort).
+  if (first.status === 503) {
+    await new Promise((r) => setTimeout(r, 800))
+    const second = await goldbackFetchOnce<T>(path, userId, rest, Math.max(timeoutMs, 35_000))
+    if (second.error === 'Goldback API timed out — retrying…') {
+      return { ...second, error: 'Goldback API timed out' }
+    }
+    return second
+  }
+  if (first.error === 'Goldback API timed out — retrying…') {
+    return { ...first, error: 'Goldback API timed out' }
+  }
+  return first
 }
 
 export function formatPaise(paise: number): string {

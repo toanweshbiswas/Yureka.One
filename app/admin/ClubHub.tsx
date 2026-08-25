@@ -1,15 +1,19 @@
 import React from 'react'
-import { Megaphone, Store, Building2, Compass } from 'lucide-react'
+import { Megaphone, Store, Building2, Compass, BadgePercent } from 'lucide-react'
 import BrandsTab from './BrandsTab'
 import SuperBrowseTab from './SuperBrowseTab'
+import CueLinksCampaignsTab from './CueLinksCampaignsTab'
 import PushTab from './PushTab'
+import WanderWorldTab from './WanderWorldTab'
 import { PageHeader, pressClass } from './ui'
 
-export type ClubSubTab = 'offers' | 'brands' | 'push' | 'super-browse'
+export type ClubSubTab = 'offers' | 'brands' | 'push' | 'super-browse' | 'cuelinks' | 'wanderworld'
 
 const SUBS: { id: ClubSubTab; label: string; icon: typeof Store }[] = [
   { id: 'offers', label: 'Offers', icon: Store },
   { id: 'brands', label: 'Brands', icon: Building2 },
+  { id: 'wanderworld', label: 'WanderWorld', icon: Compass },
+  { id: 'cuelinks', label: 'CueLinks', icon: BadgePercent },
   { id: 'push', label: 'Push', icon: Megaphone },
   { id: 'super-browse', label: 'Super Browse', icon: Compass },
 ]
@@ -31,7 +35,7 @@ export default function ClubHub({
     <section className="space-y-6">
       <PageHeader
         title="Club"
-        subtitle="Offers, partner brands, Super Browse catalog, and member push — one place."
+        subtitle="Offers, partner brands, WanderWorld trips, CueLinks commissions, Super Browse catalog, and member push."
       />
       <div className="flex flex-wrap gap-2">
         {SUBS.map((s) => {
@@ -53,6 +57,8 @@ export default function ClubHub({
       </div>
       {sub === 'offers' && offersPanel}
       {sub === 'brands' && <BrandsTab token={token} canWrite={canWrite} />}
+      {sub === 'wanderworld' && <WanderWorldTab token={token} canWrite={canWrite} />}
+      {sub === 'cuelinks' && <CueLinksCampaignsTab token={token} canWrite={canWrite} />}
       {sub === 'push' && <PushTab token={token} canWrite={canWrite} />}
       {sub === 'super-browse' && <SuperBrowseTab token={token} canWrite={canWrite} />}
     </section>

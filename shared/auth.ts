@@ -1,5 +1,11 @@
 import { createClient, type SupabaseClient, type Session, type User } from '@supabase/supabase-js'
-import { appOrigin, brandOrigin, isSplitHostsEnabled, resolveSiteRole } from '@shared/hosts'
+import {
+  appOrigin,
+  brandOrigin,
+  isSplitHostsEnabled,
+  resolveSiteRole,
+  wanderworldOrigin,
+} from '@shared/hosts'
 import { isPasswordRecoveryCallback } from '@shared/oauthHandoff'
 
 const url = (import.meta.env.VITE_SUPABASE_URL || '').trim()
@@ -21,7 +27,7 @@ function shouldDetectSessionInUrl() {
   const role = resolveSiteRole()
   // Only exchange OAuth `?code=` on the app (or combined local) host — never on
   // the marketing site, or PKCE verifier / session land on the wrong origin.
-  return role === 'app' || role === 'brand' || role === 'all'
+  return role === 'app' || role === 'brand' || role === 'wanderworld' || role === 'all'
 }
 
 export function getSupabaseBrowser(): SupabaseClient | null {
@@ -95,6 +101,40 @@ export function brandResetPasswordCallbackUrl() {
       ? window.location.origin
       : brandOrigin()
   return `${origin}/brand/reset-password?next=${encodeURIComponent('/brand')}`
+}
+
+export function wanderworldAuthCallbackUrl(nextPath?: string) {
+  const role =
+    typeof window !== 'undefined'
+      ? resolveSiteRole()
+      : ('wanderworld' as const)
+  const home = role === 'wanderworld' ? '/' : '/ww'
+  const next = (nextPath || home).startsWith('/') ? nextPath || home : `/${nextPath || home}`
+
+  // Local combined SPA — stay on this origin under /ww.
+  if (typeof window !== 'undefined' && !isSplitHostsEnabled()) {
+    return `${window.location.origin}/ww/login?next=${encodeURIComponent(next)}&portal=ww`
+  }
+
+  // Production: bridge via app.yureka.one/ww-oauth (usually already on the Supabase
+  // redirect allowlist). oauthHandoff then sends ?code= to wanderworld *before*
+  // PKCE exchange so the session lands on the ops host.
+  return `${appOrigin()}/ww-oauth?next=${encodeURIComponent(next)}&portal=ww`
+}
+
+export function wanderworldResetPasswordCallbackUrl() {
+  const role =
+    typeof window !== 'undefined'
+      ? resolveSiteRole()
+      : ('wanderworld' as const)
+  const home = role === 'wanderworld' ? '/' : '/ww'
+
+  if (typeof window !== 'undefined' && !isSplitHostsEnabled()) {
+    return `${window.location.origin}/ww/reset-password?next=${encodeURIComponent(home)}&portal=ww`
+  }
+
+  // Prefer direct WW reset URL; also tag portal for handoff if Site URL misroutes.
+  return `${wanderworldOrigin()}/reset-password?next=${encodeURIComponent('/')}&portal=ww`
 }
 
 export async function signInWithGmail(redirectTo?: string): Promise<{ error?: string }> {

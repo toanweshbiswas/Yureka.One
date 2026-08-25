@@ -53,6 +53,9 @@ export interface AdminUserRollup {
   giftSpendInr: number
   offerClicks: number
   lastActiveAt: string | null
+  pwaInstalled: boolean
+  pwaLastSeenAt: string | null
+  pwaPlatform: string | null
 }
 
 export interface AdminGiftOrderRow {
@@ -87,6 +90,7 @@ export interface AdminOverview {
     offerClicks: number
     notifications: number
     activeUsers7d: number
+    pwaInstalled: number
   }
   series: AdminDayPoint[]
   waitlistByStatus: AdminNamedCount[]
@@ -132,12 +136,20 @@ function shortUser(value: string | null | undefined) {
   return v.length > 12 ? `${v.slice(0, 8)}…` : v
 }
 
-async function safe<T>(label: string, fn: () => Promise<T>, fallback: T): Promise<T> {
+async function safe<T>(label: string, fn: () => Promise<T>, fallback: T, ms = 12000): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined
   try {
-    return await fn()
+    return await Promise.race([
+      fn(),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+      }),
+    ])
   } catch (e: any) {
     console.warn(`[admin/overview] ${label}:`, e?.message || e)
     return fallback
+  } finally {
+    if (timer) clearTimeout(timer)
   }
 }
 
@@ -260,6 +272,9 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
     giftSpendInr: number
     offerClicks: number
     lastActiveAt: string | null
+    pwaInstalled: boolean
+    pwaLastSeenAt: string | null
+    pwaPlatform: string | null
   }
   const users = new Map<string, Acc>()
 
@@ -286,6 +301,9 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
         giftSpendInr: 0,
         offerClicks: 0,
         lastActiveAt: null,
+        pwaInstalled: false,
+        pwaLastSeenAt: null,
+        pwaPlatform: null,
       }
       users.set(k, acc)
     }
@@ -319,6 +337,15 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
     if (row.scoreMetrics && typeof row.scoreMetrics === 'object') acc.scoreMetrics = row.scoreMetrics
     else if (meta.scoreMetrics && typeof meta.scoreMetrics === 'object') acc.scoreMetrics = meta.scoreMetrics
     if (!acc.name && meta.name) acc.name = String(meta.name)
+    if (meta.pwaInstalled) {
+      acc.pwaInstalled = true
+      if (typeof meta.pwaLastSeenAt === 'string') {
+        acc.pwaLastSeenAt = meta.pwaLastSeenAt
+        touch(meta.pwaLastSeenAt, acc)
+      }
+      if (typeof meta.pwaFirstSeenAt === 'string') touch(meta.pwaFirstSeenAt, acc)
+      if (typeof meta.pwaPlatform === 'string') acc.pwaPlatform = meta.pwaPlatform
+    }
     touch(row.updatedAt || row.createdAt, acc)
   }
 
@@ -344,9 +371,18 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
   const weekAgo = new Date()
   weekAgo.setUTCDate(weekAgo.getUTCDate() - 7)
   const weekIso = weekAgo.toISOString()
+  const STATUS_RANK: Record<string, number> = {
+    pending: 0,
+    on_hold: 1,
+    accepted: 2,
+    rejected: 3,
+  }
   const userList = [...users.values()]
     .filter((u) => u.key && u.key !== 'unknown')
     .sort((a, b) => {
+      const ra = STATUS_RANK[a.status || ''] ?? 9
+      const rb = STATUS_RANK[b.status || ''] ?? 9
+      if (ra !== rb) return ra - rb
       const as = a.score
       const bs = b.score
       if (as != null && bs != null && bs !== as) return bs - as
@@ -355,6 +391,7 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
       return (b.lastActiveAt || '').localeCompare(a.lastActiveAt || '')
     })
   const activeUsers7d = userList.filter((u) => u.lastActiveAt && u.lastActiveAt >= weekIso).length
+  const pwaInstalled = userList.filter((u) => u.pwaInstalled).length
 
   const activity: AdminActivityEvent[] = []
   for (const row of waitlist.slice(0, 80)) {
@@ -447,6 +484,7 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
       offerClicks: clicks.length,
       notifications: notifications.length,
       activeUsers7d,
+      pwaInstalled,
     },
     series,
     waitlistByStatus: [

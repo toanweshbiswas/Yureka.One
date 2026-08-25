@@ -6,17 +6,19 @@
  *   app.yureka.one               → waitlist / login / dashboard
  *   admin.yureka.one             → backoffice
  *   brand.yureka.one             → partner portal
+ *   wanderworld.yureka.one       → WanderWorld ops (admin/promoters)
  *
  * Temporary sslip.io / nip.io hosts permanently redirect to the production
  * map above (cutover). Localhost stays all-in-one for local/dev.
  */
 
-export type SiteRole = 'landing' | 'app' | 'admin' | 'brand' | 'all'
+export type SiteRole = 'landing' | 'app' | 'admin' | 'brand' | 'wanderworld' | 'all'
 
 const LANDING_HOSTS = new Set(['yureka.one', 'www.yureka.one'])
 const APP_HOSTS = new Set(['app.yureka.one'])
 const ADMIN_HOSTS = new Set(['admin.yureka.one'])
 const BRAND_HOSTS = new Set(['brand.yureka.one'])
+const WANDERWORLD_HOSTS = new Set(['wanderworld.yureka.one'])
 
 export const APP_PATH_PREFIXES = [
   '/login',
@@ -26,9 +28,11 @@ export const APP_PATH_PREFIXES = [
   '/reset-password',
   '/dashboard',
   '/go',
+  '/ww-oauth',
 ] as const
 
 export const BRAND_PATH_PREFIXES = ['/brand'] as const
+export const WANDERWORLD_PATH_PREFIXES = ['/ww'] as const
 
 function trimSlash(url: string) {
   return url.replace(/\/$/, '')
@@ -55,6 +59,10 @@ export function brandOrigin() {
   return envUrl('VITE_BRAND_URL', 'https://brand.yureka.one')
 }
 
+export function wanderworldOrigin() {
+  return envUrl('VITE_WANDERWORLD_URL', 'https://wanderworld.yureka.one')
+}
+
 export function currentHostname() {
   if (typeof window === 'undefined') return ''
   return window.location.hostname.toLowerCase()
@@ -71,6 +79,7 @@ export function resolveSiteRole(hostname = currentHostname()): SiteRole {
   if (isTemporaryPublicHost(hostname)) return 'all'
   if (ADMIN_HOSTS.has(hostname)) return 'admin'
   if (BRAND_HOSTS.has(hostname)) return 'brand'
+  if (WANDERWORLD_HOSTS.has(hostname)) return 'wanderworld'
   if (APP_HOSTS.has(hostname)) return 'app'
   if (LANDING_HOSTS.has(hostname)) return 'landing'
   // Unknown hosts (preview IPs, Elastic IP): keep combined SPA.
@@ -79,7 +88,13 @@ export function resolveSiteRole(hostname = currentHostname()): SiteRole {
 
 export function isSplitHostsEnabled(hostname = currentHostname()) {
   const role = resolveSiteRole(hostname)
-  return role === 'landing' || role === 'app' || role === 'admin' || role === 'brand'
+  return (
+    role === 'landing' ||
+    role === 'app' ||
+    role === 'admin' ||
+    role === 'brand' ||
+    role === 'wanderworld'
+  )
 }
 
 /** Absolute URL helper — same-origin when hosts are combined. */
@@ -107,6 +122,10 @@ export function brandUrl(path = '/brand') {
   return absoluteUrl(brandOrigin(), path)
 }
 
+export function wanderworldUrl(path = '/') {
+  return absoluteUrl(wanderworldOrigin(), path)
+}
+
 function pathStartsWith(pathname: string, prefixes: readonly string[]) {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`))
 }
@@ -119,6 +138,9 @@ export function productionUrlForPath(pathname: string, search = '', hash = '') {
   }
   if (pathStartsWith(pathname, BRAND_PATH_PREFIXES)) {
     return `${brandOrigin()}${rest === '/brand' ? '/brand' : rest}`
+  }
+  if (pathStartsWith(pathname, WANDERWORLD_PATH_PREFIXES)) {
+    return `${wanderworldOrigin()}${rest === '/ww' ? '/' : rest}`
   }
   if (pathStartsWith(pathname, APP_PATH_PREFIXES)) {
     return `${appOrigin()}${rest}`

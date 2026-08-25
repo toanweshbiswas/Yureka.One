@@ -155,11 +155,34 @@ export function registerWaitlistRoutes(app: Express) {
     }
   })
 
+  /**
+   * Public resume helper: existence only — never returns status/PII.
+   * Status is revealed only via authenticated /auth/status or /waitlist/entry.
+   */
+  app.get('/api/v1/waitlist/lookup-status', async (req: Request, res: Response) => {
+    try {
+      const { isRateLimited } = await import('../auth/rateLimit.js')
+      if (isRateLimited(req, 'waitlist-lookup', { limit: 15, windowMs: 15 * 60_000 })) {
+        return fail(res, 429, 'Too many lookups. Try again later.')
+      }
+      const email = String(req.query.email || '').trim().toLowerCase()
+      if (!email || !email.includes('@')) return fail(res, 400, 'email is required')
+      const row = await findWaitlistByEmail(email)
+      // Uniform shape — no status field (prevents accepted/pending oracle).
+      ok(res, { exists: Boolean(row) })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to lookup waitlist status')
+    }
+  })
+
   app.get('/api/v1/waitlist/entry', async (req: Request, res: Response) => {
     try {
-      const email = String(req.query.email || '').trim().toLowerCase()
-      if (!email) return fail(res, 400, 'email is required')
-      const row = await findWaitlistByEmail(email)
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+      const requested = String(req.query.email || '').trim().toLowerCase()
+      if (requested && requested !== auth.email) return fail(res, 403, 'Forbidden')
+      const row = await findWaitlistByEmail(auth.email)
       if (!row) return fail(res, 404, 'Waitlist entry not found')
       ok(res, toPublicWaitlistEntry(row, parseWaitlistMeta(row)))
     } catch (e: any) {
@@ -169,9 +192,12 @@ export function registerWaitlistRoutes(app: Express) {
 
   app.post('/api/v1/waitlist/rank/compute', async (req: Request, res: Response) => {
     try {
-      const email = String(req.body?.email || req.query.email || '').trim().toLowerCase()
-      if (!email) return fail(res, 400, 'email is required')
-      const row = await findWaitlistByEmail(email)
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+      const requested = String(req.body?.email || req.query.email || '').trim().toLowerCase()
+      if (requested && requested !== auth.email) return fail(res, 403, 'Forbidden')
+      const row = await findWaitlistByEmail(auth.email)
       if (!row) return fail(res, 404, 'Waitlist entry not found')
       const all = await listWaitlist({ status: 'all' })
       const result = computeRankFor(row, all)
@@ -184,12 +210,33 @@ export function registerWaitlistRoutes(app: Express) {
 
   app.get('/api/v1/waitlist/referrals', async (req: Request, res: Response) => {
     try {
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+
       const code = String(req.query.code || '').trim()
       if (!code) return fail(res, 400, 'code is required')
+
+      // Ensure the code belongs to the caller (prevents fishing others' referral graphs).
+      const self = await findWaitlistByEmail(auth.email)
+      const selfMeta = self ? parseWaitlistMeta(self) : {}
+      const ownCode = String(selfMeta.personalReferralCode || '').trim()
+      if (!ownCode || ownCode !== code) return fail(res, 403, 'Forbidden')
+
       const all = await listWaitlist({ status: 'all' })
       const referrals = all
         .filter((row) => String(parseWaitlistMeta(row).referredBy || '').trim() === code)
-        .map((row) => toPublicWaitlistEntry(row, parseWaitlistMeta(row)))
+        .map((row) => {
+          const first = String(row.fullName || '')
+            .trim()
+            .split(/\s+/)[0]
+          return {
+            id: row.id,
+            name: first || 'Member',
+            status: row.status === 'on_hold' ? 'on-hold' : row.status,
+            joinedAt: row.createdAt,
+          }
+        })
       ok(res, { code, count: referrals.length, referrals })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to load referrals')
@@ -198,9 +245,40 @@ export function registerWaitlistRoutes(app: Express) {
 
   app.patch('/api/v1/waitlist/:id/metadata', async (req: Request, res: Response) => {
     try {
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+
       const id = String(req.params.id || '').trim()
       if (!id) return fail(res, 400, 'id is required')
-      const patch = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>
+
+      const { findWaitlistById } = await import('../admin/store.js')
+      const existing = await findWaitlistById(id)
+      if (!existing) return fail(res, 404, 'Waitlist entry not found')
+      if (String(existing.email || '').trim().toLowerCase() !== auth.email) {
+        return fail(res, 403, 'Forbidden')
+      }
+
+      // Block privilege / status fields — those are admin-only.
+      const raw = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>
+      const patch: Record<string, unknown> = {}
+      const dob = raw.dateOfBirth ?? raw.date_of_birth
+      if (dob !== undefined) patch.dateOfBirth = dob
+      if (raw.gender !== undefined) patch.gender = raw.gender
+      if (raw.mostUsedFor !== undefined) patch.mostUsedFor = raw.mostUsedFor
+      if (raw.sourceChannel !== undefined) patch.sourceChannel = raw.sourceChannel
+      for (const key of ['pwaInstalled', 'pwaFirstSeenAt', 'pwaLastSeenAt', 'pwaPlatform'] as const) {
+        if (key in raw) patch[key] = raw[key]
+      }
+
+      const mobile = raw.mobileNumber ?? raw.mobile_number
+      if (mobile !== undefined) {
+        const { updateWaitlistUser } = await import('../admin/store.js')
+        await updateWaitlistUser(id, {
+          mobileNumber: mobile == null || mobile === '' ? null : String(mobile),
+        })
+      }
+
       const updated = await patchWaitlistMetadata(id, patch)
       if (!updated) return fail(res, 404, 'Waitlist entry not found')
       ok(res, toPublicWaitlistEntry(updated.row, updated.meta))

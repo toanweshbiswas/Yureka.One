@@ -5,10 +5,11 @@ import { ChevronLeft, ExternalLink, RotateCw } from 'lucide-react'
 import {
   browseHost,
   embedFrameSrc,
+  needsFirstPartyCookies,
   sanitizeBrowseUrl,
 } from '@shared/inAppBrowse'
 import { openTrackedStore } from '@shared/trackedBrowse'
-import { canUseInAppBrowse, systemBrowserLabel } from '@shared/pwaDisplay'
+import { systemBrowserLabel } from '@shared/pwaDisplay'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { InAppGiftCardBar } from './InAppGiftCardBar'
 
@@ -74,21 +75,24 @@ export function InAppBrowserFrame({
   const safeSrc = sanitizeBrowseUrl(src)
   const frameSrc = embedFrameSrc(safeSrc)
   const host = browseHost(safeSrc)
-  const allowEmbed = canUseInAppBrowse()
-  const useExternal = Boolean(safeSrc && (!allowEmbed || !frameSrc || embedFailed))
+  // Flipkart/Amazon never iframe — cookies/login break in third-party frames.
+  const cookieHost = needsFirstPartyCookies(safeSrc)
+  const allowEmbed = Boolean(frameSrc) && !cookieHost
+  const useExternal = Boolean(safeSrc && (!frameSrc || embedFailed || cookieHost))
   const storeName = title || host || 'this store'
 
   const openOutside = useCallback(() => {
-    void openTrackedStore(safeSrc || '', user?.id || '')
+    // Explicit user choice only. Android → Chrome; iOS → https (may still UL if app installed).
+    void openTrackedStore(safeSrc || '', user?.id || '', undefined, undefined, { preferWeb: true })
   }, [safeSrc, user?.id])
 
   const browserName = systemBrowserLabel()
 
   useEffect(() => {
     setEmbedFailed(false)
-    setLoading(Boolean(frameSrc))
+    setLoading(Boolean(frameSrc) && !cookieHost)
     setPageUrl(safeSrc)
-  }, [frameSrc, frameKey, safeSrc])
+  }, [frameSrc, frameKey, safeSrc, cookieHost])
 
   const syncIframeUrl = useCallback(() => {
     const live = readIframePageUrl(iframeRef.current)
@@ -204,11 +208,12 @@ export function InAppBrowserFrame({
         {useExternal ? (
           <div className="flex h-full flex-col items-center justify-center px-7 text-center">
             <p className="max-w-[20rem] text-[17px] font-semibold tracking-[-0.03em] text-white">
-              {storeName} can’t load inside Yureka
+              {cookieHost ? `${storeName} needs a full browser for login` : `${storeName} can’t load inside Yureka`}
             </p>
             <p className="mt-2 max-w-[20rem] text-[14px] leading-snug text-white/50">
-              This store blocks in-app windows (blank page or request limits).
-              Continue in {browserName} to shop as usual.
+              {cookieHost
+                ? `Login cookies only work in a top-level ${browserName} tab — not inside Yureka.`
+                : `This store blocks embedded browsing. Stay here, or open it in ${browserName}.`}
             </p>
             <motion.button
               type="button"
@@ -224,8 +229,8 @@ export function InAppBrowserFrame({
         ) : (
           <>
             {loading && frameSrc && (
-              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white text-[13px] text-black/45">
-                Opening {storeName}…
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-black/10 border-t-black/45" />
               </div>
             )}
             {allowEmbed && frameSrc ? (
@@ -235,9 +240,9 @@ export function InAppBrowserFrame({
                 title={storeName}
                 src={frameSrc}
                 className="absolute inset-0 h-full w-full border-0 bg-white"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-top-navigation-by-user-activation"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads allow-top-navigation-by-user-activation allow-storage-access-by-user-activation"
                 referrerPolicy="no-referrer-when-downgrade"
-                allow="payment; geolocation; clipboard-read; clipboard-write"
+                allow="payment; geolocation; clipboard-read; clipboard-write; storage-access *"
                 onLoad={() => {
                   const el = iframeRef.current
                   if (el && iframeLooksBlocked(el)) setEmbedFailed(true)

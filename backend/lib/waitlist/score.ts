@@ -1,6 +1,7 @@
 import { withNormalizedSpend } from '@shared/scoreMetrics'
 import { findWaitlistByEmail, upsertWaitlistJoin } from '../admin/store.js'
 import { parseWaitlistMeta } from './public.js'
+import { refineYurekaScore } from './scoreRefine.js'
 
 export type ScorePayload = {
   score?: number
@@ -20,24 +21,48 @@ export async function persistScoreToWaitlist(opts: {
   profile?: { name?: string | null } | null
   score: ScorePayload
   notify?: boolean
+  /** When false, skip OpenAI refine (e.g. admin manual overrides). Default true. */
+  refine?: boolean
 }): Promise<number | null> {
   const email = String(opts.email || '').trim().toLowerCase()
-  const scoreNum = Number(opts.score?.score)
-  if (!email || !Number.isFinite(scoreNum)) return null
+  if (!email) return null
+
+  const refined =
+    opts.refine === false ? opts.score : await refineYurekaScore(opts.score)
+
+  let scoreNum = Number(refined?.score)
+  if (!Number.isFinite(scoreNum)) return null
 
   const metrics = withNormalizedSpend(
-    (opts.score?.metrics && typeof opts.score.metrics === 'object'
-      ? opts.score.metrics
+    (refined?.metrics && typeof refined.metrics === 'object'
+      ? refined.metrics
       : {}) as Record<string, unknown>
   )
   const avg = Number(metrics.avg_monthly_spend_inr)
   const existing = await findWaitlistByEmail(email)
   const prevMeta = existing ? parseWaitlistMeta(existing) : {}
+  const prevScore = Number(existing?.yurekaScore)
+  // Blend toward new score so rescans don't thrash the home card (87 ↔ 39).
+  if (Number.isFinite(prevScore) && prevScore >= 0) {
+    const raw = scoreNum
+    const blended = Math.round(prevScore * 0.55 + raw * 0.45)
+    const maxStep = 15
+    const stepped =
+      Math.abs(blended - prevScore) <= maxStep
+        ? blended
+        : prevScore + Math.sign(blended - prevScore) * maxStep
+    metrics.raw_scan_score = raw
+    metrics.prev_score = prevScore
+    metrics.smoothed = true
+    scoreNum = Math.max(0, Math.min(100, stepped))
+  }
   const prevEmailed = Number(prevMeta.scoreEmailedFor)
   const shouldNotify = opts.notify !== false
   const shouldEmail =
     shouldNotify &&
     (!Number.isFinite(prevEmailed) || Math.round(prevEmailed) !== Math.round(scoreNum))
+  const decision =
+    scoreNum >= 70 ? 'Approved' : scoreNum >= 40 ? 'Review' : scoreNum >= 20 ? 'Conditional' : 'Rejected'
 
   await upsertWaitlistJoin({
     email,
@@ -46,7 +71,7 @@ export async function persistScoreToWaitlist(opts: {
     monthlySpend: formatAvgSpend(avg) || (Number.isFinite(avg) ? '₹0/mo' : null),
     meta: {
       ...prevMeta,
-      scoreDecision: opts.score?.decision || null,
+      scoreDecision: decision,
       scoreMetrics: metrics,
       scoredAt: new Date().toISOString(),
     },
@@ -58,7 +83,7 @@ export async function persistScoreToWaitlist(opts: {
       email,
       fullName: opts.profile?.name || existing?.fullName,
       score: scoreNum,
-      decision: opts.score?.decision,
+      decision: decision || undefined,
     })
   }
 
@@ -68,7 +93,7 @@ export async function persistScoreToWaitlist(opts: {
       to: email,
       fullName: opts.profile?.name || existing?.fullName,
       score: scoreNum,
-      decision: opts.score?.decision,
+      decision: decision || undefined,
       metrics,
     })
     if (mail.sent) {
@@ -85,6 +110,9 @@ export async function persistScoreToWaitlist(opts: {
     }
   }
 
-  console.log(`Persisted Yureka Score ${scoreNum} for ${email}`)
+  console.log(
+    `Persisted Yureka Score ${scoreNum} for ${email}` +
+      (metrics.openai_refined ? ' (openai refined)' : ''),
+  )
   return scoreNum
 }

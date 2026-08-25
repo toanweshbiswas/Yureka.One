@@ -4,9 +4,14 @@
   "version": "0.0.0",
   "description": "Cross-cutting React — auth, SEO, footer, errors",
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.23",
     "@supabase/supabase-js": "^2.111.0",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "react": "^19.2.4",
+    "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.4",
-    "react-router-dom": "^7.13.0"
+    "react-router-dom": "^7.13.0",
+    "tailwind-merge": "^3.6.0"
   }
 }

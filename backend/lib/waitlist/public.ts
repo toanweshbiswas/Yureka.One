@@ -33,6 +33,10 @@ export function toPublicWaitlistEntry(row: WaitlistRow, meta?: Record<string, an
     yurekaScore: row.yurekaScore ?? m.yurekaScore ?? undefined,
     scoreDecision: row.scoreDecision || m.scoreDecision || undefined,
     scoreMetrics: m.scoreMetrics && typeof m.scoreMetrics === 'object' ? m.scoreMetrics : undefined,
+    pwaInstalled: Boolean(m.pwaInstalled),
+    pwaFirstSeenAt: typeof m.pwaFirstSeenAt === 'string' ? m.pwaFirstSeenAt : undefined,
+    pwaLastSeenAt: typeof m.pwaLastSeenAt === 'string' ? m.pwaLastSeenAt : undefined,
+    pwaPlatform: typeof m.pwaPlatform === 'string' ? m.pwaPlatform : undefined,
     joinedAt: row.createdAt,
     createdAt: row.createdAt,
   }

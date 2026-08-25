@@ -1,25 +1,43 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'motion/react'
+import {
+  localBrandLogo,
+  normalizeLogoHost,
+  remoteBrandLogoSources,
+} from './localBrandLogos'
 
-/** Ordered logo candidates — custom URL first, then resilient public icon CDNs. */
+function isWeakRemoteFavicon(url: string): boolean {
+  return /duckduckgo\.com\/ip3|google\.com\/s2\/favicons|gstatic\.com\/faviconV2|icons\.duckduckgo\.com/i.test(
+    url,
+  )
+}
+
+/** Ordered logo candidates — local asset first, then custom URL, then high-res CDNs. */
 export function storeLogoSources(domain: string, logoUrl?: string | null): string[] {
-  const host = String(domain || '')
-    .trim()
-    .toLowerCase()
-    .replace(/^https?:\/\//, '')
-    .replace(/^www\./, '')
-    .split('/')[0]
-    .replace(/[^a-z0-9.-]/g, '')
-
+  const host = normalizeLogoHost(domain)
   const out: string[] = []
-  const custom = String(logoUrl || '').trim()
-  if (custom && /^https?:\/\//i.test(custom)) out.push(custom)
-  if (host) {
-    // DuckDuckGo is more reliable than Google s2 in PWAs / Safari ITP.
-    out.push(`https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`)
-    out.push(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=128`)
-    out.push(`https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`)
+  const seen = new Set<string>()
+
+  const push = (url: string | null | undefined) => {
+    const next = String(url || '').trim()
+    if (!next || seen.has(next)) return
+    seen.add(next)
+    out.push(next)
   }
+
+  const custom = String(logoUrl || '').trim()
+  const customOk =
+    custom &&
+    (custom.startsWith('/') || /^https?:\/\//i.test(custom)) &&
+    !isWeakRemoteFavicon(custom)
+
+  // Crisp same-origin marks beat tiny remote favicons every time.
+  push(localBrandLogo(host))
+  if (customOk) push(custom)
+  else if (custom.startsWith('/') || /^https?:\/\//i.test(custom)) push(custom)
+
+  for (const remote of remoteBrandLogoSources(host)) push(remote)
+
   return out
 }
 
@@ -49,7 +67,7 @@ export function BrandLogo({
   name,
   logoUrl,
   className = '',
-  imgClassName = 'h-full w-full object-contain',
+  imgClassName = 'h-full w-full object-contain p-[8%]',
   bg,
   size,
   alt = '',

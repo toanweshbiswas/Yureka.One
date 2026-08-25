@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { ScannerProgress } from './ScannerProgress';
-import { useMergedSpend } from './useMergedSpend';
+import { useExpenseLedger } from './useMergedSpend';
 
 interface ParsedTransaction {
     brandName: string;
@@ -25,18 +25,21 @@ const Bills: React.FC = () => {
         syncLedger,
         ledgerResyncQuota,
     } = useSupabase();
-    const { transactions: mergedTransactions } = useMergedSpend();
+    const { transactions: ledgerRows } = useExpenseLedger();
     
     const [searchQuery, setSearchQuery] = useState('');
 
     const transactions = useMemo(() => {
-        return (mergedTransactions || []).filter((tx: ParsedTransaction) => {
+        return (ledgerRows || []).filter((tx: ParsedTransaction) => {
             const type = (tx.type || '').toLowerCase();
             return type !== 'transaction' && type !== '';
         });
-    }, [mergedTransactions]);
+    }, [ledgerRows]);
 
     const remaining = ledgerResyncQuota?.remaining
+    const used = ledgerResyncQuota?.used ?? 0
+    const limit = ledgerResyncQuota?.limit ?? 5
+    const windowDays = ledgerResyncQuota?.windowDays ?? 15
     const resyncBlocked = remaining === 0
     const nextResync = ledgerResyncQuota?.nextAvailableAt
         ? new Date(ledgerResyncQuota.nextAvailableAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
@@ -109,8 +112,8 @@ const Bills: React.FC = () => {
                 </button>
                 <p className="text-[10px] text-white/35 uppercase tracking-widest text-center sm:text-right">
                     {resyncBlocked
-                        ? `Next resync ${nextResync || 'after 15 days'}`
-                        : `${remaining ?? 2} of 2 resyncs left · 15 days`}
+                        ? `Next resync ${nextResync || `after ${windowDays} days`}`
+                        : `${used} used · ${remaining ?? limit} of ${limit} left · ${windowDays} days`}
                 </p>
                 </div>
             </div>
@@ -136,7 +139,7 @@ const Bills: React.FC = () => {
                                     {error === "AUTH_EXPIRED" 
                                         ? "Grant read-only Gmail access so we can pull bill and subscription emails for your ledger."
                                         : error === "RESYNC_LIMIT"
-                                        ? `You can resync inbox twice every 15 days. Next available ${nextResync || 'soon'}.`
+                                        ? `You can resync inbox ${limit} times every ${windowDays} days. Next available ${nextResync || 'soon'}.`
                                         : error
                                     }
                                 </p>
@@ -157,7 +160,7 @@ const Bills: React.FC = () => {
 
             {/* Scanning Loader Progress */}
             <AnimatePresence>
-                {loading && (
+                {loading && scanProgress > 0 && (
                     <ScannerProgress progress={scanProgress} />
                 )}
             </AnimatePresence>

@@ -3,7 +3,7 @@ import {
     ArrowLeft, User, Building, Check, ArrowRight, Plus, Minus, 
     LayoutGrid, Rocket, ShieldCheck, Gift, Sparkles, HelpCircle, 
     Loader2, CreditCard, Landmark, Share2, Twitter, Instagram, 
-    Send, MessageCircle, Copy, ChevronDown, Calendar,
+    Send, MessageCircle, Copy, ChevronDown,
     Mail, Phone, Trash2, Activity, TrendingUp, DollarSign, Award,
     Percent, Database, Search, RefreshCw, Smartphone, LogIn
 } from 'lucide-react';
@@ -13,6 +13,7 @@ import type { Waitlist as ApiWaitlist, WaitlistJoinResult } from '@backend/lib/a
 import { motion, AnimatePresence } from 'motion/react';
 import { getSupabaseBrowser, signInWithGmail, supabaseConfigured, normalizeWaitlistStatus } from '@shared/auth';
 import { useSupabase } from '@shared/SupabaseProvider';
+import { DateField } from '@shared/DateField';
 import { appUrl, appOrigin, landingUrl } from '@shared/hosts';
 import { requestGmailReadonlyToken } from '@shared/gmailConsent';
 
@@ -415,34 +416,45 @@ const WaitlistPage: React.FC = () => {
         setStep(6);
     };
 
-    /** If this Gmail already applied, skip the form and route by status. */
+    /** If this Gmail already applied, skip the form — status only after login. */
     const resumeIfExistingApplicant = async (email: string, profile?: any): Promise<boolean> => {
         const normalized = email.trim().toLowerCase();
         if (!normalized) return false;
 
-        const res = await api.get<ApiWaitlist>(
+        // Prefer authenticated entry when a session exists (full status, no oracle).
+        const authed = await api.get<ApiWaitlist>(
             `/api/v1/waitlist/entry?email=${encodeURIComponent(normalized)}`,
+            { timeoutMs: 15000 }
+        );
+        if (!isApiError(authed) && authed.data) {
+            const entry = authed.data;
+            const status = normalizeWaitlistStatus(entry.status) || entry.status;
+            rememberWaitlistEmail(entry.email || normalized);
+            if (status === 'accepted') {
+                clearDraft();
+                navigate(`/login?next=${encodeURIComponent('/dashboard')}`, { replace: true });
+                return true;
+            }
+            if (status === 'pending' || status === 'on-hold' || status === 'rejected' || status === 'on_hold') {
+                if (profile) setScannedProfile(profile);
+                showExistingSuccess(entry, true);
+                return true;
+            }
+        }
+
+        // Public: existence only — never trust/status from unauthenticated lookup.
+        const res = await api.get<{ exists: boolean }>(
+            `/api/v1/waitlist/lookup-status?email=${encodeURIComponent(normalized)}`,
             { skipAuth: true, timeoutMs: 15000 }
         );
-        if (isApiError(res) || !res.data) return false;
+        if (isApiError(res) || !res.data?.exists) return false;
 
-        const entry = res.data;
-        const status = normalizeWaitlistStatus(entry.status) || entry.status;
-        rememberWaitlistEmail(entry.email || normalized);
-
-        if (status === 'accepted') {
-            clearDraft();
-            // Never show "added to waitlist" for approved users.
-            navigate(`/login?next=${encodeURIComponent('/dashboard')}`, { replace: true });
-            return true;
-        }
-
-        if (status === 'pending' || status === 'on-hold' || status === 'rejected' || status === 'on_hold') {
-            if (profile) setScannedProfile(profile);
-            showExistingSuccess(entry, true);
-            return true;
-        }
-        return false;
+        rememberWaitlistEmail(normalized);
+        clearDraft();
+        if (profile) setScannedProfile(profile);
+        // Sign in to learn status (accepted → dashboard via auth gate).
+        navigate(`/login?next=${encodeURIComponent('/waiting')}`, { replace: true });
+        return true;
     };
 
     // Returning visitors: resume from remembered email without re-filling the form.
@@ -976,14 +988,13 @@ const WaitlistPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     <div className="space-y-2">
                         <label className="text-[9px] font-black uppercase tracking-[0.3em] text-white/30">Date of Birth <span className="text-red-400">*</span></label>
-                        <div className="relative">
-                            <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 text-white/25" size={16} />
-                            <input
-                                type="date" value={formData.dateOfBirth}
-                                onChange={e => { setFormData({...formData, dateOfBirth: e.target.value}); setStepErrors(p => ({...p, dateOfBirth: ''})); }}
-                                className={`w-full bg-black/30 border rounded-xl pl-14 pr-5 py-3.5 text-white text-sm outline-none focus:border-clay/60 focus:bg-white/5 transition-all appearance-none ${stepErrors.dateOfBirth ? 'border-red-500/60' : 'border-white/10'}`}
-                            />
-                        </div>
+                        <DateField
+                            value={formData.dateOfBirth}
+                            invalid={Boolean(stepErrors.dateOfBirth)}
+                            onChange={e => { setFormData({...formData, dateOfBirth: e.target.value}); setStepErrors(p => ({...p, dateOfBirth: ''})); }}
+                            shellClassName="rounded-xl"
+                            className="!rounded-xl !py-3.5"
+                        />
                         {stepErrors.dateOfBirth && <p className="text-red-400 text-[10px]">{stepErrors.dateOfBirth}</p>}
                     </div>
                     <div className="space-y-2">

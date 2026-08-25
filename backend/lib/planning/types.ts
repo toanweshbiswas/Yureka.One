@@ -90,6 +90,8 @@ export interface PlanningAnalysis {
   byDay: { date: string; amountInr: number }[]
   byMonth: { month: string; amountInr: number }[]
   topMerchants: { name: string; amountInr: number }[]
+  /** Broker / SIP / MF only — kept separate so Top merchants is lifestyle spend */
+  topInvestments?: { name: string; amountInr: number }[]
 }
 
 export interface CategorySpend {
@@ -120,6 +122,18 @@ export interface PlanningForecast {
   upcomingBillsInr: number
 }
 
+export type SpendPlanId = 'conservative' | 'expected' | 'stretch'
+
+export interface SpendPlan {
+  id: SpendPlanId
+  label: string
+  projectedMonthEndInr: number
+  dailyCapInr: number
+  vsBudgetInr: number | null
+  summary: string
+  moves: string[]
+}
+
 export interface PlanningSnapshot {
   inboxes: PlanningInbox[]
   budgets: PlanningBudget[]
@@ -134,9 +148,21 @@ export interface PlanningOverview {
   categories: CategorySpend[]
   forecast: PlanningForecast
   analysis: PlanningAnalysis
+  insights?: {
+    headline: string
+    tips: string[]
+    riskFlags: string[]
+    engine: 'openai' | 'heuristic'
+  }
+  plans?: SpendPlan[]
+  plansEngine?: 'openai' | 'heuristic'
   transactions: PlanningTransaction[]
   reviewCount: number
   extraTransactionCount: number
   primaryTransactionCount: number
+  /** All inboxes + manual after dedupe */
+  mergedTransactionCount?: number
+  /** Extra-inbox rows inside the selected month */
+  extraInMonthCount?: number
   month: string
 }

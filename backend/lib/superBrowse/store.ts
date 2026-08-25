@@ -66,6 +66,28 @@ function domainFromUrl(url: string) {
   }
 }
 
+/** Keep Amazon Super Browse on the sign-in page even if an older seed/DB row still points home. */
+function normalizeStoreRow(row: SuperBrowseStoreRow): SuperBrowseStoreRow {
+  const domain = String(row.domain || '').toLowerCase().replace(/^www\./, '')
+  const isAmazon = row.id === 'amazon' || domain === 'amazon.in' || domain === 'amazon.com'
+  if (!isAmazon) return row
+  try {
+    const u = new URL(row.url)
+    const host = u.hostname.replace(/^www\./i, '').toLowerCase()
+    const path = (u.pathname || '/').replace(/\/+$/, '') || '/'
+    if (
+      (host === 'amazon.in' || host === 'amazon.com') &&
+      (path === '/' || path === '/ref=nav_logo' || path.startsWith('/gp/aw'))
+    ) {
+      const loginHost = host === 'amazon.com' ? 'www.amazon.com' : 'www.amazon.in'
+      return { ...row, url: `https://${loginHost}/ap/signin` }
+    }
+  } catch {
+    /* keep */
+  }
+  return row
+}
+
 function mapRow(row: any): SuperBrowseStoreRow {
   return {
     id: row.id,
@@ -164,13 +186,16 @@ export async function listSuperBrowseStores(opts?: {
           )
           return includeInactive ? seeded : seeded.filter((s) => s.active)
         }
-        return data.map(mapRow)
+        return data.map(mapRow).map(normalizeStoreRow)
       }
     } catch (e: any) {
       if (isMissingSchemaError(e?.message)) supabaseSchemaUnavailable = true
     }
   }
-  const stores = readFileStore().stores.slice().sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+  const stores = readFileStore()
+    .stores.slice()
+    .map(normalizeStoreRow)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
   return includeInactive ? stores : stores.filter((s) => s.active)
 }
 

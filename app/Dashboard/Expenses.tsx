@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { ScannerProgress } from './ScannerProgress';
-import { useMergedSpend } from './useMergedSpend';
+import { useExpenseLedger } from './useMergedSpend';
 
 interface ParsedTransaction {
     brandName: string;
@@ -25,18 +25,21 @@ const Expenses: React.FC = () => {
         syncLedger,
         ledgerResyncQuota,
     } = useSupabase();
-    const { transactions: mergedTransactions } = useMergedSpend();
+    const { transactions: ledgerRows } = useExpenseLedger();
     
     const [searchQuery, setSearchQuery] = useState('');
 
     const transactions = useMemo(() => {
-        return (mergedTransactions || []).filter((tx: ParsedTransaction) => {
+        return (ledgerRows || []).filter((tx: ParsedTransaction) => {
             const type = (tx.type || '').toLowerCase();
             return type === 'transaction';
         });
-    }, [mergedTransactions]);
+    }, [ledgerRows]);
 
     const remaining = ledgerResyncQuota?.remaining
+    const used = ledgerResyncQuota?.used ?? 0
+    const limit = ledgerResyncQuota?.limit ?? 5
+    const windowDays = ledgerResyncQuota?.windowDays ?? 15
     const resyncBlocked = remaining === 0
     const nextResync = ledgerResyncQuota?.nextAvailableAt
         ? new Date(ledgerResyncQuota.nextAvailableAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
@@ -109,8 +112,8 @@ const Expenses: React.FC = () => {
                 </button>
                 <p className="text-[10px] text-white/35 uppercase tracking-widest text-center sm:text-right">
                     {resyncBlocked
-                        ? `Next resync ${nextResync || 'after 15 days'}`
-                        : `${remaining ?? 2} of 2 resyncs left · 15 days`}
+                        ? `Next resync ${nextResync || `after ${windowDays} days`}`
+                        : `${used} used · ${remaining ?? limit} of ${limit} left · ${windowDays} days`}
                 </p>
                 </div>
             </div>
@@ -136,7 +139,7 @@ const Expenses: React.FC = () => {
                                     {error === "AUTH_EXPIRED" 
                                         ? "Grant read-only Gmail access so we can pull purchase and bill emails for your spending ledger."
                                         : error === "RESYNC_LIMIT"
-                                        ? `You can resync inbox twice every 15 days. Next available ${nextResync || 'soon'}.`
+                                        ? `You can resync inbox ${limit} times every ${windowDays} days. Next available ${nextResync || 'soon'}.`
                                         : error
                                     }
                                 </p>
@@ -157,7 +160,7 @@ const Expenses: React.FC = () => {
 
             {/* Scanning Loader Progress */}
             <AnimatePresence>
-                {loading && (
+                {loading && scanProgress > 0 && (
                     <ScannerProgress progress={scanProgress} />
                 )}
             </AnimatePresence>
@@ -165,8 +168,8 @@ const Expenses: React.FC = () => {
             {/* Metrics Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                 {[
-                    { label: 'Total Purchases', value: metrics.total, desc: 'Decrypted sum total', icon: DollarSign, color: 'text-clay' },
-                    { label: 'Sync Count', value: metrics.count, desc: 'Scanned transactions', icon: ShoppingBag, color: 'text-blue-400' },
+                    { label: 'Total Purchases', value: metrics.total, desc: 'Lifestyle spend only · no investments', icon: DollarSign, color: 'text-clay' },
+                    { label: 'Sync Count', value: metrics.count, desc: 'Purchase emails (excl. SIP/broker)', icon: ShoppingBag, color: 'text-blue-400' },
                     { label: 'Average Spend', value: metrics.average, desc: 'Value per transaction', icon: TrendingUp, color: 'text-purple-400' },
                     { label: 'Top Merchant', value: metrics.topMerchant, desc: 'Highest transaction counts', icon: Sparkles, color: 'text-yellow-400' }
                 ].map((stat, idx) => (

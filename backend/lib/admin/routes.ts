@@ -20,6 +20,7 @@ import {
   findAdminByEmail,
   findAdminByInviteHash,
   findWaitlistByEmail,
+  findWaitlistById,
   getAdminAuth,
   listAdmins,
   listWaitlist,
@@ -149,7 +150,12 @@ export function registerAdminRoutes(app: Express) {
     try {
       const status = typeof req.query.status === 'string' ? req.query.status : 'all'
       const search = typeof req.query.search === 'string' ? req.query.search : ''
-      const rows = await listWaitlist({ status, search })
+      const limitRaw = typeof req.query.limit === 'string' ? Number(req.query.limit) : NaN
+      const rows = await listWaitlist({
+        status,
+        search,
+        limit: Number.isFinite(limitRaw) ? limitRaw : undefined,
+      })
       ok(res, rows)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to load waitlist')
@@ -437,10 +443,13 @@ export function registerAdminRoutes(app: Express) {
         url,
         category: req.body?.category,
         description: req.body?.description,
+        imageUrl: req.body?.imageUrl != null ? String(req.body.imageUrl).trim() || null : undefined,
         rewardPaise: Number(req.body?.rewardPaise ?? 0),
         rewardLabel: req.body?.rewardLabel,
         active: req.body?.active !== false,
       })
+      const { bumpCatalogRevision } = await import('../catalog/revision.js')
+      bumpCatalogRevision('admin-offer-upsert')
       ok(res, offer, req.body?.id ? 200 : 201)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to save offer')
@@ -452,6 +461,8 @@ export function registerAdminRoutes(app: Express) {
       const id = decodeURIComponent(String(req.params.id || '')).trim()
       const deleted = await deleteOffer(id)
       if (!deleted) return ok(res, { deleted: true, missing: true })
+      const { bumpCatalogRevision } = await import('../catalog/revision.js')
+      bumpCatalogRevision('admin-offer-delete')
       ok(res, { deleted: true })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to delete offer')
@@ -463,6 +474,8 @@ export function registerAdminRoutes(app: Express) {
       const id = decodeURIComponent(String(req.params.id || '')).trim()
       const deleted = await deleteOffer(id)
       if (!deleted) return ok(res, { deleted: true, missing: true })
+      const { bumpCatalogRevision } = await import('../catalog/revision.js')
+      bumpCatalogRevision('admin-offer-delete')
       ok(res, { deleted: true })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to delete offer')
@@ -515,7 +528,8 @@ export function registerAdminRoutes(app: Express) {
     expressRaw({ type: () => true, limit: '8mb' }),
     async (req, res) => {
       try {
-        const kind = String(req.query.kind || req.header('x-image-kind') || 'cover') === 'inline' ? 'inline' : 'cover'
+        const kindRaw = String(req.query.kind || req.header('x-image-kind') || 'cover')
+        const kind = kindRaw === 'inline' ? 'inline' : kindRaw === 'club' ? 'club' : 'cover'
         const filename = String(req.header('x-filename') || req.query.filename || 'image.jpg')
         const contentType = String(req.header('x-content-type') || req.header('content-type') || 'image/jpeg')
           .split(';')[0]
@@ -657,11 +671,118 @@ export function registerAdminRoutes(app: Express) {
 
   app.delete('/api/admin/users/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
     try {
-      const deleted = await deleteWaitlistEntry(String(req.params.id || ''))
-      if (!deleted) return fail(res, 404, 'User not found')
-      ok(res, { deleted: true })
+      const raw = decodeURIComponent(String(req.params.id || '')).trim()
+      if (!raw) return fail(res, 400, 'User id required')
+
+      let row = await findWaitlistById(raw)
+      if (!row && raw.includes('@')) {
+        row = await findWaitlistByEmail(raw)
+      }
+      if (!row) return fail(res, 404, 'User not found')
+
+      // Close any open deletion request so Deletions tab stays consistent.
+      try {
+        const {
+          findActiveDeletionByEmail,
+          updateDeletionRequest,
+        } = await import('../accountDeletion/store.js')
+        const active = await findActiveDeletionByEmail(row.email)
+        if (active && active.status !== 'purged') {
+          await updateDeletionRequest(active.id, {
+            status: 'purged',
+            purgedAt: new Date().toISOString(),
+            waitlistId: row.id,
+            reviewedBy: String((req as any).admin?.email || 'admin'),
+            reviewNote: 'Hard-deleted from Users tab',
+          })
+        }
+      } catch (e) {
+        console.warn('[admin] deletion request cleanup failed', e)
+      }
+
+      const deleted = await deleteWaitlistEntry(row.id)
+      if (!deleted) return fail(res, 500, 'Failed to delete waitlist row')
+      ok(res, { deleted: true, id: row.id, email: row.email })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to delete user')
+    }
+  })
+
+  // ─── Account deletion requests (app → admin approval → 30-day retention) ───
+  app.get('/api/admin/deletion-requests', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { listDeletionRequests, DELETION_RETENTION_DAYS } = await import('../accountDeletion/service.js')
+      const status = String(req.query.status || 'all') as any
+      const rows = await listDeletionRequests({ status })
+      ok(res, { items: rows, retentionDays: DELETION_RETENTION_DAYS })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to list deletion requests')
+    }
+  })
+
+  app.post('/api/admin/deletion-requests/:id/approve', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { approveDeletionRequest } = await import('../accountDeletion/service.js')
+      const adminEmail = String((req as any).admin?.email || 'admin')
+      const row = await approveDeletionRequest({
+        id: String(req.params.id || ''),
+        reviewedBy: adminEmail,
+        note: req.body?.note != null ? String(req.body.note) : null,
+      })
+      ok(res, row)
+    } catch (e: any) {
+      fail(res, 400, e?.message || 'Failed to approve')
+    }
+  })
+
+  app.post('/api/admin/deletion-requests/:id/reject', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { rejectDeletionRequest } = await import('../accountDeletion/service.js')
+      const adminEmail = String((req as any).admin?.email || 'admin')
+      const row = await rejectDeletionRequest({
+        id: String(req.params.id || ''),
+        reviewedBy: adminEmail,
+        note: req.body?.note != null ? String(req.body.note) : null,
+      })
+      ok(res, row)
+    } catch (e: any) {
+      fail(res, 400, e?.message || 'Failed to reject')
+    }
+  })
+
+  app.post('/api/admin/deletion-requests/:id/purge', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { purgeDeletionRequest } = await import('../accountDeletion/service.js')
+      const adminEmail = String((req as any).admin?.email || 'admin')
+      const row = await purgeDeletionRequest(String(req.params.id || ''), {
+        force: Boolean(req.body?.force),
+        actor: adminEmail,
+      })
+      ok(res, row)
+    } catch (e: any) {
+      fail(res, 400, e?.message || 'Failed to purge')
+    }
+  })
+
+  /** Users tab: schedule 30-day deletion or purge immediately. */
+  app.post('/api/admin/users/:id/schedule-deletion', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { findWaitlistById } = await import('./store.js')
+      const { adminScheduleUserDeletion } = await import('../accountDeletion/service.js')
+      const waitlistId = String(req.params.id || '').trim()
+      const row = await findWaitlistById(waitlistId)
+      if (!row) return fail(res, 404, 'User not found')
+      const adminEmail = String((req as any).admin?.email || 'admin')
+      const result = await adminScheduleUserDeletion({
+        email: row.email,
+        waitlistId: row.id,
+        fullName: row.fullName,
+        reviewedBy: adminEmail,
+        immediate: Boolean(req.body?.immediate),
+      })
+      ok(res, result)
+    } catch (e: any) {
+      fail(res, 400, e?.message || 'Failed to schedule deletion')
     }
   })
 
@@ -700,17 +821,35 @@ export function registerAdminRoutes(app: Express) {
       const { broadcastNotifications } = await import('../notifications/store.js')
       const { listWaitlist } = await import('./store.js')
 
+      const mode = String(req.body?.mode || '').trim().toLowerCase()
+      const singleEmail = String(req.body?.email || '').trim().toLowerCase()
       let recipients: { userId: string; email?: string | null }[] = []
-      if (Array.isArray(req.body?.userIds) && req.body.userIds.length) {
+
+      // Prefer explicit single-user send — never silently fan out when email is set.
+      if (mode === 'one' || singleEmail) {
+        if (!singleEmail || !singleEmail.includes('@')) {
+          return fail(res, 400, 'email required for one-user notification')
+        }
+        recipients = [{ userId: singleEmail, email: singleEmail }]
+      } else if (Array.isArray(req.body?.userIds) && req.body.userIds.length) {
         recipients = req.body.userIds.map((id: string) => ({ userId: String(id) }))
-      } else if (req.body?.email) {
-        const email = String(req.body.email).trim().toLowerCase()
-        recipients = [{ userId: email, email }]
-      } else {
+      } else if (mode === 'broadcast' || mode === 'audience') {
+        if (req.body?.confirmBroadcast !== true) {
+          return fail(res, 400, 'confirmBroadcast required for audience sends')
+        }
         const status = typeof req.body?.audience === 'string' ? req.body.audience : 'accepted'
         const rows = await listWaitlist({ status: status === 'all' ? 'all' : status })
-        recipients = rows.map((r) => ({ userId: r.email, email: r.email }))
+        recipients = rows
+          .map((r) => ({
+            userId: String(r.email || '').trim().toLowerCase(),
+            email: String(r.email || '').trim().toLowerCase() || null,
+          }))
+          .filter((r) => r.userId.includes('@'))
+      } else {
+        return fail(res, 400, 'Set mode to "one" (with email) or "broadcast" (with confirmBroadcast)')
       }
+
+      if (!recipients.length) return fail(res, 400, 'No recipients')
 
       const result = await broadcastNotifications({
         recipients,
@@ -720,7 +859,7 @@ export function registerAdminRoutes(app: Express) {
         href: req.body?.href || '/dashboard',
         imageUrl: req.body?.imageUrl || null,
       })
-      ok(res, { ...result, recipients: recipients.length })
+      ok(res, { ...result, recipients: recipients.length, mode: singleEmail ? 'one' : 'broadcast' })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to broadcast')
     }
@@ -753,6 +892,8 @@ export function registerAdminRoutes(app: Express) {
         active: req.body?.active !== false,
         sortOrder: req.body?.sortOrder,
       })
+      const { bumpCatalogRevision } = await import('../catalog/revision.js')
+      bumpCatalogRevision('admin-super-browse-upsert')
       ok(res, row, 201)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to save store')
@@ -764,7 +905,10 @@ export function registerAdminRoutes(app: Express) {
       const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((id: unknown) => String(id)) : []
       if (!ids.length) return fail(res, 400, 'ids array required')
       const { reorderSuperBrowseStores } = await import('../superBrowse/store.js')
-      ok(res, await reorderSuperBrowseStores(ids))
+      const rows = await reorderSuperBrowseStores(ids)
+      const { bumpCatalogRevision } = await import('../catalog/revision.js')
+      bumpCatalogRevision('admin-super-browse-reorder')
+      ok(res, rows)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to reorder stores')
     }
@@ -783,6 +927,8 @@ export function registerAdminRoutes(app: Express) {
         name: req.body?.name ?? existing.name,
         url: req.body?.url ?? existing.url,
       })
+      const { bumpCatalogRevision } = await import('../catalog/revision.js')
+      bumpCatalogRevision('admin-super-browse-patch')
       ok(res, row)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to update store')
@@ -794,6 +940,8 @@ export function registerAdminRoutes(app: Express) {
       const { deleteSuperBrowseStore } = await import('../superBrowse/store.js')
       const deleted = await deleteSuperBrowseStore(String(req.params.id || ''))
       if (!deleted) return fail(res, 404, 'Store not found')
+      const { bumpCatalogRevision } = await import('../catalog/revision.js')
+      bumpCatalogRevision('admin-super-browse-delete')
       ok(res, { deleted: true })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to delete store')

@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { Card, Blog, Review, WaitlistEntry } from '@/types';
 import { featuredCards } from '@landing/data';
 import { api, isApiError } from '@backend/lib/api/client';
-import { fromApiCard, fromApiBlog, fromApiReview, fromApiWaitlist } from '@backend/lib/api/mappers';
+import { fromApiCard, fromApiBlog, fromApiReview } from '@backend/lib/api/mappers';
 import type { Card as ApiCard, Blog as ApiBlog, Review as ApiReview, Waitlist as ApiWaitlist, LedgerResyncQuota } from '@backend/lib/api/types';
 import {
   getSupabaseBrowser,
@@ -16,11 +16,14 @@ import {
 } from '@shared/auth';
 import { cacheGet, cacheSet, CACHE_TTL, getLastAuthStatus, persistAuthSnapshot } from '@shared/dashboardCache';
 import { isStandalonePwa } from '@shared/pwaDisplay';
+import { listenForPwaInstall, trackPwaPresence } from '@shared/pwaInstallTrack';
 import {
   clearStoredGmailAccessToken,
   getStoredGmailAccessToken,
   requestGmailReadonlyToken,
 } from '@shared/gmailConsent';
+import { filterMarketingTransactions } from '@backend/lib/ledger/marketingFilter';
+import { WAITLIST_REQUIRED } from '@shared/waitlistGate';
 
 export interface ParsedTransaction {
   brandName: string;
@@ -29,6 +32,89 @@ export interface ParsedTransaction {
   date: string;
   sender: string;
   type?: string;
+}
+
+type LedgerCachePayload = {
+  profile?: Record<string, unknown>
+  transactions?: ParsedTransaction[]
+  score?: unknown
+  resyncQuota?: LedgerResyncQuota
+  cachedAt?: string
+  source?: 'scan' | 'server' | 'local'
+}
+
+function ledgerCacheKey(email: string) {
+  return `yureka_financial_ledger_${email}`
+}
+
+function gmailSyncedKey(email: string) {
+  return `yureka_gmail_synced:${String(email || '').trim().toLowerCase()}`
+}
+
+function readGmailSyncedFlag(email: string): boolean {
+  try {
+    if (localStorage.getItem(gmailSyncedKey(email)) === '1') return true
+    const local = readLocalLedger(email)
+    if (local?.source === 'scan') return true
+  } catch {
+    /* ignore */
+  }
+  return false
+}
+
+function persistGmailSyncedFlag(email: string) {
+  try {
+    localStorage.setItem(gmailSyncedKey(email), '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+function spendTotalInr(txs: ParsedTransaction[] | undefined | null): number {
+  let sum = 0
+  for (const tx of txs || []) {
+    const n = parseFloat(String(tx.amount || '').replace(/[₹$,\s]/g, ''))
+    if (Number.isFinite(n)) sum += n
+  }
+  return Math.round(sum)
+}
+
+function shouldPreferServer(local: LedgerCachePayload | null, serverTxs: ParsedTransaction[]): boolean {
+  const localTxs = local?.transactions || []
+  if (!localTxs.length) return serverTxs.length > 0
+  if (!serverTxs.length) return false
+  // Prefer the fuller ledger so mobile PWA can't stay stuck on an old local scan
+  if (serverTxs.length > localTxs.length) return true
+  if (spendTotalInr(serverTxs) > spendTotalInr(localTxs) + 1) return true
+  const localAt = local?.cachedAt ? Date.parse(local.cachedAt) : 0
+  // Refresh at least every 6 hours from server cache (no Gmail quota used)
+  if (!Number.isFinite(localAt) || Date.now() - localAt > 6 * 60 * 60 * 1000) return true
+  return false
+}
+
+function readLocalLedger(email: string): LedgerCachePayload | null {
+  try {
+    const raw = localStorage.getItem(ledgerCacheKey(email))
+    if (!raw) return null
+    const data = JSON.parse(raw) as LedgerCachePayload
+    if (!Array.isArray(data.transactions)) return null
+    return {
+      ...data,
+      transactions: filterMarketingTransactions(data.transactions) as ParsedTransaction[],
+    }
+  } catch {
+    return null
+  }
+}
+
+function writeLocalLedger(email: string, data: LedgerCachePayload) {
+  const payload: LedgerCachePayload = {
+    ...data,
+    transactions: filterMarketingTransactions(data.transactions || []) as ParsedTransaction[],
+    cachedAt: data.cachedAt || new Date().toISOString(),
+  }
+  localStorage.setItem(ledgerCacheKey(email), JSON.stringify(payload))
+  return payload
 }
 
 interface SupabaseContextType {
@@ -57,62 +143,54 @@ interface SupabaseContextType {
   ledgerError: string | null;
   scanProgress: number;
   ledgerResyncQuota: LedgerResyncQuota | null;
+  /** True until the member completes at least one Gmail inbox sync on this device. */
+  needsGmailSync: boolean;
   syncLedger: (forceSync?: boolean) => Promise<void>;
 }
 
 const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
 
-async function loadAdminData(setters: {
+/**
+ * Admin CMS for the SPA is loaded via authenticated /api/admin/* after login
+ * (see AdminDashboard). Never call unauthenticated /api/v1/admin/* here —
+ * those routes return 401 and previously leaked waitlist PII on the login page.
+ */
+async function loadAdminData(_setters: {
   setCards: (v: any) => void; setBlogs: (v: any) => void; setReviews: (v: any) => void;
   setWaitlist: (v: any) => void; setTeam: (v: any) => void; setLogs: (v: any) => void;
 }) {
-  const [cRes, bRes, rRes, wRes, tRes, lRes] = await Promise.all([
-    api.get<ApiCard[]>('/api/v1/admin/cards'),
-    api.get<ApiBlog[]>('/api/v1/admin/blogs'),
-    api.get<ApiReview[]>('/api/v1/admin/reviews'),
-    api.get<ApiWaitlist[]>('/api/v1/admin/waitlist'),
-    api.get<any[]>('/api/v1/admin/team'),
-    api.get<any[]>('/api/v1/admin/audit-logs'),
-  ]);
-  if (!isApiError(cRes))  setters.setCards((cRes.data ?? []).map(fromApiCard));
-  if (!isApiError(bRes))  setters.setBlogs((bRes.data ?? []).map(fromApiBlog));
-  if (!isApiError(rRes))  setters.setReviews((rRes.data ?? []).map(fromApiReview));
-  if (!isApiError(wRes))  setters.setWaitlist((wRes.data ?? []).map(fromApiWaitlist));
-  if (!isApiError(tRes))  setters.setTeam(tRes.data ?? []);
-  if (!isApiError(lRes))  setters.setLogs(lRes.data ?? []);
+  // no-op: waitlist/team/audit require X-Admin-Session on /api/admin/*
 }
 
 async function resolveUserStatus(
-  email: string
+  email: string,
+  accessToken?: string | null
 ): Promise<'none' | 'pending' | 'accepted' | 'admin' | 'rejected' | 'on-hold'> {
   if (!email) return 'none';
+  const authOpts = accessToken ? { token: accessToken, timeoutMs: 6000 } : { timeoutMs: 6000 }
   try {
     const statusRes = await api.get<{
       role?: string
       status?: string
       canAccessDashboard?: boolean
-    }>(`/api/v1/auth/status?email=${encodeURIComponent(email)}`, {
-      skipAuth: true,
-      timeoutMs: 6000,
-    })
+    }>(`/api/v1/auth/status?email=${encodeURIComponent(email)}`, authOpts)
     if (!isApiError(statusRes) && statusRes.data?.status) {
       const s = statusRes.data.status
       if (s === 'admin' || s === 'accepted' || s === 'pending' || s === 'rejected' || s === 'on-hold') {
         return s
       }
       if (s === 'on_hold') return 'on-hold'
-      if (s === 'none') return 'none'
+      if (s === 'none') {
+        // Open onboard: signed-in + none still means dashboard (API race / auto-accept lag).
+        return WAITLIST_REQUIRED ? 'none' : 'accepted'
+      }
     }
 
-    // Fallback if older API without /auth/status
+    // Fallback if older API without /auth/status (still requires Bearer)
+    const fallbackOpts = accessToken ? { token: accessToken, timeoutMs: 5000 } : { timeoutMs: 5000 }
     const [roleRes, entryRes] = await Promise.all([
-      api.get<{ role: string }>(`/api/v1/auth/role?email=${encodeURIComponent(email)}`, {
-        skipAuth: true,
-        timeoutMs: 5000,
-      }),
-      api.get<ApiWaitlist>(`/api/v1/waitlist/entry?email=${encodeURIComponent(email)}`, {
-        timeoutMs: 5000,
-      }),
+      api.get<{ role: string }>(`/api/v1/auth/role?email=${encodeURIComponent(email)}`, fallbackOpts),
+      api.get<ApiWaitlist>(`/api/v1/waitlist/entry?email=${encodeURIComponent(email)}`, fallbackOpts),
     ]);
     if (!isApiError(roleRes) && ['admin', 'editor', 'writer', 'superadmin'].includes(roleRes.data?.role ?? '')) {
       return 'admin';
@@ -124,7 +202,8 @@ async function resolveUserStatus(
   } catch {
     // fall through
   }
-  return 'none';
+  // Auth status failed (401 race, network): when waitlist is open, signed-in users stay in.
+  return WAITLIST_REQUIRED ? 'none' : 'accepted'
 }
 
 export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -158,6 +237,13 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [ledgerError, setLedgerError] = useState<string | null>(null);
   const [scanProgress, setScanProgress] = useState(0);
   const [ledgerResyncQuota, setLedgerResyncQuota] = useState<LedgerResyncQuota | null>(null);
+  /** null = not hydrated yet (hide prompt); false = must sync; true = done */
+  const [gmailSynced, setGmailSynced] = useState<boolean | null>(null);
+
+  const markGmailSynced = useCallback((email: string) => {
+    persistGmailSyncedFlag(email)
+    setGmailSynced(true)
+  }, []);
 
   const applyStatusForEmail = useCallback(async (
     email: string | undefined | null,
@@ -182,7 +268,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return 'loading'
     })
 
-    const status = await resolveUserStatus(email);
+    const status = await resolveUserStatus(email, sessionRef.current?.access_token);
     if (reqId !== statusRequestId.current) return;
     setCurrentUserStatus(status);
     cacheSet(statusKey, status);
@@ -190,42 +276,63 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const refreshUserStatus = useCallback(async () => {
+    if (!sessionRef.current?.user?.email) {
+      const sb = getSupabaseBrowser()
+      if (sb) {
+        const { data } = await sb.auth.getSession()
+        if (data.session) {
+          sessionRef.current = data.session
+          setSession(data.session)
+          setUser(data.session.user)
+        }
+      }
+    }
     await applyStatusForEmail(sessionRef.current?.user?.email);
   }, [applyStatusForEmail]);
+
+  const ledgerResyncQuotaRef = useRef<LedgerResyncQuota | null>(null);
+  const syncInFlightRef = useRef(false);
+  const softSyncedEmailRef = useRef<string | null>(null);
+  const softSyncedAtRef = useRef(0);
+
+  useEffect(() => {
+    ledgerResyncQuotaRef.current = ledgerResyncQuota;
+  }, [ledgerResyncQuota]);
 
   const syncLedger = useCallback(async (forceSync = false) => {
     const userEmail = sessionRef.current?.user?.email;
     if (!userEmail) return;
 
+    if (syncInFlightRef.current) return
+    // Soft sync at most once every 5 minutes per email (stops quota/state update loops).
+    if (
+      !forceSync &&
+      softSyncedEmailRef.current === userEmail &&
+      Date.now() - softSyncedAtRef.current < 5 * 60 * 1000
+    ) {
+      return
+    }
+
+    syncInFlightRef.current = true
+
     setLedgerLoading(true);
     setLedgerError(null);
-    const cacheKey = `yureka_financial_ledger_${userEmail}`;
 
-    if (!forceSync) {
-      const cached = localStorage.getItem(cacheKey);
-      if (cached) {
-        try {
-          const data = JSON.parse(cached);
-          if (data.transactions) {
-            setLedgerTransactions(data.transactions);
-            setLedgerLoading(false);
-            return;
-          }
-        } catch (e) {
-          console.error("Cache parse error:", e);
-        }
-      }
+    const local = readLocalLedger(userEmail)
+    if (local?.transactions?.length) {
+      setLedgerTransactions(local.transactions)
+      if (!forceSync) setLedgerLoading(false)
     }
 
     try {
       if (forceSync) {
-        if (ledgerResyncQuota && Number(ledgerResyncQuota.remaining) <= 0) {
+        const quota = ledgerResyncQuotaRef.current
+        if (quota && Number(quota.remaining) <= 0) {
           setLedgerError('RESYNC_LIMIT');
           setLedgerLoading(false);
           return;
         }
         setScanProgress(10);
-        // Dashboard Supabase login does not include gmail.readonly — ask GIS for it.
         let gmailToken = getStoredGmailAccessToken() || '';
         if (!gmailToken) {
           setScanProgress(20);
@@ -254,12 +361,20 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (quotaFromError) setLedgerResyncQuota(quotaFromError)
 
         if (!isApiError(scanRes) && Array.isArray(scanRes.data?.transactions)) {
-          localStorage.setItem(cacheKey, JSON.stringify(scanRes.data));
-          setLedgerTransactions(scanRes.data.transactions);
+          const saved = writeLocalLedger(userEmail, {
+            ...scanRes.data,
+            source: 'scan',
+            cachedAt: new Date().toISOString(),
+          })
+          setLedgerTransactions(saved.transactions || []);
+          softSyncedEmailRef.current = userEmail
+          softSyncedAtRef.current = Date.now()
           if (scanRes.data.resyncQuota) setLedgerResyncQuota(scanRes.data.resyncQuota)
+          else if (quotaFromError) setLedgerResyncQuota(quotaFromError)
           if (scanRes.data.score && Number.isFinite(Number(scanRes.data.score.score))) {
             window.dispatchEvent(new CustomEvent('yureka-score-updated', { detail: scanRes.data.score }));
           }
+          markGmailSynced(userEmail);
           setScanProgress(100);
           return;
         }
@@ -281,35 +396,77 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           { timeoutMs: 15000 }
         );
         if (!isApiError(dbRes) && dbRes.data?.transactions?.length) {
-          localStorage.setItem(cacheKey, JSON.stringify(dbRes.data));
-          setLedgerTransactions(dbRes.data.transactions);
+          const saved = writeLocalLedger(userEmail, {
+            ...dbRes.data,
+            source: 'server',
+            cachedAt: new Date().toISOString(),
+          })
+          setLedgerTransactions(saved.transactions || []);
+          softSyncedEmailRef.current = userEmail
+          softSyncedAtRef.current = Date.now()
         }
-        if (!isApiError(dbRes) && dbRes.data?.resyncQuota) setLedgerResyncQuota(dbRes.data.resyncQuota)
+        if (!isApiError(dbRes) && dbRes.data?.resyncQuota) {
+          setLedgerResyncQuota(dbRes.data.resyncQuota)
+          if (Number(dbRes.data.resyncQuota.used) > 0) markGmailSynced(userEmail)
+        }
         setScanProgress(100);
       } else {
-        const res = await api.get<{ profile: any; transactions: any[]; resyncQuota?: LedgerResyncQuota }>(
+        const res = await api.get<{ profile: any; transactions: any[]; score?: any; resyncQuota?: LedgerResyncQuota }>(
           `/api/v1/ledger?email=${encodeURIComponent(userEmail)}`,
           { timeoutMs: 15000 }
         );
-        if (!isApiError(res) && res.data?.transactions) {
-          localStorage.setItem(cacheKey, JSON.stringify(res.data));
-          setLedgerTransactions(res.data.transactions);
+        if (!isApiError(res) && Array.isArray(res.data?.transactions)) {
+          const serverTxs = filterMarketingTransactions(res.data.transactions) as ParsedTransaction[]
+          if (shouldPreferServer(local, serverTxs)) {
+            const saved = writeLocalLedger(userEmail, {
+              ...res.data,
+              transactions: serverTxs,
+              source: 'server',
+              cachedAt: new Date().toISOString(),
+            })
+            setLedgerTransactions(saved.transactions || []);
+          } else if (!local?.transactions?.length && serverTxs.length) {
+            const saved = writeLocalLedger(userEmail, {
+              ...res.data,
+              transactions: serverTxs,
+              source: 'server',
+              cachedAt: new Date().toISOString(),
+            })
+            setLedgerTransactions(saved.transactions || []);
+          }
         }
-        if (!isApiError(res) && res.data?.resyncQuota) setLedgerResyncQuota(res.data.resyncQuota)
+        softSyncedEmailRef.current = userEmail
+        softSyncedAtRef.current = Date.now()
+        if (!isApiError(res) && res.data?.resyncQuota) {
+          setLedgerResyncQuota(res.data.resyncQuota)
+          if (Number(res.data.resyncQuota.used) > 0) markGmailSynced(userEmail)
+          else setGmailSynced((prev) => (prev === true ? true : readGmailSyncedFlag(userEmail)))
+        } else {
+          setGmailSynced((prev) => (prev === true ? true : readGmailSyncedFlag(userEmail)))
+        }
       }
     } catch (err) {
       console.error("Ledger sync error:", err);
       setLedgerError("Failed to synchronize with email ledger.");
+      setScanProgress(0);
     } finally {
-      setTimeout(() => setLedgerLoading(false), 500);
+      syncInFlightRef.current = false
+      setTimeout(() => {
+        setLedgerLoading(false);
+        setScanProgress(0);
+      }, 600);
     }
-  }, [ledgerResyncQuota]);
+  }, [markGmailSynced]);
 
   useEffect(() => {
     const email = session?.user?.email
-    if (email) {
-      syncLedger(false);
+    if (!email) {
+      softSyncedEmailRef.current = null
+      setGmailSynced(null)
+      return
     }
+    setGmailSynced(readGmailSyncedFlag(email))
+    void syncLedger(false);
   }, [session?.user?.email, syncLedger]);
 
   // Real Supabase Auth — replaces demo stub
@@ -386,6 +543,13 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setAuthTokenGetter(null);
     };
   }, [applyStatusForEmail]);
+
+  // Persist "saved to home screen" when the member opens the installed PWA (or installs it).
+  useEffect(() => {
+    if (!user?.id && !user?.email) return
+    void trackPwaPresence({ userId: user.id, email: user.email })
+    return listenForPwaInstall(user.id, user.email)
+  }, [user?.id, user?.email]);
 
   const isAdminRoute = location.pathname.startsWith('/admin');
   const skipPublicCms =
@@ -497,13 +661,15 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     cards, blogs, reviews, waitlist, team, logs,
     syncStatus, isLoading, isAdminDataLoaded, refreshAll, refreshUserStatus,
     setCards, setBlogs, setReviews, setWaitlist, setTeam,
-    ledgerTransactions, ledgerLoading, ledgerError, scanProgress, ledgerResyncQuota, syncLedger,
+    ledgerTransactions, ledgerLoading, ledgerError, scanProgress, ledgerResyncQuota,
+    needsGmailSync: gmailSynced === false,
+    syncLedger,
   }), [
     user, session, currentUserStatus,
     cards, blogs, reviews, waitlist, team, logs,
     syncStatus, isLoading, isAdminDataLoaded, refreshAll, refreshUserStatus,
     setCards, setBlogs, setReviews, setWaitlist, setTeam,
-    ledgerTransactions, ledgerLoading, ledgerError, scanProgress, ledgerResyncQuota, syncLedger,
+    ledgerTransactions, ledgerLoading, ledgerError, scanProgress, ledgerResyncQuota, gmailSynced, syncLedger,
   ]);
 
   return (

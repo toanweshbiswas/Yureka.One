@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Yureka",
-  "version": "1.0.2",
-  "description": "Gift card savings at checkout plus coupons and Goldback for the store you are on.",
+  "version": "1.0.3",
+  "description": "Coupons & gift-card tips for stores you visit. Some links are affiliate links; we may earn a commission at no extra cost to you.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -20,7 +20,7 @@
   "background": {
     "service_worker": "background.js"
   },
-  "permissions": ["tabs"],
+  "permissions": ["tabs", "storage"],
   "host_permissions": ["https://*/*"],
   "content_scripts": [
     {

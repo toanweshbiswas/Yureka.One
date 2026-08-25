@@ -118,6 +118,31 @@ function showGiftCardBar(host, match, productPrice) {
   document.documentElement.appendChild(bar)
 }
 
+function showConsentBar() {
+  removeBar()
+  const bar = document.createElement('div')
+  bar.id = BAR_ID
+  bar.className = 'yureka-ext-consent'
+  bar.innerHTML = `
+    <div class="yureka-ext-copy">
+      <strong>Yureka · Affiliate disclosure</strong>
+      <span>Deal links may be affiliate links. We may earn a commission if you buy — no extra cost to you.</span>
+    </div>
+    <button type="button" class="yureka-ext-cta">Enable deals</button>
+    <button type="button" class="yureka-ext-x" aria-label="Dismiss">×</button>
+  `
+  bar.querySelector('.yureka-ext-cta').addEventListener('click', async () => {
+    await setAffiliateConsent(true)
+    removeBar()
+    await refreshBar()
+  })
+  bar.querySelector('.yureka-ext-x').addEventListener('click', () => {
+    sessionStorage.setItem(HIDE_KEY, '1')
+    removeBar()
+  })
+  document.documentElement.appendChild(bar)
+}
+
 function showDealsBar(host, data) {
   removeBar()
   const market = data?.marketplace || []
@@ -127,16 +152,17 @@ function showDealsBar(host, data) {
 
   const first = gold[0] || market[0]
   const href = first?.affiliateUrl || first?.url || `${yurekaAppUrl()}/dashboard/offers`
+  const isAffiliate = Boolean(first?.affiliateUrl) || Boolean(gold[0])
   const label = first?.couponCode
     ? `Code ${first.couponCode}`
-    : first?.rewardLabel || 'Open deal'
+    : first?.rewardLabel || (isAffiliate ? 'Open affiliate deal' : 'Open deal')
 
   const bar = document.createElement('div')
   bar.id = BAR_ID
   bar.innerHTML = `
     <div class="yureka-ext-copy">
-      <strong>Yureka</strong>
-      <span>${n} deal${n === 1 ? '' : 's'} on ${host}</span>
+      <strong>Yureka${isAffiliate ? ' · Affiliate' : ''}</strong>
+      <span>${n} deal${n === 1 ? '' : 's'} on ${host}${isAffiliate ? ' · commission may apply' : ''}</span>
     </div>
     <a class="yureka-ext-cta" target="_blank" rel="noreferrer">${label}</a>
     <button type="button" class="yureka-ext-x" aria-label="Dismiss">×</button>
@@ -158,6 +184,29 @@ async function refreshBar() {
   const host = tabHost(location.href)
   if (!host) {
     removeBar()
+    return
+  }
+
+  const consented = await getAffiliateConsent()
+  if (!consented) {
+    // Gift-card tips do not use affiliate redirects — still allowed without consent.
+    const onProduct = isProductPage(host, location.pathname)
+    const giftHiddenForPath = sessionStorage.getItem(GIFT_HIDE_KEY) === location.pathname
+    if (onProduct && !giftHiddenForPath) {
+      const price = scrapeProductPrice(host)
+      if (price) {
+        try {
+          const match = await lookupGiftCardMatch(host, price, location.href)
+          if (match) {
+            showGiftCardBar(host, match, price)
+            return
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+    }
+    showConsentBar()
     return
   }
 
@@ -217,10 +266,17 @@ function watchNavigation() {
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg?.type !== 'YUREKA_SITE') return
   if (sessionStorage.getItem(HIDE_KEY)) return
-  const host = tabHost(location.href)
-  if (!host) return
-  if (isProductPage(host, location.pathname) && !sessionStorage.getItem(GIFT_HIDE_KEY)) return
-  showDealsBar(msg.host, msg.data)
+  void (async () => {
+    const consented = await getAffiliateConsent()
+    if (!consented) {
+      showConsentBar()
+      return
+    }
+    const host = tabHost(location.href)
+    if (!host) return
+    if (isProductPage(host, location.pathname) && !sessionStorage.getItem(GIFT_HIDE_KEY)) return
+    showDealsBar(msg.host, msg.data)
+  })()
 })
 
 async function boot() {

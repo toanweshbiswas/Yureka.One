@@ -19,18 +19,28 @@ function brandOrigin(): string {
   return (process.env.VITE_BRAND_URL || '').trim().replace(/\/$/, '') || 'https://brand.yureka.one'
 }
 
+function wanderworldOrigin(): string {
+  return (
+    (process.env.VITE_WANDERWORLD_URL || '').trim().replace(/\/$/, '') || 'https://wanderworld.yureka.one'
+  )
+}
+
 export function mailUrls() {
   const brand = brandOrigin()
+  const ww = wanderworldOrigin()
   return {
     app: appOrigin(),
     admin: adminOrigin(),
     landing: landingOrigin(),
     brand,
+    wanderworld: ww,
     appLogin: `${appOrigin()}/login?next=${encodeURIComponent('/dashboard')}`,
     appDashboard: `${appOrigin()}/dashboard`,
     adminLogin: `${adminOrigin()}/admin`,
     brandLogin: `${brand}/brand/login`,
     brandSignup: `${brand}/brand/signup`,
+    wwLogin: `${ww}/login?next=${encodeURIComponent('/')}&portal=ww`,
+    wwSignup: `${ww}/signup?next=${encodeURIComponent('/')}&portal=ww`,
   }
 }
 

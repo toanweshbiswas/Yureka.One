@@ -74,7 +74,7 @@ export const EXPLORE_SCENES: ExploreScene[] = [
     size: 'hero',
     embed: true,
     brands: [
-      { name: 'Amazon', domain: 'amazon.in', aliases: ['amazon'], embedUrl: 'https://www.amazon.in/' },
+      { name: 'Amazon', domain: 'amazon.in', aliases: ['amazon'], embedUrl: 'https://www.amazon.in/ap/signin' },
       { name: 'Flipkart', domain: 'flipkart.com', aliases: ['flipkart'], embedUrl: 'https://www.flipkart.com/' },
       { name: 'Myntra', domain: 'myntra.com', aliases: ['myntra'], embedUrl: 'https://www.myntra.com/' },
     ],

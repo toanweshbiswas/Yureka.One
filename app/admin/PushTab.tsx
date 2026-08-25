@@ -60,9 +60,11 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
   const [form, setForm] = useState({
     title: '',
     body: '',
+    mode: 'one' as 'one' | 'broadcast',
     audience: 'accepted',
     email: '',
     href: '/dashboard',
+    confirmBroadcast: false,
   })
 
   const load = useCallback(async () => {
@@ -88,18 +90,33 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
     setSending(true)
     setError(null)
     setNotice(null)
+
+    if (form.mode === 'one' && !form.email.trim().includes('@')) {
+      setSending(false)
+      setError('Enter a member email for one-user notifications')
+      return
+    }
+    if (form.mode === 'broadcast' && !form.confirmBroadcast) {
+      setSending(false)
+      setError('Confirm broadcast before sending to everyone in the audience')
+      return
+    }
+
     const payload: Record<string, unknown> = {
       title: form.title,
       body: form.body,
       href: form.href || '/dashboard',
       type: 'info',
+      mode: form.mode,
     }
-    if (form.email.trim()) {
+    if (form.mode === 'one') {
       payload.email = form.email.trim().toLowerCase()
     } else {
       payload.audience = form.audience
+      payload.confirmBroadcast = true
     }
-    const res = await adminFetch<{ sent: number; failed: number; recipients: number }>(
+
+    const res = await adminFetch<{ sent: number; failed: number; recipients: number; mode?: string }>(
       '/api/admin/notifications/broadcast',
       token,
       { method: 'POST', body: JSON.stringify(payload) },
@@ -109,16 +126,43 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
       setError(res.error || 'Broadcast failed')
       return
     }
-    setNotice(`Sent ${res.data.sent} of ${res.data.recipients} · failed ${res.data.failed}`)
-    setForm((f) => ({ ...f, title: '', body: '' }))
+    setNotice(
+      form.mode === 'one'
+        ? `Sent to ${form.email.trim().toLowerCase()}`
+        : `Broadcast sent ${res.data.sent} of ${res.data.recipients} · failed ${res.data.failed}`,
+    )
+    setForm((f) => ({ ...f, title: '', body: '', confirmBroadcast: false }))
     void load()
   }
 
   return (
     <section className="space-y-6">
-      <PageHeader title="Push notifications" subtitle="Inbox notifications for members (in-app)." />
+      <PageHeader
+        title="Push notifications"
+        subtitle="In-app inbox only. One-user sends stay private — broadcasts copy the same message to every recipient."
+      />
       {canWrite && (
         <form onSubmit={send} className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 space-y-3">
+          <div className="grid sm:grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, mode: 'one', confirmBroadcast: false })}
+              className={`rounded-xl px-3 py-2.5 text-xs font-bold border ${
+                form.mode === 'one' ? 'border-clay/50 bg-clay/15 text-clay' : 'border-white/10 text-white/50'
+              }`}
+            >
+              One user
+            </button>
+            <button
+              type="button"
+              onClick={() => setForm({ ...form, mode: 'broadcast' })}
+              className={`rounded-xl px-3 py-2.5 text-xs font-bold border ${
+                form.mode === 'broadcast' ? 'border-amber-400/40 bg-amber-400/10 text-amber-200' : 'border-white/10 text-white/50'
+              }`}
+            >
+              Broadcast audience
+            </button>
+          </div>
           <label className="block">
             <FieldLabel>Title</FieldLabel>
             <input className={fieldClass} required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
@@ -127,38 +171,53 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
             <FieldLabel>Body</FieldLabel>
             <textarea className={fieldClass} required rows={3} value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} />
           </label>
-          <div className="grid sm:grid-cols-2 gap-3">
+          {form.mode === 'one' ? (
             <label className="block">
-              <FieldLabel>Audience</FieldLabel>
-              <select
-                className={fieldClass}
-                value={form.audience}
-                onChange={(e) => setForm({ ...form, audience: e.target.value })}
-                disabled={Boolean(form.email.trim())}
-              >
-                <option value="accepted">Accepted members</option>
-                <option value="pending">Pending waitlist</option>
-                <option value="all">Everyone on waitlist</option>
-              </select>
-            </label>
-            <label className="block">
-              <FieldLabel>Or single email</FieldLabel>
+              <FieldLabel>Member email</FieldLabel>
               <input
                 className={fieldClass}
                 type="email"
-                placeholder="optional…"
+                required
+                placeholder="name@gmail.com"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
               />
             </label>
-          </div>
+          ) : (
+            <div className="space-y-3 rounded-xl border border-amber-400/20 bg-amber-400/5 p-3">
+              <label className="block">
+                <FieldLabel>Audience</FieldLabel>
+                <select
+                  className={fieldClass}
+                  value={form.audience}
+                  onChange={(e) => setForm({ ...form, audience: e.target.value })}
+                >
+                  <option value="accepted">Accepted members</option>
+                  <option value="pending">Pending waitlist</option>
+                  <option value="all">Everyone on waitlist</option>
+                </select>
+              </label>
+              <p className="text-[12px] text-amber-100/70 leading-snug">
+                The same title/body is copied to every person. Do not put one member&apos;s name in the title unless you intend that.
+              </p>
+              <label className="flex items-start gap-2 text-[12px] text-white/70">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={form.confirmBroadcast}
+                  onChange={(e) => setForm({ ...form, confirmBroadcast: e.target.checked })}
+                />
+                I understand this sends to the whole audience
+              </label>
+            </div>
+          )}
           <label className="block">
             <FieldLabel>Deep link</FieldLabel>
             <input className={fieldClass} value={form.href} onChange={(e) => setForm({ ...form, href: e.target.value })} />
           </label>
           <button type="submit" disabled={sending} className={primaryBtnClass}>
             {sending ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-            Send push
+            {form.mode === 'one' ? 'Send to one user' : 'Broadcast'}
           </button>
         </form>
       )}

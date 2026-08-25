@@ -5,6 +5,7 @@ import { BrandActivityChart } from '../brand/BrandCharts'
 import {
   Callout,
   EmptyState,
+  ImageUrlField,
   PageHeader,
   Surface,
   fieldClass,
@@ -238,7 +239,15 @@ export default function BrandsTab({ token, canWrite }: { token: string | null; c
           <input className={fieldClass} placeholder="Website" value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} />
           <input className={fieldClass} placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} />
           <input className={fieldClass} placeholder="Contact email" value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} />
-          <input className={`${fieldClass} md:col-span-2`} placeholder="Logo URL" value={form.logoUrl} onChange={(e) => setForm({ ...form, logoUrl: e.target.value })} />
+          <ImageUrlField
+            className="md:col-span-2"
+            label="Brand logo"
+            value={form.logoUrl}
+            onChange={(logoUrl) => setForm({ ...form, logoUrl })}
+            token={token}
+            canWrite={canWrite}
+            placeholder="or paste a logo URL"
+          />
           <textarea className={`${fieldClass} md:col-span-2`} rows={2} placeholder="Internal notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
           <button type="submit" disabled={saving} className={`${primaryBtnClass} md:col-span-2`}>Create brand</button>
         </form>

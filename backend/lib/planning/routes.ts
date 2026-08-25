@@ -21,6 +21,11 @@ import { deletePlanningCache, readPlanningCache, writePlanningCache } from './ca
 import { buildCategorySpend, buildForecast } from './forecast.js'
 import { buildAnalysis } from './analysis.js'
 import {
+  collapseRepetitiveTransactions,
+  filterMarketingTransactions,
+  isMarketingLedgerRow,
+} from '../ledger/marketingFilter.js'
+import {
   addEntry,
   addInbox,
   deleteEntry,
@@ -37,8 +42,8 @@ import {
   upsertOverride,
 } from './store.js'
 
-function requireUserId(req: Request, res: Response): string | null {
-  const result = productUserIdOrFail(req)
+async function requireUserId(req: Request, res: Response): Promise<string | null> {
+  const result = await productUserIdOrFail(req)
   if ('error' in result) {
     res.status(401).json({
       data: null,
@@ -75,24 +80,27 @@ function normalizeEmail(value: unknown): string {
 
 function asTransactions(rows: unknown, sourceEmail?: string): PlanningTransaction[] {
   if (!Array.isArray(rows)) return []
-  return rows.map((row) => {
-    const tx = row as PlanningTransaction
-    const source = tx.source === 'manual' ? 'manual' : 'gmail'
-    return {
-      brandName: String(tx.brandName || ''),
-      amount: String(tx.amount || ''),
-      description: String(tx.description || ''),
-      date: String(tx.date || ''),
-      sender: String(tx.sender || ''),
-      type: tx.type ? String(tx.type) : undefined,
-      source,
-      category: tx.category,
-      needsReview: tx.needsReview,
-      dedupeHash: tx.dedupeHash,
-      entryId: tx.entryId,
-      ...(sourceEmail ? { sourceEmail } : {}),
-    }
-  })
+  const email = sourceEmail ? normalizeEmail(sourceEmail) : undefined
+  return rows
+    .map((row) => {
+      const tx = row as PlanningTransaction
+      const source = tx.source === 'manual' ? 'manual' : 'gmail'
+      return {
+        brandName: String(tx.brandName || ''),
+        amount: String(tx.amount || ''),
+        description: String(tx.description || ''),
+        date: String(tx.date || ''),
+        sender: String(tx.sender || ''),
+        type: tx.type ? String(tx.type) : undefined,
+        source,
+        category: tx.category,
+        needsReview: tx.needsReview,
+        entryId: tx.entryId,
+        sourceEmail: email || (tx.sourceEmail ? normalizeEmail(tx.sourceEmail) : undefined),
+        dedupeHash: undefined,
+      } as PlanningTransaction
+    })
+    .filter((tx) => !isMarketingLedgerRow(tx))
 }
 
 function entriesToTransactions(entries: PlanningManualEntry[]): PlanningTransaction[] {
@@ -164,20 +172,111 @@ async function buildOverview(
     listEntries(userId),
     listOverrides(userId),
   ])
-  const merged = applyOverrides(dedupeTransactions([...primary, ...extra]), overrides)
+  const merged = applyOverrides(
+    collapseRepetitiveTransactions(
+      dedupeTransactions(
+        filterMarketingTransactions([...primary, ...extra] as any) as PlanningTransaction[],
+      ),
+    ) as PlanningTransaction[],
+    overrides,
+  )
   const monthTxs = transactionsInMonth(merged, month)
   const reviewCount = monthTxs.filter((tx) => tx.needsReview).length
+  const categories = buildCategorySpend(merged, budgets, now)
+  const forecast = buildForecast(merged, budgets, now)
+  const analysis = buildAnalysis(merged, now)
+
+  // Heuristic only on overview — month flips / reloads must not burn OpenAI tokens.
+  // AI refine stays on inbox score scan (gated + tiny max_tokens), not every planning GET.
+  const remainingDays = Math.max(1, forecast.daysInMonth - forecast.daysElapsed)
+  const expected = Math.round(forecast.projectedMonthEndInr)
+  const conserve = Math.round(forecast.spentSoFarInr + forecast.dailyPaceInr * remainingDays * 0.75)
+  const stretch = Math.round(expected * 1.12)
+  const daily = (end: number) =>
+    Math.round(Math.max(0, (end - forecast.spentSoFarInr) / remainingDays))
+  const investment = categories.find((c) => c.category === 'investment')
+  const lifestyle = categories
+    .filter((c) => c.category !== 'investment')
+    .reduce((sum, c) => sum + (c.actualInr || 0), 0)
+  const top = analysis.topMerchants[0]
+  const topInvest = analysis.topInvestments?.[0]
+  const tips: string[] = []
+  if (lifestyle > 0) tips.push('Keep daily lifestyle pace steady')
+  else tips.push('Add expenses or resync Gmail to unlock a full plan')
+  if (top) tips.push(`${top.name} is top lifestyle merchant — gift card / Goldback if useful`)
+  if (investment && investment.actualInr > 0 && topInvest) {
+    tips.push(
+      `₹${Math.round(investment.actualInr).toLocaleString('en-IN')} via ${topInvest.name} tracked as investment`,
+    )
+  }
+  const insights: PlanningOverview['insights'] = {
+    headline:
+      lifestyle > 0
+        ? `₹${Math.round(lifestyle).toLocaleString('en-IN')} lifestyle · ₹${Math.round(investment?.actualInr || 0).toLocaleString('en-IN')} invested`
+        : forecast.spentSoFarInr > 0
+          ? `₹${Math.round(forecast.spentSoFarInr).toLocaleString('en-IN')} tracked this month`
+          : 'Plan this month from inbox spend and manual entries',
+    tips: tips.slice(0, 3),
+    riskFlags:
+      forecast.totalBudgetInr > 0 && expected > forecast.totalBudgetInr
+        ? ['Pace is above your monthly budget']
+        : [],
+    engine: 'heuristic',
+  }
+  const plans: PlanningOverview['plans'] = [
+    {
+      id: 'conservative',
+      label: 'Conserve',
+      projectedMonthEndInr: conserve,
+      dailyCapInr: daily(conserve),
+      vsBudgetInr: forecast.totalBudgetInr ? conserve - forecast.totalBudgetInr : null,
+      summary: 'Cut pace ~25% for the rest of the month.',
+      moves: ['Trim the largest lifestyle category', 'Hold new discretionary spend'],
+    },
+    {
+      id: 'expected',
+      label: 'Expected',
+      projectedMonthEndInr: expected,
+      dailyCapInr: Math.round(forecast.dailyPaceInr),
+      vsBudgetInr: forecast.totalBudgetInr ? expected - forecast.totalBudgetInr : null,
+      summary: 'Continue current daily pace through month-end.',
+      moves: ['Review upcoming bills', 'Watch weekend spend'],
+    },
+    {
+      id: 'stretch',
+      label: 'Stretch',
+      projectedMonthEndInr: stretch,
+      dailyCapInr: daily(stretch),
+      vsBudgetInr: forecast.totalBudgetInr ? stretch - forecast.totalBudgetInr : null,
+      summary: 'Allow a buffer for travel, gifts, or one-offs.',
+      moves: ['Use Goldback on planned shopping'],
+    },
+  ]
+  const plansEngine: PlanningOverview['plansEngine'] = 'heuristic'
+
+  const extraInMonth = monthTxs.filter(
+    (tx) => tx.sourceEmail && sessionEmail && tx.sourceEmail !== sessionEmail && tx.source !== 'manual',
+  ).length
+
+  const TX_CAP = 250
+  const transactions = monthTxs.length > TX_CAP ? monthTxs.slice(0, TX_CAP) : monthTxs
+
   return {
     inboxes,
     budgets,
     entries,
-    categories: buildCategorySpend(merged, budgets, now),
-    forecast: buildForecast(merged, budgets, now),
-    analysis: buildAnalysis(merged, now),
-    transactions: monthTxs,
+    categories,
+    forecast,
+    analysis,
+    insights,
+    plans,
+    plansEngine,
+    transactions,
     reviewCount,
     extraTransactionCount: extra.length,
     primaryTransactionCount: primary.length,
+    mergedTransactionCount: merged.length,
+    extraInMonthCount: extraInMonth,
     month,
   }
 }
@@ -189,7 +288,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.get('/api/v1/planning', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const overview = await buildOverview(userId, resolveRequestEmail(req), req.query.month)
       ok(res, overview)
@@ -200,7 +299,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.put('/api/v1/planning/budgets', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const month = parseMonthKey(req.body?.month ?? req.query.month, currentMonthKey())
       const rows = Array.isArray(req.body)
@@ -225,7 +324,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.get('/api/v1/planning/transactions', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const transactions = await extraTransactions(userId)
       ok(res, { transactions })
@@ -236,7 +335,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.get('/api/v1/planning/inboxes', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       ok(res, { inboxes: await listInboxes(userId) })
     } catch (e: any) {
@@ -246,7 +345,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.post('/api/v1/planning/inboxes/connect', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const accessToken = String(req.body?.accessToken || '').trim()
       if (!accessToken) return fail(res, 401, 'AUTH_EXPIRED', {
@@ -288,7 +387,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.post('/api/v1/planning/inboxes/:id/scan', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const inbox = await getInbox(userId, String(req.params.id || ''))
       if (!inbox) return fail(res, 404, 'Inbox not found')
@@ -334,10 +433,12 @@ export function registerPlanningRoutes(app: Express) {
         lastScannedAt: new Date().toISOString(),
         lastError: null,
       })
+      const overview = await buildOverview(userId, resolveRequestEmail(req), currentMonthKey())
       ok(res, {
         inbox: updated || inbox,
         transactions,
         count: transactions.length,
+        overview,
       })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Planning inbox scan failed')
@@ -346,7 +447,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.delete('/api/v1/planning/inboxes/:id', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const removed = await deleteInbox(userId, String(req.params.id || ''))
       if (!removed) return fail(res, 404, 'Inbox not found')
@@ -359,7 +460,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.get('/api/v1/planning/entries', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       ok(res, { entries: await listEntries(userId) })
     } catch (e: any) {
@@ -369,7 +470,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.post('/api/v1/planning/entries', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const category = String(req.body?.category || 'other')
       if (!isPlanningCategory(category)) {
@@ -391,7 +492,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.patch('/api/v1/planning/entries/:id', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       if (req.body?.category != null && !isPlanningCategory(req.body.category)) {
         return fail(res, 400, 'Invalid category')
@@ -413,7 +514,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.delete('/api/v1/planning/entries/:id', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const removed = await deleteEntry(userId, String(req.params.id || ''))
       if (!removed) return fail(res, 404, 'Expense not found')
@@ -426,7 +527,7 @@ export function registerPlanningRoutes(app: Express) {
 
   app.put('/api/v1/planning/overrides', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const dedupeHash = String(req.body?.dedupeHash || '').trim()
       if (!dedupeHash) return fail(res, 400, 'Transaction hash is required')

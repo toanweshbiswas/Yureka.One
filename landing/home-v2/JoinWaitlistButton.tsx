@@ -4,22 +4,32 @@ import { motion } from 'framer-motion';
 import ScrambleText from './ScrambleText';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { appUrl, goExternal, isSplitHostsEnabled } from '@shared/hosts';
+import { WAITLIST_REQUIRED } from '@shared/waitlistGate';
 
-// Site-wide membership CTA — routes by waitlist status so approved users
-// land on the dashboard instead of restarting join.
+// Site-wide membership CTA — open onboard by default; waitlist only when gated.
 export default function JoinWaitlistButton({ className = '' }: { className?: string }) {
   const navigate = useNavigate();
   const { currentUserStatus, user } = useSupabase();
   const [hovered, setHovered] = useState(false);
 
-  const label =
-    currentUserStatus === 'accepted' || currentUserStatus === 'admin'
-      ? 'Open Dashboard'
-      : currentUserStatus === 'pending' ||
-          currentUserStatus === 'on-hold' ||
-          currentUserStatus === 'rejected'
-        ? 'Waiting Room'
-        : 'Join Waitlist';
+  const open =
+    currentUserStatus === 'accepted' ||
+    currentUserStatus === 'admin' ||
+    (!WAITLIST_REQUIRED && !!user);
+
+  const waiting =
+    WAITLIST_REQUIRED &&
+    (currentUserStatus === 'pending' ||
+      currentUserStatus === 'on-hold' ||
+      currentUserStatus === 'rejected');
+
+  const label = open
+    ? 'Open Dashboard'
+    : waiting
+      ? 'Waiting Room'
+      : WAITLIST_REQUIRED
+        ? 'Join Waitlist'
+        : 'Get Started';
 
   const goApp = (path: string) => {
     if (isSplitHostsEnabled()) {
@@ -30,19 +40,15 @@ export default function JoinWaitlistButton({ className = '' }: { className?: str
   };
 
   const go = () => {
-    if (currentUserStatus === 'accepted' || currentUserStatus === 'admin') {
+    if (open) {
       goApp('/dashboard');
       return;
     }
-    if (
-      currentUserStatus === 'pending' ||
-      currentUserStatus === 'on-hold' ||
-      currentUserStatus === 'rejected'
-    ) {
+    if (waiting) {
       goApp(user ? '/waiting' : '/login');
       return;
     }
-    goApp('/join-waitlist');
+    goApp(WAITLIST_REQUIRED ? '/join-waitlist' : '/login');
   };
 
   return (

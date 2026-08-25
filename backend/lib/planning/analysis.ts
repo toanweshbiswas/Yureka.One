@@ -1,6 +1,12 @@
-import type { PlanningAnalysis, PlanningTransaction } from './types.js'
+import type { PlanningAnalysis, PlanningCategory, PlanningTransaction } from './types.js'
 import { PLANNING_CATEGORIES } from './types.js'
-import { isSameMonth, parseInr, parseTxDate, spendByCategory } from './categories.js'
+import {
+  categorizeTransaction,
+  isSameMonth,
+  parseInr,
+  parseTxDate,
+  spendByCategory,
+} from './categories.js'
 
 function monthKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
@@ -8,6 +14,10 @@ function monthKey(date: Date): string {
 
 function dayKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+function categoryOf(tx: PlanningTransaction): PlanningCategory {
+  return (tx.category as PlanningCategory) || categorizeTransaction(tx)
 }
 
 export function buildAnalysis(txs: PlanningTransaction[], now = new Date()): PlanningAnalysis {
@@ -29,7 +39,8 @@ export function buildAnalysis(txs: PlanningTransaction[], now = new Date()): Pla
     monthTotals.set(monthKey(cursor), 0)
   }
 
-  const merchantTotals = new Map<string, number>()
+  const spendMerchants = new Map<string, number>()
+  const investMerchants = new Map<string, number>()
 
   for (const tx of txs) {
     const date = parseTxDate(tx.date)
@@ -41,9 +52,20 @@ export function buildAnalysis(txs: PlanningTransaction[], now = new Date()): Pla
       const dk = dayKey(date)
       if (dayTotals.has(dk)) dayTotals.set(dk, (dayTotals.get(dk) || 0) + amount)
       const name = String(tx.brandName || 'Unknown').trim() || 'Unknown'
-      merchantTotals.set(name, (merchantTotals.get(name) || 0) + amount)
+      const cat = categoryOf(tx)
+      if (cat === 'investment') {
+        investMerchants.set(name, (investMerchants.get(name) || 0) + amount)
+      } else {
+        spendMerchants.set(name, (spendMerchants.get(name) || 0) + amount)
+      }
     }
   }
+
+  const toList = (map: Map<string, number>, n: number) =>
+    [...map.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, n)
+      .map(([name, amountInr]) => ({ name, amountInr: Math.round(amountInr * 100) / 100 }))
 
   return {
     byCategory,
@@ -55,9 +77,8 @@ export function buildAnalysis(txs: PlanningTransaction[], now = new Date()): Pla
       month,
       amountInr: Math.round(amountInr * 100) / 100,
     })),
-    topMerchants: [...merchantTotals.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6)
-      .map(([name, amountInr]) => ({ name, amountInr: Math.round(amountInr * 100) / 100 })),
+    // Lifestyle / shopping only — brokers belong under topInvestments
+    topMerchants: toList(spendMerchants, 6),
+    topInvestments: toList(investMerchants, 6),
   }
 }

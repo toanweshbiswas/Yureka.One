@@ -1,9 +1,15 @@
 import React, { useMemo, useState } from 'react'
-import { RefreshCw, Search } from 'lucide-react'
+import { ArrowDownAZ, ChevronDown, ChevronUp, RefreshCw, Search } from 'lucide-react'
 import type { AdminOverview } from '@backend/lib/admin/overview'
 import { spendFromMetrics } from '@shared/scoreMetrics'
 import { D3BarChart, D3DonutChart, D3MultiLineChart } from './D3Charts'
-import { PageHeader, Surface, fieldClass, ghostBtnClass } from './ui'
+import {
+  compareUserRows,
+  toggleSortDir,
+  type SortDir,
+  type UserSortKey,
+} from './listSort'
+import { EmptyState, PageHeader, Surface, fieldClass, ghostBtnClass, pressClass } from './ui'
 
 function formatPaise(paise: number) {
   return `₹${(paise / 100).toLocaleString('en-IN')}`
@@ -73,6 +79,21 @@ export function UserScoreAnalysis({
   return (
     <div className="mt-3 space-y-3">
       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Score analysis (6 months)</p>
+      {typeof metrics.score_summary === 'string' && metrics.score_summary ? (
+        <div className="rounded-xl border border-clay/20 bg-clay/5 px-3 py-2.5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-clay/80">
+            {metrics.openai_refined ? 'OpenAI refine' : 'Score notes'}
+          </p>
+          <p className="text-[12px] text-white/70 mt-1 leading-snug">{String(metrics.score_summary)}</p>
+          {Array.isArray(metrics.planning_tips) && metrics.planning_tips.length > 0 ? (
+            <ul className="mt-2 space-y-1">
+              {(metrics.planning_tips as unknown[]).slice(0, 3).map((tip, i) => (
+                <li key={i} className="text-[11px] text-white/45">• {String(tip)}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
         {kpis.map((c) => (
           <div key={c.label} className="rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5">
@@ -178,6 +199,7 @@ export function OverviewTab({
     { label: 'Waitlist', value: kpis ? String(kpis.waitlistTotal) : '—' },
     { label: 'Accepted', value: kpis ? String(kpis.accepted) : '—' },
     { label: 'Active (7d)', value: kpis ? String(kpis.activeUsers7d) : '—' },
+    { label: 'Saved app', value: kpis ? String(kpis.pwaInstalled ?? 0) : '—' },
     { label: 'Scored', value: kpis ? String(kpis.scored) : '—' },
     { label: 'Avg score', value: kpis?.avgScore != null ? String(kpis.avgScore) : '—' },
     { label: 'Goldback out', value: kpis ? formatPaise(kpis.goldbackOutstandingPaise) : '—' },
@@ -308,6 +330,8 @@ export function UsersTab({
   onRefresh?: () => void
 }) {
   const [q, setQ] = useState('')
+  const [sortKey, setSortKey] = useState<UserSortKey>('action')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [expanded, setExpanded] = useState<string | null>(null)
   const [activity, setActivity] = useState<any | null>(null)
   const [activityLoading, setActivityLoading] = useState(false)
@@ -326,15 +350,36 @@ export function UsersTab({
   const rows = useMemo(() => {
     const list = data?.users || []
     const s = q.trim().toLowerCase()
-    if (!s) return list
-    return list.filter(
-      (u) =>
-        (u.email || '').toLowerCase().includes(s) ||
-        (u.name || '').toLowerCase().includes(s) ||
-        (u.mobileNumber || '').toLowerCase().includes(s) ||
-        u.key.toLowerCase().includes(s),
+    const filtered = !s
+      ? [...list]
+      : list.filter(
+          (u) =>
+            (u.email || '').toLowerCase().includes(s) ||
+            (u.name || '').toLowerCase().includes(s) ||
+            (u.mobileNumber || '').toLowerCase().includes(s) ||
+            u.key.toLowerCase().includes(s),
+        )
+    filtered.sort((a, b) => compareUserRows(a, b, sortKey, sortDir))
+    return filtered
+  }, [data?.users, q, sortKey, sortDir])
+
+  const onHeaderSort = (key: UserSortKey) => {
+    if (sortKey === key) {
+      setSortDir(toggleSortDir(sortDir))
+      return
+    }
+    setSortKey(key)
+    setSortDir(key === 'name' || key === 'status' ? 'asc' : 'desc')
+  }
+
+  const SortHint = ({ column }: { column: UserSortKey }) => {
+    if (sortKey !== column) return null
+    return sortDir === 'asc' ? (
+      <ChevronUp size={12} className="inline ml-0.5 opacity-80" />
+    ) : (
+      <ChevronDown size={12} className="inline ml-0.5 opacity-80" />
     )
-  }, [data?.users, q])
+  }
 
   const loadActivity = async (u: AdminOverview['users'][number]) => {
     setActivityLoading(true)
@@ -369,7 +414,23 @@ export function UsersTab({
     const next = expanded === u.key ? null : u.key
     setExpanded(next)
     setSaveMsg(null)
-    if (next) void loadActivity(u)
+    if (next) {
+      // Seed edit target immediately so Delete works even before activity finishes.
+      setEdit({
+        waitlistId: '',
+        fullName: u.name || '',
+        status: u.status || 'accepted',
+        yurekaScore: u.score != null ? String(u.score) : '',
+        rewardPoints: '',
+        goldbackPaise: String(u.goldbackPaise ?? 0),
+      })
+      setActivity({
+        key: u.key,
+        email: u.email,
+        waitlistId: null,
+      })
+      void loadActivity(u)
+    }
   }
 
   const saveUser = async () => {
@@ -435,19 +496,45 @@ export function UsersTab({
   }
 
   const deleteUser = async () => {
-    if (!canWrite || !edit.waitlistId) return
-    if (!confirm('Delete this waitlist / user row?')) return
-    const res = await fetch(`/api/admin/users/${encodeURIComponent(edit.waitlistId)}`, {
-      method: 'DELETE',
-      headers: token ? { 'X-Admin-Session': token } : {},
-    })
-    const json = await res.json()
-    if (!res.ok || json.error) {
-      setSaveMsg(json.error || 'Delete failed')
+    if (!canWrite) return
+    const targetId = (edit.waitlistId || activity?.waitlistId || '').trim()
+    const targetEmail = (activity?.email || '').trim()
+    const target = targetId || targetEmail
+    if (!target) {
+      setSaveMsg('Cannot delete — waitlist row not loaded yet. Expand the user again, then retry.')
       return
     }
-    setExpanded(null)
-    onRefresh?.()
+    const label = targetEmail || target
+    if (
+      !confirm(
+        `Permanently delete ${label}?\n\nThis removes them from the waitlist immediately. This cannot be undone.`,
+      )
+    ) {
+      return
+    }
+    setSaving(true)
+    setSaveMsg(null)
+    try {
+      const res = await fetch(`/api/admin/users/${encodeURIComponent(target)}`, {
+        method: 'DELETE',
+        headers: {
+          ...(token ? { 'X-Admin-Session': token } : {}),
+        },
+      })
+      const json = await res.json().catch(() => ({} as { error?: string }))
+      if (!res.ok || json.error) {
+        setSaveMsg(json.error || `Delete failed (${res.status})`)
+        setSaving(false)
+        return
+      }
+      setSaveMsg('User deleted')
+      setExpanded(null)
+      setActivity(null)
+      onRefresh?.()
+    } catch {
+      setSaveMsg('Delete failed')
+    }
+    setSaving(false)
   }
 
   return (
@@ -455,28 +542,101 @@ export function UsersTab({
       <PageHeader
         title="Users"
         subtitle="Drill into transactions, top categories, and savings. Edit score, Goldback, and reward points."
+        actions={
+          onRefresh ? (
+            <button type="button" onClick={onRefresh} className={ghostBtnClass} aria-label="Refresh users">
+              <RefreshCw size={14} />
+              Refresh
+            </button>
+          ) : null
+        }
       />
-      <div className="relative">
-        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
-        <input
-          className={`${fieldClass} pl-9`}
-          placeholder="Search email, name, or phone…"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-        />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1 min-w-0">
+          <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+          <input
+            className={`${fieldClass} pl-9`}
+            placeholder="Search email, name, or phone…"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap gap-1.5 items-center">
+          <span className="text-[11px] text-white/30 mr-1 flex items-center gap-1">
+            <ArrowDownAZ size={12} /> Sort
+          </span>
+          {(
+            [
+              { id: 'action' as const, label: 'Needs action' },
+              { id: 'score' as const, label: 'Score' },
+              { id: 'active' as const, label: 'Active' },
+              { id: 'goldback' as const, label: 'Goldback' },
+              { id: 'name' as const, label: 'Name' },
+            ] as const
+          ).map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => {
+                if (sortKey === opt.id) setSortDir(toggleSortDir(sortDir))
+                else {
+                  setSortKey(opt.id)
+                  setSortDir(opt.id === 'name' ? 'asc' : 'desc')
+                }
+              }}
+              className={`${pressClass} rounded-[10px] px-2.5 py-1.5 text-[12px] font-medium ${
+                sortKey === opt.id ? 'bg-white text-black' : 'bg-white/[0.06] text-white/50 hover:text-white'
+              }`}
+            >
+              {opt.label}
+              {sortKey === opt.id ? (sortDir === 'asc' ? ' ↑' : ' ↓') : ''}
+            </button>
+          ))}
+        </div>
       </div>
+      <p className="text-[12px] text-white/35 tabular-nums">
+        {rows.length} user{rows.length === 1 ? '' : 's'}
+        {q.trim() ? ' matching search' : ''}
+        {sortKey === 'action' ? ' · pending & on hold first' : ''}
+      </p>
       <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
         <table className="w-full text-left text-sm">
           <thead className="text-[10px] uppercase tracking-[0.18em] text-white/35 bg-white/[0.03]">
             <tr>
-              <th className="px-4 py-3 font-black">User</th>
+              <th className="px-4 py-3 font-black">
+                <button type="button" className={`${pressClass} inline-flex items-center`} onClick={() => onHeaderSort('name')}>
+                  User
+                  <SortHint column="name" />
+                </button>
+              </th>
               <th className="px-4 py-3 font-black">Phone</th>
-              <th className="px-4 py-3 font-black">Status</th>
-              <th className="px-4 py-3 font-black">Yureka Score</th>
-              <th className="px-4 py-3 font-black">Goldback</th>
+              <th className="px-4 py-3 font-black">
+                <button type="button" className={`${pressClass} inline-flex items-center`} onClick={() => onHeaderSort('status')}>
+                  Status
+                  <SortHint column="status" />
+                </button>
+              </th>
+              <th className="px-4 py-3 font-black">App</th>
+              <th className="px-4 py-3 font-black">
+                <button type="button" className={`${pressClass} inline-flex items-center`} onClick={() => onHeaderSort('score')}>
+                  Yureka Score
+                  <SortHint column="score" />
+                </button>
+              </th>
+              <th className="px-4 py-3 font-black">
+                <button type="button" className={`${pressClass} inline-flex items-center`} onClick={() => onHeaderSort('goldback')}>
+                  Goldback
+                  <SortHint column="goldback" />
+                </button>
+              </th>
               <th className="px-4 py-3 font-black">Gifts</th>
               <th className="px-4 py-3 font-black">Clicks</th>
-              <th className="px-4 py-3 font-black">Last active</th>
+              <th className="px-4 py-3 font-black">
+                <button type="button" className={`${pressClass} inline-flex items-center`} onClick={() => onHeaderSort('active')}>
+                  Last active
+                  <SortHint column="active" />
+                </button>
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -495,7 +655,30 @@ export function UsersTab({
                     <td className="px-4 py-3 text-[12px] tabular-nums text-white/70 whitespace-nowrap">
                       {u.mobileNumber || '—'}
                     </td>
-                    <td className="px-4 py-3 text-[11px] uppercase tracking-widest text-white/50">{u.status}</td>
+                    <td className="px-4 py-3 text-[11px] uppercase tracking-widest">
+                      <span
+                        className={
+                          u.status === 'pending'
+                            ? 'text-amber-300'
+                            : u.status === 'accepted'
+                              ? 'text-clay'
+                              : u.status === 'rejected'
+                                ? 'text-red-300'
+                                : 'text-white/50'
+                        }
+                      >
+                        {(u.status || '—').replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {u.pwaInstalled ? (
+                        <span className="inline-flex items-center rounded-full bg-clay/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-clay">
+                          Saved{u.pwaPlatform ? ` · ${u.pwaPlatform}` : ''}
+                        </span>
+                      ) : (
+                        <span className="text-[11px] text-white/25">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <ScoreBadge score={u.score} decision={u.scoreDecision} />
                       {(() => {
@@ -519,7 +702,7 @@ export function UsersTab({
                   </tr>
                   {open ? (
                     <tr className="border-t border-white/[0.04] bg-white/[0.02]">
-                      <td colSpan={8} className="px-4 py-4 space-y-5">
+                      <td colSpan={9} className="px-4 py-4 space-y-5">
                         <UserScoreAnalysis metrics={u.scoreMetrics} />
                         {activityLoading && <p className="text-[13px] text-white/40">Loading activity…</p>}
                         {activityError && <p className="text-[13px] text-red-300">{activityError}</p>}
@@ -573,21 +756,25 @@ export function UsersTab({
                         {canWrite && (
                           <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4 space-y-3">
                             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Edit score / Goldback / points</p>
-                            <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
-                              <input className={fieldClass} placeholder="Name" value={edit.fullName} onChange={(e) => setEdit({ ...edit, fullName: e.target.value })} onClick={(e) => e.stopPropagation()} />
-                              <select className={fieldClass} value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })} onClick={(e) => e.stopPropagation()}>
-                                <option value="pending">pending</option>
-                                <option value="accepted">accepted</option>
-                                <option value="on_hold">on_hold</option>
-                                <option value="rejected">rejected</option>
-                              </select>
-                              <input className={fieldClass} type="number" placeholder="Yureka score" value={edit.yurekaScore} onChange={(e) => setEdit({ ...edit, yurekaScore: e.target.value })} onClick={(e) => e.stopPropagation()} />
-                              <input className={fieldClass} type="number" placeholder="Goldback paise" value={edit.goldbackPaise} onChange={(e) => setEdit({ ...edit, goldbackPaise: e.target.value })} onClick={(e) => e.stopPropagation()} />
-                              <input className={fieldClass} type="number" placeholder="Reward points" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                            <div className="space-y-2">
+                              <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                <input className={fieldClass} placeholder="Name" value={edit.fullName} onChange={(e) => setEdit({ ...edit, fullName: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                                <select className={fieldClass} value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })} onClick={(e) => e.stopPropagation()}>
+                                  <option value="pending">pending</option>
+                                  <option value="accepted">accepted</option>
+                                  <option value="on_hold">on_hold</option>
+                                  <option value="rejected">rejected</option>
+                                </select>
+                                <input className={fieldClass} type="number" placeholder="Yureka score" value={edit.yurekaScore} onChange={(e) => setEdit({ ...edit, yurekaScore: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                              </div>
+                              <div className="grid sm:grid-cols-2 gap-2">
+                                <input className={fieldClass} type="number" placeholder="Goldback paise" value={edit.goldbackPaise} onChange={(e) => setEdit({ ...edit, goldbackPaise: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                                <input className={fieldClass} type="number" placeholder="Reward points" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                              </div>
                             </div>
                             <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                               <button type="button" disabled={saving} onClick={() => void saveUser()} className="rounded-xl bg-clay text-black px-3 py-2 text-xs font-black disabled:opacity-50">{saving ? 'Saving…' : 'Save changes'}</button>
-                              <button type="button" onClick={() => void deleteUser()} className="rounded-xl bg-red-500/20 text-red-300 px-3 py-2 text-xs font-bold">Delete user</button>
+                              <button type="button" disabled={saving} onClick={() => void deleteUser()} className="rounded-xl bg-red-500/20 text-red-300 px-3 py-2 text-xs font-bold disabled:opacity-50">Delete user</button>
                               {saveMsg && <span className="text-[12px] text-white/50 self-center">{saveMsg}</span>}
                             </div>
                           </div>
@@ -601,7 +788,7 @@ export function UsersTab({
           </tbody>
         </table>
         {!loading && !rows.length && (
-          <p className="text-white/30 text-sm py-10 text-center">No users yet</p>
+          <EmptyState>{q.trim() ? 'No users match that search' : 'No users yet'}</EmptyState>
         )}
       </div>
     </section>
@@ -609,7 +796,22 @@ export function UsersTab({
 }
 
 export function GiftOrdersTab({ data, loading }: { data: AdminOverview | null; loading: boolean }) {
-  const rows = data?.giftOrders || []
+  const [q, setQ] = useState('')
+  const rows = useMemo(() => {
+    const list = [...(data?.giftOrders || [])]
+    list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+    const s = q.trim().toLowerCase()
+    if (!s) return list
+    return list.filter(
+      (o) =>
+        (o.productTitle || '').toLowerCase().includes(s) ||
+        (o.email || '').toLowerCase().includes(s) ||
+        (o.userId || '').toLowerCase().includes(s) ||
+        (o.status || '').toLowerCase().includes(s) ||
+        (o.paymentStatus || '').toLowerCase().includes(s),
+    )
+  }, [data?.giftOrders, q])
+
   return (
     <section className="space-y-6">
       <PageHeader
@@ -638,6 +840,15 @@ export function GiftOrdersTab({ data, loading }: { data: AdminOverview | null; l
           height={200}
         />
       </ChartCard>
+      <div className="relative">
+        <Search size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30" />
+        <input
+          className={`${fieldClass} pl-9`}
+          placeholder="Search product, email, or status…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      </div>
       <div className="space-y-2">
         {rows.map((o) => (
           <div key={o.id} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3.5 flex justify-between gap-3 text-sm">
@@ -653,7 +864,9 @@ export function GiftOrdersTab({ data, loading }: { data: AdminOverview | null; l
             </div>
           </div>
         ))}
-        {!loading && !rows.length && <p className="text-white/30 text-sm py-10 text-center">No gift-card orders yet</p>}
+        {!loading && !rows.length && (
+          <EmptyState>{q.trim() ? 'No orders match that search' : 'No gift-card orders yet'}</EmptyState>
+        )}
       </div>
     </section>
   )

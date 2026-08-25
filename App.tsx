@@ -21,13 +21,17 @@ import {
   appUrl,
   adminUrl,
   brandUrl,
+  wanderworldUrl,
   goExternal,
   isTemporaryPublicHost,
   productionUrlForPath,
   APP_PATH_PREFIXES,
   BRAND_PATH_PREFIXES,
+  WANDERWORLD_PATH_PREFIXES,
   type SiteRole,
 } from '@shared/hosts';
+import { WAITLIST_REQUIRED } from '@shared/waitlistGate';
+import { captureGetawayRefFromSearch } from '@app/Dashboard/Getaway/getawayUtils';
 
 // Robust Lazy Loader: after deploys, old HTML can reference deleted chunks.
 // Clear Cache Storage then hard-reload once so the fresh shell loads.
@@ -92,6 +96,9 @@ const DashboardLayout = lazyWithRetry(() => import('@app/Dashboard/DashboardLayo
 const BrandPortal = lazyWithRetry(() => import('@app/brand/BrandPortal'));
 const BrandLoginPage = lazyWithRetry(() => import('@app/brand/BrandLoginPage'));
 const BrandResetPasswordPage = lazyWithRetry(() => import('@app/brand/BrandResetPasswordPage'));
+const WwPortal = lazyWithRetry(() => import('@app/wanderworld/WwPortal'));
+const WwLoginPage = lazyWithRetry(() => import('@app/wanderworld/WwLoginPage'));
+const WwResetPasswordPage = lazyWithRetry(() => import('@app/wanderworld/WwResetPasswordPage'));
 
 const LANDING_PATH_PREFIXES = [
   '/brands',
@@ -142,6 +149,10 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
         goExternal(brandUrl(rest === '/brand' ? '/brand' : rest));
         return;
       }
+      if (pathStartsWith(pathname, WANDERWORLD_PATH_PREFIXES)) {
+        goExternal(wanderworldUrl(pathname === '/ww' || pathname === '/ww/' ? '/' : rest.replace(/^\/ww/, '') || '/'));
+        return;
+      }
       if (pathStartsWith(pathname, APP_PATH_PREFIXES)) {
         goExternal(appUrl(rest));
         return;
@@ -153,8 +164,29 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
         goExternal(adminUrl(rest === '/admin' ? '/admin' : rest));
         return;
       }
+      // WW OAuth bridge + tagged portal callbacks → ops host (before login mounts).
+      if (
+        pathname === '/ww-oauth' ||
+        pathname.startsWith('/ww-oauth/') ||
+        new URLSearchParams(search).get('portal') === 'ww'
+      ) {
+        const destPath =
+          pathname.includes('signup') ? '/signup' : pathname.includes('reset-password') ? '/reset-password' : '/login';
+        const params = new URLSearchParams(search.startsWith('?') ? search.slice(1) : search);
+        params.set('portal', 'ww');
+        if (!params.get('next') || params.get('next') === '/dashboard' || (params.get('next') || '').startsWith('/dashboard')) {
+          params.set('next', '/');
+        }
+        const q = params.toString();
+        goExternal(wanderworldUrl(`${destPath}${q ? `?${q}` : ''}${hash}`));
+        return;
+      }
       if (pathStartsWith(pathname, BRAND_PATH_PREFIXES)) {
         goExternal(brandUrl(rest === '/brand' ? '/brand' : rest));
+        return;
+      }
+      if (pathStartsWith(pathname, WANDERWORLD_PATH_PREFIXES)) {
+        goExternal(wanderworldUrl(pathname === '/ww' || pathname === '/ww/' ? '/' : rest.replace(/^\/ww/, '') || '/'));
         return;
       }
       if (pathStartsWith(pathname, LANDING_PATH_PREFIXES)) {
@@ -170,6 +202,10 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
       }
       if (pathStartsWith(pathname, BRAND_PATH_PREFIXES)) {
         goExternal(brandUrl(rest === '/brand' ? '/brand' : rest));
+        return;
+      }
+      if (pathStartsWith(pathname, WANDERWORLD_PATH_PREFIXES)) {
+        goExternal(wanderworldUrl(pathname === '/ww' || pathname === '/ww/' ? '/' : rest.replace(/^\/ww/, '') || '/'));
         return;
       }
       if (pathStartsWith(pathname, APP_PATH_PREFIXES)) {
@@ -191,6 +227,10 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
         goExternal(adminUrl(rest === '/admin' ? '/admin' : rest));
         return;
       }
+      if (pathStartsWith(pathname, WANDERWORLD_PATH_PREFIXES)) {
+        goExternal(wanderworldUrl(pathname === '/ww' || pathname === '/ww/' ? '/' : rest.replace(/^\/ww/, '') || '/'));
+        return;
+      }
       if (pathStartsWith(pathname, LANDING_PATH_PREFIXES)) {
         goExternal(landingUrl(rest));
         return;
@@ -209,6 +249,47 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
         goExternal(appUrl(rest));
         return;
       }
+    }
+
+    if (role === 'wanderworld') {
+      // Root and auth paths stay on this host (portal lives at /).
+      if (pathname === '/ww' || pathname.startsWith('/ww/')) {
+        const stripped =
+          pathname === '/ww' || pathname === '/ww/'
+            ? '/'
+            : pathname.replace(/^\/ww/, '') || '/'
+        goExternal(wanderworldUrl(`${stripped}${search}${hash}`));
+        return;
+      }
+      if (pathname === '/admin' || pathname.startsWith('/admin/')) {
+        goExternal(adminUrl(rest === '/admin' ? '/admin' : rest));
+        return;
+      }
+      if (pathStartsWith(pathname, BRAND_PATH_PREFIXES)) {
+        goExternal(brandUrl(rest === '/brand' ? '/brand' : rest));
+        return;
+      }
+      if (pathStartsWith(pathname, LANDING_PATH_PREFIXES)) {
+        goExternal(landingUrl(rest));
+        return;
+      }
+      // Auth + home stay here.
+      if (
+        pathname === '/' ||
+        pathname === '/login' ||
+        pathname === '/signup' ||
+        pathname === '/reset-password'
+      ) {
+        return;
+      }
+      // Never bounce WW traffic to app.yureka.one (OAuth/next=?/dashboard used to do that).
+      // Keep users on ops: send stray app paths back to WW home.
+      if (pathStartsWith(pathname, APP_PATH_PREFIXES)) {
+        goExternal(wanderworldUrl('/'));
+        return;
+      }
+      // Unknown paths → ops home
+      goExternal(wanderworldUrl('/'));
     }
   }, [role, pathname, search, hash, rest]);
 
@@ -246,14 +327,28 @@ const ScrollToTop = () => {
   return null;
 };
 
+/** Persist WanderWorld promoter ?ref= before auth redirects drop the getaway page. */
+const CaptureWwPromoterRef = () => {
+  const { search } = useLocation();
+  // Sync write — ProtectedRoute may Navigate away before useEffect runs.
+  captureGetawayRefFromSearch(search);
+  return null;
+};
+
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { currentUserStatus, isLoading } = useSupabase();
+  const { currentUserStatus, isLoading, user } = useSupabase();
   const location = useLocation();
-  const canStay =
-    currentUserStatus === 'accepted' || currentUserStatus === 'admin';
 
   // Never tear down the dashboard for a background status/CMS refresh.
-  if (canStay) return <>{children}</>;
+  // Waitlist open: any signed-in session can stay (incl. status "none" while
+  // /auth/status auto-accept catches up — that used to bounce signup → login).
+  if (
+    currentUserStatus === 'accepted' ||
+    currentUserStatus === 'admin' ||
+    (!WAITLIST_REQUIRED && Boolean(user) && currentUserStatus !== 'loading')
+  ) {
+    return <>{children}</>;
+  }
 
   if (isLoading || currentUserStatus === 'loading') {
     return (
@@ -269,16 +364,17 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('yureka-embedded') === '1');
   const embeddedSuffix = isEmbedded ? '&embedded=1' : '';
 
-  if (currentUserStatus === 'none' || !currentUserStatus) {
+  if (!user || currentUserStatus === 'none' || !currentUserStatus) {
     return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}${embeddedSuffix}`} state={{ from: location }} replace />;
   }
 
-  if (currentUserStatus === 'pending' || currentUserStatus === 'on-hold') {
-    return <Navigate to="/waiting" replace />;
-  }
-
-  if (currentUserStatus === 'rejected') {
-    return <Navigate to="/waiting" replace />;
+  if (WAITLIST_REQUIRED) {
+    if (currentUserStatus === 'pending' || currentUserStatus === 'on-hold') {
+      return <Navigate to="/waiting" replace />;
+    }
+    if (currentUserStatus === 'rejected') {
+      return <Navigate to="/waiting" replace />;
+    }
   }
 
   return <>{children}</>;
@@ -325,10 +421,30 @@ function ProductRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard/home" replace />} />
       <Route path="/go" element={<OutboundBridge />} />
+      <Route path="/ww-oauth" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
       <Route path="/signup" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
-      <Route path="/join-waitlist" element={<><SEO {...staticPageMeta['/join-waitlist']} /><WaitlistPage /></>} />
-      <Route path="/waiting" element={<><SEO {...staticPageMeta['/waiting']} /><WaitingPage /></>} />
+      {/* Waitlist paused — set VITE_WAITLIST_REQUIRED=true to restore pages */}
+      <Route
+        path="/join-waitlist"
+        element={
+          WAITLIST_REQUIRED ? (
+            <><SEO {...staticPageMeta['/join-waitlist']} /><WaitlistPage /></>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
+      <Route
+        path="/waiting"
+        element={
+          WAITLIST_REQUIRED ? (
+            <><SEO {...staticPageMeta['/waiting']} /><WaitingPage /></>
+          ) : (
+            <Navigate to="/dashboard" replace />
+          )
+        }
+      />
       <Route path="/reset-password" element={<><SEO {...staticPageMeta['/reset-password'] || staticPageMeta['/login']} /><ResetPasswordPage /></>} />
       <Route path="/privacy-policy" element={<PrivacyPolicy />} />
       <Route path="/terms-of-service" element={<TermsOfService />} />
@@ -370,6 +486,24 @@ function BrandRoutes() {
   );
 }
 
+function WanderworldRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<WwLoginPage />} />
+      <Route path="/signup" element={<WwLoginPage />} />
+      <Route path="/reset-password" element={<WwResetPasswordPage />} />
+      <Route path="/" element={<WwPortal />} />
+      {/* Legacy /ww paths → root */}
+      <Route path="/ww/login" element={<Navigate to="/login" replace />} />
+      <Route path="/ww/signup" element={<Navigate to="/signup" replace />} />
+      <Route path="/ww/reset-password" element={<Navigate to="/reset-password" replace />} />
+      <Route path="/ww" element={<Navigate to="/" replace />} />
+      <Route path="/ww/*" element={<Navigate to="/" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
 function MarketingOrPwaHome() {
   const pwa =
     isStandalonePwa() ||
@@ -398,10 +532,34 @@ function CombinedRoutes() {
       <Route path="/brand/reset-password" element={<><SEO {...staticPageMeta['/brand']} /><BrandResetPasswordPage /></>} />
       <Route path="/brand" element={<BrandPortal />} />
       <Route path="/brand/*" element={<BrandPortal />} />
+      <Route path="/ww/login" element={<WwLoginPage />} />
+      <Route path="/ww/signup" element={<WwLoginPage />} />
+      <Route path="/ww/reset-password" element={<WwResetPasswordPage />} />
+      <Route path="/ww" element={<WwPortal />} />
+      <Route path="/ww/*" element={<WwPortal />} />
       <Route path="/login" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
       <Route path="/signup" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
-      <Route path="/join-waitlist" element={<><SEO {...staticPageMeta['/join-waitlist']} /><WaitlistPage /></>} />
-      <Route path="/waiting" element={<><SEO {...staticPageMeta['/waiting']} /><WaitingPage /></>} />
+      {/* Waitlist paused — set VITE_WAITLIST_REQUIRED=true to restore pages */}
+      <Route
+        path="/join-waitlist"
+        element={
+          WAITLIST_REQUIRED ? (
+            <><SEO {...staticPageMeta['/join-waitlist']} /><WaitlistPage /></>
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
+      <Route
+        path="/waiting"
+        element={
+          WAITLIST_REQUIRED ? (
+            <><SEO {...staticPageMeta['/waiting']} /><WaitingPage /></>
+          ) : (
+            <Navigate to="/dashboard" replace />
+          )
+        }
+      />
       <Route path="/reset-password" element={<><SEO {...staticPageMeta['/reset-password'] || staticPageMeta['/login']} /><ResetPasswordPage /></>} />
       <Route
         path="/dashboard/*"
@@ -434,6 +592,8 @@ const AppContent: React.FC = () => {
   const role = resolveSiteRole();
   const isAdminRoute = location.pathname.startsWith('/admin') || role === 'admin';
   const isBrandRoute = location.pathname.startsWith('/brand') || role === 'brand';
+  const isWwHostShell = role === 'wanderworld';
+  const isWwRoute = location.pathname.startsWith('/ww') || isWwHostShell;
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const isHomeRoute = location.pathname === '/' && (role === 'landing' || role === 'all');
   const isForBrandsRoute = location.pathname === '/for-brands';
@@ -442,12 +602,27 @@ const AppContent: React.FC = () => {
     location.pathname.startsWith('/blog/') ||
     location.pathname === '/blogs' ||
     location.pathname.startsWith('/blogs/');
-  const isSpecialRoute = isAdminRoute || isDashboardRoute || isBrandRoute || isForBrandsRoute || role === 'app';
+  const isSpecialRoute =
+    isAdminRoute ||
+    isDashboardRoute ||
+    isBrandRoute ||
+    isWwRoute ||
+    isWwHostShell ||
+    isForBrandsRoute ||
+    role === 'app';
   const applyEditorialGrid = !isSpecialRoute && !isHomeRoute && !isBlogRoute;
   const isZwitchRoute = location.pathname === '/zwitch';
-  const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute;
-  const isProductShell = role === 'app' || role === 'admin' || role === 'brand' || isAdminRoute || isDashboardRoute || isBrandRoute;
-  const shellBg = isHomeRoute || isProductShell ? 'bg-[#070707]' : 'bg-cream';
+  const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute || isWwHostShell;
+  const isProductShell =
+    role === 'app' ||
+    role === 'admin' ||
+    role === 'brand' ||
+    role === 'wanderworld' ||
+    isAdminRoute ||
+    isDashboardRoute ||
+    isBrandRoute ||
+    isWwRoute;
+  const shellBg = isHomeRoute || isProductShell || isWwHostShell ? 'bg-[#070707]' : 'bg-cream';
   const showSiteNavbar =
     role === 'landing' || role === 'all'
       ? !isHomeRoute && (!isSpecialRoute || isForBrandsRoute)
@@ -462,7 +637,9 @@ const AppContent: React.FC = () => {
           ? <AdminRoutes />
           : role === 'brand'
             ? <BrandRoutes />
-            : <CombinedRoutes />;
+            : role === 'wanderworld'
+              ? <WanderworldRoutes />
+              : <CombinedRoutes />;
 
   const suspenseFallback = (
     <div className={`fixed inset-0 ${shellBg} flex items-center justify-center`} style={{ zIndex: 100 }}>
@@ -477,6 +654,7 @@ const AppContent: React.FC = () => {
     <HostGate role={role}>
       <div className={`min-h-screen font-sans text-white relative ${shellBg} ${isProductShell ? 'yureka-product' : ''} ${noTopPadding ? 'pt-0' : 'pt-24 md:pt-28'}`}>
         <ScrollToTop />
+        <CaptureWwPromoterRef />
         {showSiteNavbar && <Navbar />}
 
         <main className={`relative z-10 ${noTopPadding ? 'pt-0' : ''}`}>

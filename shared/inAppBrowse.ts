@@ -34,11 +34,31 @@ export function browseHost(raw: string | null | undefined): string {
   }
 }
 
+/** Hosts that break login when framed or after cross-site hops (ITP / 3p cookies). */
+export function needsFirstPartyCookies(raw: string | null | undefined): boolean {
+  const host = browseHost(raw).toLowerCase()
+  if (!host) return false
+  return (
+    host === 'flipkart.com' ||
+    host.endsWith('.flipkart.com') ||
+    host === 'shopsy.in' ||
+    host.endsWith('.shopsy.in') ||
+    host === 'myntra.com' ||
+    host.endsWith('.myntra.com') ||
+    host === 'amazon.in' ||
+    host.endsWith('.amazon.in') ||
+    host === 'amazon.com' ||
+    host.endsWith('.amazon.com')
+  )
+}
+
 /**
- * Almost every CueLinks / grocery / fashion merchant refuses iframes or hands
- * off to a native app. Only Flipkart is known-safe to embed in the PWA frame.
+ * Affiliate click trackers can't be framed. Cookie-sensitive merchants must be
+ * top-level (Flipkart login shows “enable cookies” inside iframes / ITP hops).
  */
-const IFRAME_OK_SUFFIXES = ['flipkart.com']
+export function mustOpenExternally(raw: string | null | undefined): boolean {
+  return isAffiliateRedirectUrl(raw) || needsFirstPartyCookies(raw)
+}
 
 /** CueLinks / Impact-style click id so conversions in Safari still map to this user. */
 export function stampAffiliateSubId(raw: string, userId: string): string {
@@ -70,15 +90,6 @@ export function isAffiliateRedirectUrl(raw: string | null | undefined): boolean 
   } catch {
     return false
   }
-}
-
-export function mustOpenExternally(raw: string | null | undefined): boolean {
-  const safe = sanitizeBrowseUrl(raw)
-  if (!safe) return false
-  if (isAffiliateRedirectUrl(safe)) return true
-  const host = browseHost(safe)
-  if (!host) return true
-  return !IFRAME_OK_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`))
 }
 
 export function openStoreInSystemBrowser(raw: string | null | undefined): boolean {
@@ -164,7 +175,10 @@ export function mobileWebBrowseUrl(raw: string | null | undefined): string | nul
     if (host === 'flipkart.com' || host.endsWith('.flipkart.com')) {
       u.hostname = 'www.flipkart.com'
       stripAppDeepPath(u)
-      return withWebSource(u).toString()
+      // Clean www session so Flipkart login can set first-party cookies.
+      withWebSource(u)
+      if (!u.searchParams.get('otracker')) u.searchParams.set('otracker', 'web')
+      return u.toString()
     }
     if (host === 'myntra.com' || host.endsWith('.myntra.com')) {
       u.hostname = 'www.myntra.com'
@@ -228,6 +242,11 @@ export function mobileWebBrowseUrl(raw: string | null | undefined): string | nul
       stripAppDeepPath(u)
       return withWebSource(u).toString()
     }
+    if (host === 'pepejeans.in' || host.endsWith('.pepejeans.in') || host === 'pepejeans.com' || host.endsWith('.pepejeans.com')) {
+      u.hostname = host.includes('.com') ? 'www.pepejeans.com' : 'www.pepejeans.in'
+      stripAppDeepPath(u)
+      return withWebSource(u).toString()
+    }
     if (host === 'tatacliq.com' || host.endsWith('.tatacliq.com')) {
       u.hostname = 'www.tatacliq.com'
       stripAppDeepPath(u)
@@ -272,9 +291,10 @@ export function explorePath(sceneId: string, brand?: string) {
   return q ? `/dashboard/explore/${sceneId}?${q}` : `/dashboard/explore/${sceneId}`
 }
 
-/** Live store URL for hosts that still allow framing. Never the HTML proxy — SPAs break and trip rate limits. */
+/** Live store URL for framing when the host allows it. Never the HTML proxy. */
 export function embedFrameSrc(raw: string | null | undefined): string | null {
   const url = sanitizeBrowseUrl(raw)
-  if (!url || mustOpenExternally(url)) return null
-  return url
+  if (!url || isAffiliateRedirectUrl(url) || needsFirstPartyCookies(url)) return null
+  // Always return the merchant URL — callers detect X-Frame blocks and fall back in-shell.
+  return mobileWebBrowseUrl(url) || url
 }

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import {
@@ -16,6 +16,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useSupabase } from '@shared/SupabaseProvider'
+import { DateField } from '@shared/DateField'
 import {
   clearPlanningGmailToken,
   requestPlanningGmailToken,
@@ -108,6 +109,7 @@ const ExpensePlanning: React.FC = () => {
     () => Object.fromEntries(PLANNING_CATEGORIES.map((c) => [c, ''])) as Record<PlanningCategory, string>,
   )
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [connecting, setConnecting] = useState(false)
   const [scanningId, setScanningId] = useState<string | null>(null)
@@ -122,9 +124,14 @@ const ExpensePlanning: React.FC = () => {
   const [txReview, setTxReview] = useState<'all' | 'review' | 'ok'>('all')
   const [txInbox, setTxInbox] = useState('all')
 
+  const [scanNotice, setScanNotice] = useState<string | null>(null)
+  const loadSeq = useRef(0)
+  const abortRef = useRef<AbortController | null>(null)
+  const overviewRef = useRef<PlanningOverview | null>(null)
+  overviewRef.current = overview
+
   const applyOverview = useCallback((data: PlanningOverview) => {
     setOverview(data)
-    setMonth(data.month)
     setLimits(
       Object.fromEntries(
         PLANNING_CATEGORIES.map((c) => {
@@ -137,20 +144,36 @@ const ExpensePlanning: React.FC = () => {
 
   const load = useCallback(async () => {
     if (!userId) return
-    const res = await planningApi.overview(userId, month)
+    const seq = ++loadSeq.current
+    abortRef.current?.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    if (overviewRef.current) setRefreshing(true)
+    else setLoading(true)
+
+    const res = await planningApi.overview(userId, month, { signal: controller.signal, timeoutMs: 20_000 })
+    if (seq !== loadSeq.current || controller.signal.aborted) return
+
     if (!res.data) {
-      setError(res.error || 'Failed to load planning')
+      if (res.error !== 'aborted') setError(res.error || 'Failed to load planning')
       setLoading(false)
+      setRefreshing(false)
       return
     }
-    applyOverview(res.data)
-    setError(null)
-    setLoading(false)
+    startTransition(() => {
+      applyOverview(res.data!)
+      setError(null)
+      setLoading(false)
+      setRefreshing(false)
+    })
   }, [userId, month, applyOverview])
 
   useEffect(() => {
-    setLoading(true)
     void load()
+    return () => {
+      abortRef.current?.abort()
+    }
   }, [load])
 
   const inboxes: PlanningInbox[] = overview?.inboxes || []
@@ -300,10 +323,35 @@ const ExpensePlanning: React.FC = () => {
     await scanInbox(res.data.inbox, token.accessToken)
   }
 
+  const finishScan = async (
+    inbox: PlanningInbox,
+    payload: {
+      count: number
+      overview?: PlanningOverview
+    },
+  ) => {
+    setScanningId(null)
+    if (payload.overview) {
+      applyOverview(payload.overview)
+    } else {
+      await load()
+    }
+    emitPlanningUpdated()
+    const extra = payload.overview?.extraTransactionCount
+    const merged = payload.overview?.mergedTransactionCount
+    setScanNotice(
+      `Synced ${inbox.gmail}: ${payload.count} receipt${payload.count === 1 ? '' : 's'}` +
+        (extra != null && merged != null
+          ? ` · combined plan now ${merged} (extra inboxes ${extra})`
+          : ''),
+    )
+  }
+
   const scanInbox = async (inbox: PlanningInbox, existingToken?: string) => {
     if (!userId) return
     setScanningId(inbox.id)
     setError(null)
+    setScanNotice(null)
     let accessToken = existingToken
     if (!accessToken) {
       const next = await requestPlanningGmailTokenForInbox(inbox.gmail)
@@ -322,9 +370,7 @@ const ExpensePlanning: React.FC = () => {
         const again = await planningApi.scanInbox(userId, inbox.id, retry.accessToken)
         if (again.data) {
           storePlanningGmailToken(inbox.gmail, retry.accessToken)
-          setScanningId(null)
-          await load()
-          emitPlanningUpdated()
+          await finishScan(inbox, again.data)
           return
         }
         setScanningId(null)
@@ -339,9 +385,7 @@ const ExpensePlanning: React.FC = () => {
       return
     }
     storePlanningGmailToken(inbox.gmail, accessToken)
-    setScanningId(null)
-    await load()
-    emitPlanningUpdated()
+    await finishScan(inbox, res.data)
   }
 
   const removeInbox = async (inbox: PlanningInbox) => {
@@ -363,13 +407,14 @@ const ExpensePlanning: React.FC = () => {
           <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30">Account</p>
           <h2 className="text-2xl font-black tracking-tight text-white mt-1">Expense planning</h2>
           <p className="text-white/40 text-sm mt-2 max-w-xl">
-            Track spend across food, bills, investments, and more. Extra Gmail stays off the Yureka Score path.
+            Track spend across food, bills, investments, and more. Expenses stays lifestyle-only;
+            investments never roll into the Expenses total. Extra Gmail stays off the Yureka Score path.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setMonth((m) => shiftMonth(m, -1))}
+            onClick={() => startTransition(() => setMonth((m) => shiftMonth(m, -1)))}
             className="p-2 rounded-xl border border-white/10 text-white/70 hover:text-white active:scale-[0.97]"
             aria-label="Previous month"
           >
@@ -381,7 +426,7 @@ const ExpensePlanning: React.FC = () => {
           <button
             type="button"
             disabled={!canNextMonth}
-            onClick={() => setMonth((m) => shiftMonth(m, 1))}
+            onClick={() => startTransition(() => setMonth((m) => shiftMonth(m, 1)))}
             className="p-2 rounded-xl border border-white/10 text-white/70 hover:text-white active:scale-[0.97] disabled:opacity-30"
             aria-label="Next month"
           >
@@ -403,6 +448,23 @@ const ExpensePlanning: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {scanNotice && (
+        <div className="rounded-3xl border border-clay/25 bg-clay/10 px-5 py-4 text-sm text-white/75">
+          {scanNotice}
+        </div>
+      )}
+
+      {(overview?.primaryTransactionCount != null || overview?.extraTransactionCount != null) && (
+        <p className="text-[11px] text-white/35">
+          Combined from primary {overview?.primaryTransactionCount ?? 0}
+          {overview?.extraTransactionCount
+            ? ` + extra inboxes ${overview.extraTransactionCount}`
+            : ''}
+          {overview?.mergedTransactionCount != null ? ` = ${overview.mergedTransactionCount} total` : ''}
+          . Stocks / MF / SIP mail from Groww, Zerodha, Upstox & related maps to Investment after resync.
+        </p>
+      )}
 
       {reviewCount > 0 && (
         <button
@@ -433,8 +495,11 @@ const ExpensePlanning: React.FC = () => {
         </div>
       )}
 
-      {loading && (
+      {loading && !overview && (
         <p className="text-white/40 text-sm">Loading planning…</p>
+      )}
+      {refreshing && overview && (
+        <p className="text-white/30 text-[11px] uppercase tracking-widest">Updating month…</p>
       )}
 
       {forecast && (
@@ -460,6 +525,93 @@ const ExpensePlanning: React.FC = () => {
               <p className="text-[10px] text-white/40 mt-2">{stat.desc}</p>
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {!!overview?.plans?.length && (
+        <section className="space-y-4">
+          <div className="flex items-end justify-between gap-3 px-1">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-clay/80">
+                {overview.plansEngine === 'openai' ? 'AI · 3 spend plans' : '3 spend plans'}
+              </p>
+              <h3 className="text-white font-bold tracking-tight mt-1">Plan · spend · analyze</h3>
+              <p className="text-white/40 text-xs mt-1">
+                Conserve, expected, and stretch paths from this month’s pace
+                {overview.categories?.find((c) => c.category === 'investment' && c.actualInr > 0)
+                  ? ' · investments separated from lifestyle spend'
+                  : ''}
+                .
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {overview.plans.map((plan, idx) => {
+              const accent =
+                plan.id === 'conservative'
+                  ? 'border-emerald-500/25 bg-emerald-500/[0.05]'
+                  : plan.id === 'stretch'
+                    ? 'border-amber-500/25 bg-amber-500/[0.05]'
+                    : 'border-clay/25 bg-clay/[0.06]'
+              return (
+                <motion.div
+                  key={plan.id}
+                  initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 14 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={reduceMotion ? { duration: 0.2 } : { ...spring, delay: 0.05 + idx * 0.04 }}
+                  className={`rounded-[2rem] border px-5 py-6 ${accent}`}
+                >
+                  <p className="text-[9px] font-black uppercase tracking-[0.28em] text-white/35">{plan.label}</p>
+                  <p className="text-2xl font-black italic tracking-tighter text-white mt-3">
+                    {inr(plan.projectedMonthEndInr)}
+                  </p>
+                  <p className="text-[11px] text-white/45 mt-1">
+                    Daily cap {inr(plan.dailyCapInr)}
+                    {plan.vsBudgetInr != null
+                      ? plan.vsBudgetInr > 0
+                        ? ` · +${inr(plan.vsBudgetInr)} vs budget`
+                        : ` · ${inr(Math.abs(plan.vsBudgetInr))} under budget`
+                      : ''}
+                  </p>
+                  <p className="text-[13px] text-white/70 mt-3 leading-snug">{plan.summary}</p>
+                  {plan.moves?.length ? (
+                    <ul className="mt-3 space-y-1.5">
+                      {plan.moves.map((move) => (
+                        <li key={move} className="text-[12px] text-white/50 leading-snug">• {move}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </motion.div>
+              )
+            })}
+          </div>
+        </section>
+      )}
+
+      {overview?.insights && (
+        <div className="rounded-[2rem] border border-clay/20 bg-clay/[0.06] px-6 py-6 sm:px-7">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[9px] font-black uppercase tracking-[0.28em] text-clay/80">
+                {overview.insights.engine === 'openai' ? 'Yureka AI plan' : 'Plan tips'}
+              </p>
+              <p className="text-white font-bold mt-2 tracking-tight">{overview.insights.headline}</p>
+            </div>
+          </div>
+          {overview.insights.riskFlags?.length ? (
+            <ul className="mt-3 space-y-1">
+              {overview.insights.riskFlags.map((flag) => (
+                <li key={flag} className="text-[12px] text-amber-200/80">⚠ {flag}</li>
+              ))}
+            </ul>
+          ) : null}
+          {overview.insights.tips?.length ? (
+            <ul className="mt-3 space-y-1.5">
+              {overview.insights.tips.map((tip) => (
+                <li key={tip} className="text-[13px] text-white/55 leading-snug">• {tip}</li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       )}
 
@@ -507,12 +659,11 @@ const ExpensePlanning: React.FC = () => {
           </label>
           <label>
             <span className="sr-only">Date</span>
-            <input
-              type="date"
+            <DateField
               required
               value={entryDate}
               onChange={(e) => setEntryDate(e.target.value)}
-              className={inputClass}
+              className="!rounded-xl !py-2.5 !pl-11 !pr-3 !text-[13px]"
             />
           </label>
           <button
@@ -672,6 +823,19 @@ const ExpensePlanning: React.FC = () => {
               </div>
             </div>
           )}
+          {!!overview.analysis.topInvestments?.length && (
+            <div className="px-5 sm:px-7 pb-7">
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35 mb-3">Top investments</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                {overview.analysis.topInvestments.map((m) => (
+                  <div key={`inv-${m.name}`} className="rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.04] px-3 py-3">
+                    <p className="text-[12px] font-bold text-white truncate">{m.name}</p>
+                    <p className="text-emerald-300 text-[13px] font-black mt-1">{inr(m.amountInr)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
@@ -761,7 +925,8 @@ const ExpensePlanning: React.FC = () => {
           <div>
             <h3 className="text-sm font-black uppercase tracking-[0.2em] text-white">Extra Gmail accounts</h3>
             <p className="text-white/35 text-xs mt-1">
-              Optional extra inboxes for more accurate spend. Does not change Yureka Score or resync quota.
+              Extra inboxes are merged into Planning budgets and Investment totals only.
+              They do not change Expenses or Yureka Score.
             </p>
           </div>
           <button

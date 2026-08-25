@@ -69,6 +69,9 @@ function forceFileMode() {
 }
 
 let supabaseSchemaUnavailable = false
+/** Don't permanently stick on file mode after a transient schema miss. */
+let supabaseSchemaDisabledUntil = 0
+const SCHEMA_COOLDOWN_MS = 5 * 60 * 1000
 
 function isMissingSchemaError(message: string | undefined) {
   const text = String(message || '').toLowerCase()
@@ -81,10 +84,21 @@ function isMissingSchemaError(message: string | undefined) {
 
 function disableGoldbackSchema(reason: unknown) {
   supabaseSchemaUnavailable = true
+  supabaseSchemaDisabledUntil = Date.now() + SCHEMA_COOLDOWN_MS
   console.warn(
-    '[goldback] supabase schema unavailable, using file store:',
+    '[goldback] supabase schema unavailable, using file store until cooldown ends:',
     (reason as Error)?.message || reason,
   )
+}
+
+function schemaCurrentlyDisabled() {
+  if (!supabaseSchemaUnavailable) return false
+  if (Date.now() >= supabaseSchemaDisabledUntil) {
+    supabaseSchemaUnavailable = false
+    supabaseSchemaDisabledUntil = 0
+    return false
+  }
+  return true
 }
 
 function noteSchemaError(error: { message?: string } | null | undefined): boolean {
@@ -165,7 +179,7 @@ function getSupabase(): SupabaseClient | null {
 }
 
 function sbClient(): SupabaseClient | null {
-  if (supabaseSchemaUnavailable) return null
+  if (schemaCurrentlyDisabled()) return null
   return getSupabase()
 }
 
@@ -293,6 +307,80 @@ export async function listOffers(): Promise<GoldbackOffer[]> {
 }
 
 export async function getBalance(userId: string): Promise<GoldbackBalance> {
+  const keys = await resolveGoldbackUserKeys(userId)
+  let best: GoldbackBalance = {
+    userId,
+    balancePaise: 0,
+    updatedAt: new Date().toISOString(),
+  }
+  for (const key of keys) {
+    const bal = await getBalanceExact(key)
+    if (bal.balancePaise > best.balancePaise) {
+      best = { ...bal, userId }
+    } else if (bal.balancePaise === best.balancePaise && bal.updatedAt > best.updatedAt) {
+      best = { ...bal, userId }
+    }
+  }
+  return best
+}
+
+export async function listLedger(userId: string, limit = 50): Promise<GoldbackLedgerEntry[]> {
+  const keys = await resolveGoldbackUserKeys(userId)
+  const byId = new Map<string, GoldbackLedgerEntry>()
+  for (const key of keys) {
+    for (const entry of await listLedgerExact(key, limit * 2)) {
+      if (!byId.has(entry.id)) byId.set(entry.id, entry)
+    }
+  }
+  return [...byId.values()]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit)
+}
+
+const goldbackKeyMemo = new Map<string, { keys: string[]; at: number }>()
+const GOLDBACK_KEY_MEMO_MS = 60_000
+
+/**
+ * Map admin email ↔ member Supabase UUID so Goldback isn't split across keys.
+ * Admin UI often adjusts by email; the app reads JWT `sub` (UUID).
+ */
+export async function resolveGoldbackUserKeys(raw: string): Promise<string[]> {
+  const input = String(raw || '').trim()
+  if (!input) return []
+  const memoHit = goldbackKeyMemo.get(input)
+  if (memoHit && Date.now() - memoHit.at < GOLDBACK_KEY_MEMO_MS) return memoHit.keys
+
+  const keys = new Set<string>([input])
+  const lower = input.toLowerCase()
+  if (lower.includes('@')) {
+    keys.add(lower)
+    try {
+      const { findAuthUserByEmail } = await import('../auth/supabaseAdmin.js')
+      const user = await findAuthUserByEmail(lower)
+      if (user?.id) keys.add(user.id)
+    } catch {
+      /* service role may be unavailable in local file mode */
+    }
+  } else {
+    try {
+      const { getServiceClient } = await import('../auth/supabaseAdmin.js')
+      const sb = getServiceClient()
+      const { data } = await sb.auth.admin.getUserById(input)
+      const email = String(data.user?.email || '')
+        .trim()
+        .toLowerCase()
+      if (email.includes('@')) keys.add(email)
+    } catch {
+      /* ignore */
+    }
+  }
+  const list = [...keys]
+  const at = Date.now()
+  for (const k of list) goldbackKeyMemo.set(k, { keys: list, at })
+  return list
+}
+
+async function getBalanceExact(userId: string): Promise<GoldbackBalance> {
   const sb = sbClient()
   if (sb) {
     const { data, error } = await sb.from('goldback_accounts').select('*').eq('user_id', userId).maybeSingle()
@@ -313,7 +401,7 @@ export async function getBalance(userId: string): Promise<GoldbackBalance> {
   return snap.accounts[userId] ?? { userId, balancePaise: 0, updatedAt: new Date().toISOString() }
 }
 
-export async function listLedger(userId: string, limit = 50): Promise<GoldbackLedgerEntry[]> {
+async function listLedgerExact(userId: string, limit = 50): Promise<GoldbackLedgerEntry[]> {
   const sb = sbClient()
   if (sb) {
     const { data, error } = await sb
@@ -480,7 +568,7 @@ export async function upsertOffer(
   input: Partial<GoldbackOffer> & Pick<GoldbackOffer, 'title' | 'merchant' | 'url'>
 ): Promise<GoldbackOffer> {
   const sb = sbClient()
-  const row = {
+  const row: Record<string, unknown> = {
     title: input.title,
     merchant: input.merchant,
     category: input.category || 'general',
@@ -489,6 +577,9 @@ export async function upsertOffer(
     reward_paise: input.rewardPaise ?? 0,
     reward_label: input.rewardLabel || '',
     active: input.active !== false,
+  }
+  if (input.imageUrl !== undefined) {
+    row.image_url = input.imageUrl || null
   }
 
   if (sb) {
@@ -527,6 +618,7 @@ export async function upsertOffer(
     category: input.category || 'general',
     description: input.description || '',
     url: input.url,
+    imageUrl: input.imageUrl || null,
     rewardPaise: input.rewardPaise ?? 0,
     rewardLabel: input.rewardLabel || '',
     active: input.active !== false,
@@ -603,18 +695,40 @@ export async function listAllLedger(limit = 200): Promise<GoldbackLedgerEntry[]>
 
 export async function listAllAccounts(): Promise<GoldbackBalance[]> {
   const sb = sbClient()
+  let rows: GoldbackBalance[] = []
   if (sb) {
     const { data, error } = await sb.from('goldback_accounts').select('*').order('updated_at', { ascending: false })
     if (!error && data) {
-      return data.map((d) => ({
+      rows = data.map((d) => ({
         userId: d.user_id,
         balancePaise: d.balance_paise,
         updatedAt: d.updated_at,
       }))
+    } else if (error) {
+      noteSchemaError(error)
+      rows = Object.values(readFileStore().accounts)
     }
-    noteSchemaError(error)
+  } else {
+    rows = Object.values(readFileStore().accounts)
   }
-  return Object.values(readFileStore().accounts)
+
+  // Collapse email ↔ UUID duplicates (same person after alias sync).
+  const claimed = new Set<string>()
+  const out: GoldbackBalance[] = []
+  for (const row of rows) {
+    if (claimed.has(row.userId)) continue
+    const keys = await resolveGoldbackUserKeys(row.userId)
+    for (const k of keys) claimed.add(k)
+    const siblings = rows.filter((r) => keys.includes(r.userId))
+    const best = siblings.reduce((a, b) => (b.balancePaise > a.balancePaise ? b : a), row)
+    const primary = keys.find((k) => k.includes('-') && !k.includes('@')) || best.userId
+    out.push({
+      userId: primary,
+      balancePaise: best.balancePaise,
+      updatedAt: best.updatedAt,
+    })
+  }
+  return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
 /** Admin: set absolute balance or apply signed delta (paise). Records an `adjust` ledger row. */
@@ -626,45 +740,69 @@ export async function adminAdjustGoldback(opts: {
   deltaPaise?: number
   note?: string
 }): Promise<{ entry: GoldbackLedgerEntry; balance: GoldbackBalance }> {
-  const userId = String(opts.userId || '').trim()
-  if (!userId) throw new Error('userId required')
+  const rawId = String(opts.userId || '').trim()
+  if (!rawId) throw new Error('userId required')
 
-  const current = await getBalance(userId)
-  let nextBalance = current.balancePaise
+  const keys = await resolveGoldbackUserKeys(rawId)
+  // Prefer auth UUID as canonical; keep email aliases in sync for admin search.
+  const primary = keys.find((k) => k.includes('-') && !k.includes('@')) || keys[0]
+  const syncKeys = keys.length ? keys : [primary]
+
+  let currentPaise = 0
+  for (const key of syncKeys) {
+    const bal = await getBalanceExact(key)
+    if (bal.balancePaise > currentPaise) currentPaise = bal.balancePaise
+  }
+
+  let nextBalance = currentPaise
   if (opts.balancePaise != null && Number.isFinite(Number(opts.balancePaise))) {
     nextBalance = Math.max(0, Math.round(Number(opts.balancePaise)))
   } else if (opts.deltaPaise != null && Number.isFinite(Number(opts.deltaPaise))) {
-    nextBalance = Math.max(0, current.balancePaise + Math.round(Number(opts.deltaPaise)))
+    nextBalance = Math.max(0, currentPaise + Math.round(Number(opts.deltaPaise)))
   } else {
     throw new Error('balancePaise or deltaPaise required')
   }
 
-  const amountPaise = nextBalance - current.balancePaise
+  const amountPaise = nextBalance - currentPaise
   const now = new Date().toISOString()
   const entry: GoldbackLedgerEntry = {
     id: randomUUID(),
-    userId,
+    userId: primary,
     type: 'adjust',
     amountPaise,
     offerId: null,
     status: amountPaise >= 0 ? 'earned' : 'redeemed',
-    idempotencyKey: `admin-adjust:${userId}:${now}:${amountPaise}`,
-    meta: { note: opts.note || 'Admin adjustment', previous: current.balancePaise, next: nextBalance },
+    idempotencyKey: `admin-adjust:${primary}:${now}:${amountPaise}`,
+    meta: {
+      note: opts.note || 'Admin adjustment',
+      previous: currentPaise,
+      next: nextBalance,
+      aliases: syncKeys,
+      requestedUserId: rawId,
+    },
     createdAt: now,
   }
-  const balance: GoldbackBalance = { userId, balancePaise: nextBalance, updatedAt: now }
+  const balance: GoldbackBalance = { userId: primary, balancePaise: nextBalance, updatedAt: now }
 
   const sb = sbClient()
   if (sb) {
-    const { error: upsertErr } = await sb.from('goldback_accounts').upsert({
-      user_id: userId,
-      balance_paise: nextBalance,
-      updated_at: now,
-    })
-    if (!upsertErr) {
+    let upsertOk = true
+    for (const key of syncKeys) {
+      const { error: upsertErr } = await sb.from('goldback_accounts').upsert({
+        user_id: key,
+        balance_paise: nextBalance,
+        updated_at: now,
+      })
+      if (upsertErr) {
+        upsertOk = false
+        noteSchemaError(upsertErr)
+        break
+      }
+    }
+    if (upsertOk) {
       const { error: ledErr } = await sb.from('goldback_ledger').insert({
         id: entry.id,
-        user_id: userId,
+        user_id: primary,
         type: entry.type,
         amount_paise: entry.amountPaise,
         offer_id: null,
@@ -675,19 +813,21 @@ export async function adminAdjustGoldback(opts: {
       })
       if (!ledErr) {
         const snap = readFileStore()
-        snap.accounts[userId] = balance
+        for (const key of syncKeys) {
+          snap.accounts[key] = { userId: key, balancePaise: nextBalance, updatedAt: now }
+        }
         snap.ledger.unshift(entry)
         writeFileStore(snap)
         return { entry, balance }
       }
       noteSchemaError(ledErr)
-    } else {
-      noteSchemaError(upsertErr)
     }
   }
 
   const snap = readFileStore()
-  snap.accounts[userId] = balance
+  for (const key of syncKeys) {
+    snap.accounts[key] = { userId: key, balancePaise: nextBalance, updatedAt: now }
+  }
   snap.ledger.unshift(entry)
   writeFileStore(snap)
   return { entry, balance }

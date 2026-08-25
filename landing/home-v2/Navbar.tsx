@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { appUrl, goExternal, isSplitHostsEnabled } from '@shared/hosts';
+import { WAITLIST_REQUIRED } from '@shared/waitlistGate';
 import SquashHamburger from './SquashHamburger';
 import ScrambleText from './ScrambleText';
 import YurekaBrandMark from '@shared/YurekaBrandMark';
@@ -134,27 +135,39 @@ export default function Navbar({ entranceComplete = true }: NavbarProps) {
     navigate(path);
   };
 
-  // Route CTA by membership status so returning users don't restart join.
+  // Route CTA by membership status. Waitlist paused unless VITE_WAITLIST_REQUIRED.
   // Mobile gets a shorter label so the pill doesn't overflow narrow widths.
-  const cta =
-    currentUserStatus === 'accepted' || currentUserStatus === 'admin'
+  const open =
+    currentUserStatus === 'accepted' ||
+    currentUserStatus === 'admin' ||
+    (!WAITLIST_REQUIRED && !!user);
+  const waiting =
+    WAITLIST_REQUIRED &&
+    (currentUserStatus === 'pending' ||
+      currentUserStatus === 'on-hold' ||
+      currentUserStatus === 'rejected');
+  const cta = open
+    ? {
+        label: 'Open Dashboard',
+        mobileLabel: 'Dashboard',
+        onClick: () => goApp('/dashboard'),
+      }
+    : waiting
       ? {
-          label: 'Open Dashboard',
-          mobileLabel: 'Dashboard',
-          onClick: () => goApp('/dashboard'),
+          label: 'Waiting Room',
+          mobileLabel: 'Waiting',
+          onClick: () => goApp(user ? '/waiting' : '/login'),
         }
-      : currentUserStatus === 'pending' ||
-          currentUserStatus === 'on-hold' ||
-          currentUserStatus === 'rejected'
+      : WAITLIST_REQUIRED
         ? {
-            label: 'Waiting Room',
-            mobileLabel: 'Waiting',
-            onClick: () => goApp(user ? '/waiting' : '/login'),
-          }
-        : {
             label: 'Join Waitlist',
             mobileLabel: 'Join',
             onClick: () => goApp('/join-waitlist'),
+          }
+        : {
+            label: 'Get Started',
+            mobileLabel: 'Start',
+            onClick: () => goApp('/login'),
           };
 
   return (

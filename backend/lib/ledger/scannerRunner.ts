@@ -3,6 +3,7 @@ import fsp from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { spawn } from 'child_process'
+import { filterMarketingTransactions } from './marketingFilter.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..', '..', '..')
@@ -56,7 +57,10 @@ export async function readLedgerCache(email?: string | null): Promise<ScanResult
         const cachedEmail = String((data.profile as any)?.email || '').toLowerCase()
         if (cachedEmail && cachedEmail !== email.toLowerCase()) continue
       }
-      return data
+      return {
+        ...data,
+        transactions: filterMarketingTransactions(data.transactions),
+      }
     } catch {
       // try next
     }
@@ -65,12 +69,16 @@ export async function readLedgerCache(email?: string | null): Promise<ScanResult
 }
 
 export async function writeLedgerCache(email: string | null | undefined, result: ScanResult) {
-  const target = ledgerCachePath(email || String((result.profile as any)?.email || ''))
+  const cleaned: ScanResult = {
+    ...result,
+    transactions: filterMarketingTransactions(result.transactions),
+  }
+  const target = ledgerCachePath(email || String((cleaned.profile as any)?.email || ''))
   await fsp.mkdir(path.dirname(target), { recursive: true })
-  await fsp.writeFile(target, JSON.stringify(result, null, 2))
+  await fsp.writeFile(target, JSON.stringify(cleaned, null, 2))
   // Keep legacy global cache for older clients.
   try {
-    await fsp.writeFile(path.join(ROOT, 'data', 'financial_cache.json'), JSON.stringify(result, null, 2))
+    await fsp.writeFile(path.join(ROOT, 'data', 'financial_cache.json'), JSON.stringify(cleaned, null, 2))
   } catch {
     // ignore
   }
@@ -131,7 +139,10 @@ export function runGmailScanner(opts: {
       }
       try {
         const result = JSON.parse(output.trim()) as ScanResult
-        resolve(result)
+        resolve({
+          ...result,
+          transactions: filterMarketingTransactions(result.transactions),
+        })
       } catch (e: any) {
         console.error('[ledger] invalid scanner JSON', e?.message, output.slice(0, 300))
         resolve({ error: 'Invalid JSON output from deep scanner script', details: output.slice(0, 500) })

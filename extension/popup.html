@@ -8,17 +8,40 @@
   </head>
   <body>
     <div class="wrap">
-      <header>
-        <div>
-          <p class="kicker">Yureka</p>
-          <h1 id="host">This store</h1>
-        </div>
-        <a id="open-app" class="ghost" href="#" target="_blank" rel="noreferrer">Open app</a>
-      </header>
-      <p id="status" class="status">Checking coupons…</p>
-      <section id="goldback" class="list" hidden></section>
-      <section id="market" class="list" hidden></section>
-      <p id="empty" class="empty" hidden>No live coupons for this site yet. Open Yureka for the full marketplace.</p>
+      <section id="consent" class="consent" hidden>
+        <p class="kicker">Before you continue</p>
+        <h1>Affiliate links</h1>
+        <p class="consent-body">
+          Yureka shows coupons and deals for the store you are on. <strong>Some links are affiliate
+          links</strong> (including CueLinks partner programs). If you click a deal and make a
+          purchase, Yureka may earn a commission — at <strong>no extra cost to you</strong>.
+        </p>
+        <p class="consent-body muted">
+          Affiliate tracking is only used after you agree and when you choose to open a deal. We do
+          not silently rewrite URLs in the background.
+        </p>
+        <button type="button" id="consent-accept" class="primary">I understand — show deals</button>
+        <a id="consent-app" class="ghost consent-link" href="#" target="_blank" rel="noreferrer"
+          >Open Yureka app instead</a
+        >
+      </section>
+
+      <div id="main" hidden>
+        <header>
+          <div>
+            <p class="kicker">Yureka</p>
+            <h1 id="host">This store</h1>
+          </div>
+          <a id="open-app" class="ghost" href="#" target="_blank" rel="noreferrer">Open app</a>
+        </header>
+        <p id="status" class="status">Checking coupons…</p>
+        <section id="goldback" class="list" hidden></section>
+        <section id="market" class="list" hidden></section>
+        <p id="empty" class="empty" hidden>
+          No live coupons for this site yet. Open Yureka for the full marketplace.
+        </p>
+        <p id="disclosure" class="disclosure"></p>
+      </div>
     </div>
     <script src="shared.js"></script>
     <script src="popup.js"></script>

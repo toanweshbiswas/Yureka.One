@@ -179,9 +179,7 @@ const GiftCardsPage: React.FC = () => {
     else if (items.length === 0) setLoading(true)
     setError(null)
     try {
-      if (opts?.refresh) {
-        await fetch('/api/giftcards/refresh', { method: 'POST' })
-      }
+      // Catalog load only — force Hubble refresh is admin-gated at POST /api/giftcards/refresh
       const params = new URLSearchParams({ status: 'ACTIVE' })
       if (category !== 'all') params.set('category', category)
       if (apiQuery.trim()) params.set('q', apiQuery.trim())

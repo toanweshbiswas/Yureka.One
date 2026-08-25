@@ -19,7 +19,12 @@ function isAlreadyRegistered(message: string | undefined) {
   )
 }
 
-async function findAuthUserByEmail(sb: SupabaseClient, email: string): Promise<User | null> {
+export async function findAuthUserByEmail(email: string): Promise<User | null> {
+  const sb = getServiceClient()
+  return findAuthUserByEmailPage(sb, email)
+}
+
+async function findAuthUserByEmailPage(sb: SupabaseClient, email: string): Promise<User | null> {
   const target = email.trim().toLowerCase()
   for (let page = 1; page <= 20; page += 1) {
     const { data, error } = await sb.auth.admin.listUsers({ page, perPage: 200 })
@@ -56,7 +61,7 @@ export async function createAppAuthUser(opts: {
     throw new Error(created.error?.message || 'Failed to create auth user')
   }
 
-  const existing = await findAuthUserByEmail(sb, email)
+  const existing = await findAuthUserByEmailPage(sb, email)
   if (!existing?.id) {
     throw new Error('An account with this email already exists, but it could not be updated')
   }

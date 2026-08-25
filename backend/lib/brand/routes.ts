@@ -36,8 +36,8 @@ function fail(res: Response, status: number, error: string) {
   res.status(status).json({ data: null, status, error, timestamp: new Date().toISOString() })
 }
 
-function requireUserId(req: Request, res: Response): string | null {
-  const result = productUserIdOrFail(req)
+async function requireUserId(req: Request, res: Response): Promise<string | null> {
+  const result = await productUserIdOrFail(req)
   if ('error' in result) {
     fail(res, 401, result.error)
     return null
@@ -60,9 +60,12 @@ function requireAdmin(req: Request, res: Response, roles?: AdminRole[]) {
 }
 
 async function resolveMemberships(req: Request) {
-  const userId = resolveProductOrFail(req)
-  if (!userId) return { userId: null as string | null, memberships: [] as Awaited<ReturnType<typeof membershipsForIdentity>> }
-  const email = resolveRequestEmail(req)
+  const result = await productUserIdOrFail(req)
+  if ('error' in result) {
+    return { userId: null as string | null, memberships: [] as Awaited<ReturnType<typeof membershipsForIdentity>> }
+  }
+  const userId = result.userId
+  const email = result.email ?? resolveRequestEmail(req)
   let memberships = await membershipsForIdentity({ userId, email })
   for (const row of memberships) {
     if (!row.member.userId && email && row.member.email === normalizeEmail(email)) {
@@ -72,11 +75,6 @@ async function resolveMemberships(req: Request) {
   }
   memberships = await membershipsForIdentity({ userId, email })
   return { userId, memberships }
-}
-
-function resolveProductOrFail(req: Request): string | null {
-  const result = productUserIdOrFail(req)
-  return 'userId' in result ? result.userId : null
 }
 
 function pickBrandId(req: Request, memberships: Awaited<ReturnType<typeof membershipsForIdentity>>) {
@@ -96,7 +94,7 @@ export function registerBrandRoutes(app: Express) {
 
   app.get('/api/v1/brands/me', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const brandId = pickBrandId(req, memberships)
@@ -109,7 +107,7 @@ export function registerBrandRoutes(app: Express) {
 
   app.get('/api/v1/brands/overview', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const brandId = pickBrandId(req, memberships)
@@ -124,7 +122,7 @@ export function registerBrandRoutes(app: Express) {
 
   app.get('/api/v1/brands/offers', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const brandId = pickBrandId(req, memberships)
@@ -137,7 +135,7 @@ export function registerBrandRoutes(app: Express) {
 
   app.post('/api/v1/brands/offers', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const brandId = pickBrandId(req, memberships)
@@ -164,7 +162,7 @@ export function registerBrandRoutes(app: Express) {
 
   app.patch('/api/v1/brands/offers/:id', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const offer = await getOffer(String(req.params.id || ''))
@@ -191,7 +189,7 @@ export function registerBrandRoutes(app: Express) {
 
   app.get('/api/v1/brands/offers/:id/stats', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const stats = await offerStats(String(req.params.id || ''))
@@ -205,7 +203,7 @@ export function registerBrandRoutes(app: Express) {
 
   app.get('/api/v1/brands/members', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const brandId = pickBrandId(req, memberships)
@@ -226,7 +224,11 @@ export function registerBrandRoutes(app: Express) {
 
   app.post('/api/v1/brands/events', async (req, res) => {
     try {
-      const userId = requireUserId(req, res)
+      const { isRateLimited } = await import('../auth/rateLimit.js')
+      if (isRateLimited(req, 'brand-events', { limit: 120, windowMs: 60_000 })) {
+        return fail(res, 429, 'Too many events')
+      }
+      const userId = await requireUserId(req, res)
       if (!userId) return
       const type = String(req.body?.type || '')
       if (!isBrandEventType(type)) return fail(res, 400, 'Invalid event type')

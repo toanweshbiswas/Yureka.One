@@ -412,26 +412,49 @@ export async function findAdminByEmail(email: string): Promise<AdminUserRow | nu
 export async function listWaitlist(filters: {
   status?: string
   search?: string
+  /** Cap rows returned from Supabase (default 2000). Overview / admin UI don't need unbounded scans. */
+  limit?: number
 }): Promise<WaitlistRow[]> {
+  const limit = Math.min(Math.max(Number(filters.limit) || 2000, 1), 5000)
   const sb = getSupabase()
-  if (sb) {
-    let q = sb.from('waitlist').select('*').order('created_at', { ascending: false })
-    if (filters.status && filters.status !== 'all') q = q.eq('status', filters.status)
-    const { data, error } = await q
-    if (error && isMissingSchemaError(error.message)) {
-      disableSupabaseSchema(error)
-    }
-    if (!error && data) {
-      let rows = data.map(mapWaitlist)
-      if (filters.search) {
-        const s = filters.search.toLowerCase()
-        rows = rows.filter(
-          (r) =>
-            r.email.toLowerCase().includes(s) ||
-            (r.fullName || '').toLowerCase().includes(s)
+  if (sb && supabaseWaitlistAllowed()) {
+    try {
+      let q = sb
+        .from('waitlist')
+        .select(
+          'id,email,full_name,mobile_number,status,yureka_score,monthly_spend,top_category,notes,created_at,updated_at',
         )
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      if (filters.status && filters.status !== 'all') q = q.eq('status', filters.status)
+      const { data, error } = await withTimeout(
+        q,
+        SUPABASE_WAITLIST_TIMEOUT_MS,
+        'supabase listWaitlist',
+      )
+      if (error) {
+        if (isMissingSchemaError(error.message)) {
+          disableSupabaseSchema(error)
+        } else {
+          console.warn('[waitlist] supabase list error:', error.message)
+          tripSupabaseCircuit(error)
+        }
+      } else {
+        clearSupabaseCircuit()
+        let rows = (data || []).map(mapWaitlist)
+        if (filters.search) {
+          const s = filters.search.toLowerCase()
+          rows = rows.filter(
+            (r) =>
+              r.email.toLowerCase().includes(s) ||
+              (r.fullName || '').toLowerCase().includes(s),
+          )
+        }
+        return sortWaitlistOperational(rows, filters.status)
       }
-      if (rows.length || data.length) return rows
+    } catch (e) {
+      tripSupabaseCircuit(e)
+      console.warn('[waitlist] listWaitlist failed:', (e as Error)?.message || e)
     }
   }
 
@@ -453,7 +476,30 @@ export async function listWaitlist(filters: {
       (r) => r.email.toLowerCase().includes(s) || (r.fullName || '').toLowerCase().includes(s)
     )
   }
-  return rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  return sortWaitlistOperational(rows, filters.status).slice(0, limit)
+}
+
+/** Pending / on-hold first when browsing All; otherwise newest first. */
+function sortWaitlistOperational(rows: WaitlistRow[], statusFilter?: string): WaitlistRow[] {
+  const STATUS_RANK: Record<string, number> = {
+    pending: 0,
+    on_hold: 1,
+    accepted: 2,
+    rejected: 3,
+  }
+  const scoreOf = (r: WaitlistRow) =>
+    typeof r.yurekaScore === 'number' && Number.isFinite(r.yurekaScore) ? r.yurekaScore : -1
+  const all = !statusFilter || statusFilter === 'all'
+  return [...rows].sort((a, b) => {
+    if (all) {
+      const ra = STATUS_RANK[a.status] ?? 9
+      const rb = STATUS_RANK[b.status] ?? 9
+      if (ra !== rb) return ra - rb
+      const sd = scoreOf(b) - scoreOf(a)
+      if (sd) return sd
+    }
+    return b.createdAt.localeCompare(a.createdAt)
+  })
 }
 
 export async function updateWaitlistStatus(id: string, status: WaitlistRow['status']): Promise<WaitlistRow | null> {
@@ -955,7 +1001,20 @@ export async function deleteWaitlistEntry(id: string): Promise<boolean> {
         'supabase deleteWaitlistEntry',
       )
       if (error && isMissingSchemaError(error.message)) disableSupabaseSchema(error)
-      else if (!error) removed = Boolean(data?.length)
+      else if (error) {
+        console.warn('[waitlist] supabase delete failed:', error.message)
+      } else {
+        // Some PostgREST setups return [] even when the row was deleted.
+        removed = true
+        if (Array.isArray(data) && data.length === 0) {
+          const check = await withTimeout(
+            sb.from('waitlist').select('id').eq('id', rowId).maybeSingle(),
+            SUPABASE_WAITLIST_TIMEOUT_MS,
+            'supabase deleteWaitlistEntry verify',
+          )
+          if (!check.error && check.data) removed = false
+        }
+      }
     } catch (e) {
       tripSupabaseCircuit(e)
     }

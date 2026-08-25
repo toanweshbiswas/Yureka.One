@@ -88,3 +88,50 @@ h1 {
   font-weight: 700;
   color: var(--clay);
 }
+.aff-tag {
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.42);
+}
+.disclosure {
+  margin: 14px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.consent h1 {
+  margin: 6px 0 0;
+  font-size: 20px;
+  letter-spacing: -0.03em;
+}
+.consent-body {
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.5;
+}
+.consent-body.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+.primary {
+  margin-top: 16px;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: var(--clay);
+  color: #0a0a0a;
+  font-weight: 750;
+  font-size: 13px;
+  cursor: pointer;
+}
+.primary:active { transform: scale(0.98); }
+.consent-link {
+  display: inline-block;
+  margin-top: 10px;
+}

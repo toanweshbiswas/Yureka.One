@@ -77,20 +77,57 @@ function rowToNotif(row: any): UserNotification {
   }
 }
 
-function matchesUser(n: UserNotification, userId: string, email?: string | null) {
-  if (n.userId === userId) return true
-  if (email && n.email && n.email.toLowerCase() === email.toLowerCase()) return true
-  if (email && n.userId.toLowerCase() === email.toLowerCase()) return true
+function normalizeEmail(value?: string | null): string | null {
+  const em = String(value || '').trim().toLowerCase()
+  return em.includes('@') ? em : null
+}
+
+/**
+ * Strict ownership: a notification addressed to another email must never appear
+ * in this inbox — even if a bad query or shared id leaked it.
+ */
+export function ownsNotification(
+  n: Pick<UserNotification, 'userId' | 'email'>,
+  userId: string,
+  email?: string | null,
+): boolean {
+  const uid = String(userId || '').trim()
+  if (!uid) return false
+  const reqEmail = normalizeEmail(email)
+  const nEmail = normalizeEmail(n.email)
+  const nUid = String(n.userId || '').trim()
+  const nUidEmail = normalizeEmail(nUid)
+
+  // Addressed to a different mailbox → deny.
+  if (nEmail && reqEmail && nEmail !== reqEmail) return false
+  if (nUidEmail && reqEmail && nUidEmail !== reqEmail) return false
+  // Notification has an email but requester has none — only allow exact userId match.
+  if (nEmail && !reqEmail && nUid !== uid) return false
+
+  if (nUid === uid) return true
+  if (reqEmail && (nUidEmail === reqEmail || nEmail === reqEmail)) return true
   return false
+}
+
+function matchesUser(n: UserNotification, userId: string, email?: string | null) {
+  return ownsNotification(n, userId, email)
 }
 
 function identityKeys(userId: string, email?: string | null): string[] {
   const keys = new Set<string>()
   const id = String(userId || '').trim()
   if (id) keys.add(id)
-  const em = email ? String(email).trim().toLowerCase() : ''
+  const em = normalizeEmail(email)
   if (em) keys.add(em)
   return [...keys]
+}
+
+function filterOwned(
+  rows: UserNotification[],
+  userId: string,
+  email?: string | null,
+): UserNotification[] {
+  return rows.filter((n) => ownsNotification(n, userId, email))
 }
 
 export async function notifyUser(input: NotifyUserInput): Promise<UserNotification | null> {
@@ -165,16 +202,22 @@ export async function listUserNotifications(
   userId: string,
   email?: string | null,
 ): Promise<{ items: UserNotification[]; unreadCount: number }> {
-  const keys = identityKeys(userId, email)
+  const uid = String(userId || '').trim()
+  const em = normalizeEmail(email)
+  if (!uid) return { items: [], unreadCount: 0 }
+
+  const keys = identityKeys(uid, em)
   const sb = sbClient()
   if (sb) {
+    const map = new Map<string, UserNotification>()
+
     const byUser = await sb
       .from('user_notifications')
       .select('*')
       .is('dismissed_at', null)
       .in('user_id', keys)
       .order('created_at', { ascending: false })
-      .limit(50)
+      .limit(80)
     if (byUser.error) {
       if (isMissingSchemaError(byUser.error.message)) {
         supabaseSchemaUnavailable = true
@@ -182,27 +225,36 @@ export async function listUserNotifications(
         throw new Error(byUser.error.message)
       }
     } else {
-      const map = new Map<string, UserNotification>()
       for (const row of byUser.data || []) map.set(row.id, rowToNotif(row))
-      if (email) {
-        const byEmail = await sb
-          .from('user_notifications')
-          .select('*')
-          .is('dismissed_at', null)
-          .eq('email', email)
-          .order('created_at', { ascending: false })
-          .limit(50)
-        if (!byEmail.error) {
-          for (const row of byEmail.data || []) map.set(row.id, rowToNotif(row))
-        }
+    }
+
+    // Only pull by email column when we have a verified requester email.
+    if (em && !supabaseSchemaUnavailable) {
+      const byEmail = await sb
+        .from('user_notifications')
+        .select('*')
+        .is('dismissed_at', null)
+        .eq('email', em)
+        .order('created_at', { ascending: false })
+        .limit(80)
+      if (!byEmail.error) {
+        for (const row of byEmail.data || []) map.set(row.id, rowToNotif(row))
       }
-      const items = [...map.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 50)
+    }
+
+    if (!supabaseSchemaUnavailable) {
+      const items = filterOwned([...map.values()], uid, em)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+        .slice(0, 50)
       return { items, unreadCount: items.filter((n) => !n.readAt).length }
     }
   }
 
-  const items = readFileStore()
-    .items.filter((n) => !n.dismissedAt && matchesUser(n, userId, email))
+  const items = filterOwned(
+    readFileStore().items.filter((n) => !n.dismissedAt),
+    uid,
+    em,
+  )
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .slice(0, 50)
   return { items, unreadCount: items.filter((n) => !n.readAt).length }

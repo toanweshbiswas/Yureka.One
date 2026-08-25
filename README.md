@@ -14,4 +14,4 @@ pnpm install
 pnpm dev   # http://localhost:3000
 ```
 
-See `STRUCTURE.md` for details.
+Ops playbooks: `docs/sops/`.

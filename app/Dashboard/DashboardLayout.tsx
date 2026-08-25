@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { createPortal } from 'react-dom';
-import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import {
     Compass,
     Ellipsis,
@@ -13,7 +12,10 @@ import { useSupabase } from '@shared/SupabaseProvider';
 import { signOutGmail } from '@shared/auth';
 import AddToHomeScreen from '@shared/AddToHomeScreen';
 import { cacheInvalidate } from '@shared/dashboardCache';
+import { startCatalogSync } from '@shared/catalogSync';
 import WelcomeBanner from './WelcomeBanner';
+import GmailSyncPrompt from './GmailSyncPrompt';
+import NotificationBell from './NotificationBell';
 import { googleAvatarUrl } from '@shared/userProfile';
 import Icon3d from '@shared/Icon3d';
 import YurekaBrandMark from '@shared/YurekaBrandMark';
@@ -21,6 +23,7 @@ import {
     restoreDashboardPosition,
     saveDashboardScroll,
 } from '@shared/dashboardScroll';
+import { ErrorBoundary } from '@shared/ErrorBoundary';
 
 
 // Sub-components (to be built)
@@ -30,7 +33,7 @@ import Expenses from './Expenses';
 import Bills from './Bills';
 import ExpensePlanning from './ExpensePlanning';
 import YurekaAIPage from '@landing/YurekaAIPage';
-import WaitlistPage from '@app/WaitlistPage';
+// import WaitlistPage from '@app/WaitlistPage'; // waitlist paused
 import GoldbackHome from './GoldbackHome';
 import OffersPage from './OffersPage';
 import GiftCardsPage from './GiftCardsPage';
@@ -38,11 +41,10 @@ import GiftCardOrderPage from './GiftCardOrderPage';
 import ExtensionPage from './ExtensionPage';
 import SuperBrowsePage from './SuperBrowse';
 import ExploreScenePage from './ExploreScenePage';
+import GetawayPage from './Getaway/GetawayPage';
 import { canUseInAppBrowse } from '@shared/pwaDisplay';
 // import ExploreScenePage from './ExploreScenePage';
 // import SuperBrowsePage from './SuperBrowse';
-
-import { api, isApiError } from '@backend/lib/api/client';
 
 type NavItem = {
     id: string
@@ -56,9 +58,10 @@ const PRIMARY_NAV: NavItem[] = [
     { id: 'home', label: 'Home', icon: 'dollar', path: '/dashboard/home' },
     { id: 'offers', label: 'Offers', icon: 'bag', path: '/dashboard/offers' },
     { id: 'giftcards', label: 'Gift cards', icon: 'gift', path: '/dashboard/giftcards' },
+    { id: 'getaway', label: 'Join your getaway', icon: 'flash', path: '/dashboard/getaway' },
 ];
 
-const BROWSE_NAV: NavItem = { id: 'browse', label: 'Browse', icon: 'flash', path: '/dashboard/browse' };
+const BROWSE_NAV: NavItem = { id: 'browse', label: 'Brands', icon: 'flash', path: '/dashboard/browse' };
 
 const SECONDARY_NAV: NavItem[] = [
     { id: 'expenses', label: 'Expenses', icon: 'chart', path: '/dashboard/expenses' },
@@ -84,250 +87,90 @@ const TAB_ICONS: Record<string, typeof House> = {
 
 const TAB_LABELS: Record<string, string> = {
     home: 'Home',
-    browse: 'Browse',
+    browse: 'Explore brands',
     offers: 'Offers',
     giftcards: 'Gifts',
 };
 
-type InboxNotification = {
-    id: string
-    title: string
-    body: string
-    type?: string
-    href?: string | null
-    imageUrl?: string | null
-    readAt?: string | null
-    createdAt?: string
+const KEEP_ALIVE_TABS = ['home', 'offers', 'browse', 'giftcards', 'getaway', 'expenses', 'planning', 'bills', 'referrals', 'profile'] as const;
+
+const SIDEBAR_PREF_KEY = 'yureka-sidebar-open'
+
+function readSidebarOpenPref(): boolean {
+    if (typeof window === 'undefined') return true
+    // Mobile drawer always starts closed — avoids flash of open overlay on reload.
+    if (window.innerWidth < 768) return false
+    try {
+        const raw = localStorage.getItem(SIDEBAR_PREF_KEY)
+        if (raw === '0') return false
+        if (raw === '1') return true
+    } catch { /* ignore */ }
+    return true
 }
-
-const NotificationBell = () => {
-    const { user } = useSupabase();
-    const navigate = useNavigate();
-    const [notifications, setNotifications] = useState<InboxNotification[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [isOpen, setIsOpen] = useState(false);
-    const [loading, setLoading] = useState(false);
-    const rootRef = useRef<HTMLDivElement>(null);
-    const panelRef = useRef<HTMLDivElement>(null);
-
-    const applyInbox = (payload: { items?: InboxNotification[]; unreadCount?: number } | InboxNotification[] | null | undefined) => {
-        const items = Array.isArray(payload) ? payload : payload?.items || [];
-        const unread = Array.isArray(payload)
-            ? items.filter((n) => !n.readAt).length
-            : typeof payload?.unreadCount === 'number'
-                ? payload.unreadCount
-                : items.filter((n) => !n.readAt).length;
-        setNotifications(items);
-        setUnreadCount(unread);
-    };
-
-    const authHeaders = user?.id ? { 'x-user-id': user.id } : undefined;
-
-    useEffect(() => {
-        if (!user?.id && !user?.email) return;
-        const load = async () => {
-            setLoading(true);
-            const res = await api.get<{ items: InboxNotification[]; unreadCount: number }>(
-                '/api/notifications',
-                { headers: authHeaders, timeoutMs: 8000 },
-            );
-            if (!isApiError(res) && res.data) applyInbox(res.data);
-            setLoading(false);
-        };
-        load();
-        const interval = setInterval(load, 30000);
-        return () => clearInterval(interval);
-    }, [user?.id, user?.email]);
-
-    // Close on any pointer outside the bell + panel (full viewport — not trapped by header blur).
-    useEffect(() => {
-        if (!isOpen) return;
-        const onPointerDown = (e: PointerEvent) => {
-            const target = e.target as Node | null;
-            if (!target) return;
-            if (rootRef.current?.contains(target)) return;
-            if (panelRef.current?.contains(target)) return;
-            setIsOpen(false);
-        };
-        const onKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setIsOpen(false);
-        };
-        document.addEventListener('pointerdown', onPointerDown, true);
-        document.addEventListener('keydown', onKey);
-        return () => {
-            document.removeEventListener('pointerdown', onPointerDown, true);
-            document.removeEventListener('keydown', onKey);
-        };
-    }, [isOpen]);
-
-    const handleOpen = async () => {
-        const next = !isOpen;
-        setIsOpen(next);
-        if (next && unreadCount > 0) {
-            setUnreadCount(0);
-            const res = await api.patch<{ items: InboxNotification[]; unreadCount: number }>(
-                '/api/notifications/read-all',
-                {},
-                { headers: authHeaders },
-            );
-            if (!isApiError(res) && res.data) applyInbox(res.data);
-        }
-    };
-
-    const handleOpenItem = async (n: InboxNotification) => {
-        setNotifications((prev) => prev.filter((x) => x.id !== n.id));
-        if (n.href && n.href.startsWith('/')) {
-            setIsOpen(false);
-            navigate(n.href);
-        }
-        await api.post(`/api/notifications/${n.id}/dismiss`, {}, { headers: authHeaders });
-    };
-
-    const handleDismiss = async (e: React.MouseEvent, id: string) => {
-        e.stopPropagation();
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
-        const res = await api.post<{ items: InboxNotification[]; unreadCount: number }>(
-            `/api/notifications/${id}/dismiss`,
-            {},
-            { headers: authHeaders },
-        );
-        if (!isApiError(res) && res.data) applyInbox(res.data);
-    };
-
-    const overlay =
-        typeof document !== 'undefined'
-            ? createPortal(
-                  <AnimatePresence>
-                      {isOpen && (
-                          <>
-                              <motion.button
-                                  type="button"
-                                  aria-label="Close notifications"
-                                  initial={{ opacity: 0 }}
-                                  animate={{ opacity: 1 }}
-                                  exit={{ opacity: 0 }}
-                                  transition={{ duration: 0.2 }}
-                                  onClick={() => setIsOpen(false)}
-                                  className="fixed inset-0 z-[90] cursor-default bg-black/40"
-                              />
-                              <motion.div
-                                  ref={panelRef}
-                                  role="dialog"
-                                  aria-label="Notifications"
-                                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
-                                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                                  transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
-                                  className="fixed top-[4.5rem] right-3 z-[95] w-[min(22rem,calc(100vw-1.5rem))] overflow-hidden rounded-3xl border border-white/10 bg-black/90 shadow-2xl backdrop-blur-2xl sm:right-5 md:right-10"
-                              >
-                                  <div className="flex items-center justify-between border-b border-white/5 bg-white/[0.02] p-5">
-                                      <h3 className="text-sm font-bold uppercase tracking-widest text-white">Notifications</h3>
-                                      <span className="font-mono text-[10px] text-clay">{notifications.length} Active</span>
-                                  </div>
-
-                                  <div className="dashboard-scroll max-h-[60vh] overflow-y-auto p-2">
-                                      {notifications.length === 0 ? (
-                                          <div className="p-8 text-center text-xs font-bold uppercase tracking-widest text-white/30">
-                                              {loading ? 'Loading…' : 'No notifications yet'}
-                                          </div>
-                                      ) : (
-                                          <div className="space-y-1">
-                                              {notifications.map((n) => (
-                                                  <div
-                                                      key={n.id}
-                                                      onClick={() => handleOpenItem(n)}
-                                                      className="group relative flex cursor-pointer flex-col gap-3 rounded-2xl p-4 transition-colors hover:bg-white/[0.03]"
-                                                  >
-                                                      <button
-                                                          type="button"
-                                                          onClick={(e) => handleDismiss(e, n.id)}
-                                                          className="absolute right-3 top-3 p-1 text-white/20 hover:text-white/70"
-                                                          aria-label="Dismiss notification"
-                                                      >
-                                                          <X size={12} />
-                                                      </button>
-                                                      <div className="flex gap-4">
-                                                          <div
-                                                              className={`mt-2 h-2 w-2 shrink-0 rounded-full ${
-                                                                  n.readAt ? 'bg-white/20' : 'bg-clay shadow-[0_0_8px_#00933b]'
-                                                              }`}
-                                                          />
-                                                          <div className="flex-1 pr-4">
-                                                              <h4 className="mb-1 text-sm font-bold text-white">{n.title}</h4>
-                                                              <p className="text-xs leading-relaxed text-white/60">{n.body}</p>
-                                                          </div>
-                                                      </div>
-                                                      {n.imageUrl && (
-                                                          <div className="relative ml-6 mt-1 h-32 w-full overflow-hidden rounded-xl border border-white/5">
-                                                              <img src={n.imageUrl} alt="" className="h-full w-full object-cover" />
-                                                          </div>
-                                                      )}
-                                                      <div className="pl-6">
-                                                          <p className="font-mono text-[9px] uppercase tracking-widest text-white/20">
-                                                              {n.createdAt ? new Date(n.createdAt).toLocaleDateString() : ''}
-                                                          </p>
-                                                      </div>
-                                                  </div>
-                                              ))}
-                                          </div>
-                                      )}
-                                  </div>
-                              </motion.div>
-                          </>
-                      )}
-                  </AnimatePresence>,
-                  document.body,
-              )
-            : null;
-
-    return (
-        <div ref={rootRef} className="relative z-[100]">
-            <button
-                type="button"
-                onClick={handleOpen}
-                aria-expanded={isOpen}
-                aria-haspopup="dialog"
-                className="group relative flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-white/35 transition-all hover:border-white/20 hover:text-white"
-            >
-                <Icon3d
-                    name="megaphone"
-                    className={`h-[22px] w-[22px] object-contain transition-transform ${isOpen ? 'scale-110' : 'group-hover:rotate-12'}`}
-                    alt=""
-                />
-                {unreadCount > 0 && (
-                    <div className="absolute -right-1 -top-1 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full bg-clay px-1 text-[8px] font-black leading-none text-black shadow-[0_0_12px_rgba(52,211,153,0.8)]">
-                        {unreadCount}
-                    </div>
-                )}
-            </button>
-            {overlay}
-        </div>
-    );
-};
-
-const KEEP_ALIVE_TABS = ['home', 'offers', 'browse', 'giftcards', 'expenses', 'planning', 'bills', 'referrals', 'profile'] as const;
 
 const DashboardLayout: React.FC = () => {
     const { user } = useSupabase();
     const navigate = useNavigate();
     const location = useLocation();
     const reduceMotion = useReducedMotion();
-    const [isSidebarOpen, setIsSidebarOpen] = useState(
-        () => typeof window === 'undefined' || window.innerWidth >= 768
-    );
+    const [isSidebarOpen, setIsSidebarOpen] = useState(readSidebarOpenPref);
+    // Avoid width/transform transition fighting first paint (looks like a flicker).
+    const [sidebarReady, setSidebarReady] = useState(false);
     const [mountedTabs, setMountedTabs] = useState<Set<string>>(() => {
+        // On reload only keep the current route (+ home). Warming every tab
+        // (Expenses + Planning + …) was stacking API work and nearly crashing.
+        const initial = new Set<string>(['home'])
         try {
-            const raw = sessionStorage.getItem('yureka-mounted-tabs')
-            if (raw) {
-                const parsed = JSON.parse(raw) as string[]
-                if (Array.isArray(parsed) && parsed.length) return new Set(parsed)
-            }
+            const path = window.location.pathname
+            const hit = NAV_ITEMS.find(
+                (i) => i.path && (path === i.path || path.startsWith(i.path + '/')),
+            )
+            if (hit) initial.add(hit.id)
         } catch { /* ignore */ }
-        return new Set(['home'])
+        return initial
     });
+
+    useEffect(() => {
+        const id = window.requestAnimationFrame(() => setSidebarReady(true))
+        return () => window.cancelAnimationFrame(id)
+    }, [])
+
+    // Poll admin catalog revision so Super Browse / offers update without relaunching.
+    useEffect(() => startCatalogSync(), [])
+
+    useEffect(() => {
+        // Only remember collapse preference on desktop.
+        if (typeof window === 'undefined' || window.innerWidth < 768) return
+        try {
+            localStorage.setItem(SIDEBAR_PREF_KEY, isSidebarOpen ? '1' : '0')
+        } catch { /* ignore */ }
+    }, [isSidebarOpen])
+
+    useEffect(() => {
+        let wasDesktop = window.innerWidth >= 768
+        const onResize = () => {
+            const desktop = window.innerWidth >= 768
+            if (wasDesktop && !desktop) setIsSidebarOpen(false)
+            if (!wasDesktop && desktop) setIsSidebarOpen(readSidebarOpenPref())
+            wasDesktop = desktop
+        }
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
+    }, [])
 
     const activeTab = NAV_ITEMS.find(i => i.path && (location.pathname === i.path || location.pathname.startsWith(i.path + '/')))?.id
         || (location.pathname === '/dashboard' || location.pathname === '/dashboard/' ? 'home' : 'home');
+
+    // Blur focus when parking a keep-alive panel so a11y doesn't see focused+hidden.
+    useEffect(() => {
+        const el = document.activeElement
+        if (!(el instanceof HTMLElement)) return
+        const panel = el.closest('[data-keepalive-panel]')
+        if (!panel) return
+        if (panel.hasAttribute('hidden') || panel.hasAttribute('inert')) {
+            el.blur()
+        }
+    }, [activeTab, location.pathname])
 
     const mainRef = useRef<HTMLElement | null>(null)
     const prevPathRef = useRef(location.pathname)
@@ -377,9 +220,15 @@ const DashboardLayout: React.FC = () => {
     useEffect(() => {
         if (!KEEP_ALIVE_TABS.includes(activeTab as typeof KEEP_ALIVE_TABS[number])) return;
         setMountedTabs((prev) => {
-            if (prev.has(activeTab)) return prev;
-            const next = new Set(prev);
-            next.add(activeTab);
+            if (prev.has(activeTab) && prev.size <= 4) return prev;
+            const next = new Set<string>(['home', activeTab]);
+            // Keep at most 3 previously visited light tabs
+            for (const id of prev) {
+                if (next.size >= 4) break
+                if (id === 'expenses' || id === 'planning' || id === 'bills') continue
+                next.add(id)
+            }
+            next.add(activeTab)
             return next;
         });
     }, [activeTab]);
@@ -390,25 +239,25 @@ const DashboardLayout: React.FC = () => {
         } catch { /* ignore */ }
     }, [mountedTabs]);
 
-    // Warm Goldback / Offers / Gift cards in the background so the first tab
-    // switch is instant and served from keep-alive + dashboardCache.
+    // Warm Offers only on desktop after idle — dual-mount of Offers+Gifts was
+    // spiking memory/CPU on mobile and felt like crashes + slow first load.
     useEffect(() => {
+        if (typeof window !== 'undefined' && window.innerWidth < 768) return
         const t = window.setTimeout(() => {
             const warm = () => {
                 setMountedTabs((prev) => {
+                    if (prev.size >= 3 || prev.has('offers')) return prev
                     const next = new Set(prev);
                     next.add('offers');
-                    next.add('giftcards');
-                    if (canUseInAppBrowse()) next.add('browse');
                     return next;
                 });
             };
             if (typeof requestIdleCallback === 'function') {
-                requestIdleCallback(warm, { timeout: 4000 });
+                requestIdleCallback(warm, { timeout: 8000 });
             } else {
                 warm();
             }
-        }, 1800);
+        }, 8000);
         return () => window.clearTimeout(t);
     }, []);
 
@@ -431,22 +280,23 @@ const DashboardLayout: React.FC = () => {
     })();
     const pwaBrowse = canUseInAppBrowse();
     const isExplore = /^\/dashboard\/explore(\/|$)/.test(location.pathname);
+    // Any /browse?url= session uses the fullscreen store chrome — not only installed PWAs.
+    // That keeps Super Browse inside Yureka instead of Universal-Linking into merchant apps.
     const browseHasUrl =
-        pwaBrowse &&
         location.pathname.startsWith('/dashboard/browse') &&
         new URLSearchParams(location.search).has('url');
-    const isEmbeddedBrowse = isNativeEmbedded || (pwaBrowse && isExplore) || browseHasUrl;
+    const isEmbeddedBrowse = isNativeEmbedded || isExplore || browseHasUrl;
     const useKeepAlive =
         KEEP_ALIVE_TABS.includes(activeTab as typeof KEEP_ALIVE_TABS[number]) &&
         !isGiftOrder &&
-        !isExplore &&
-        (activeTab !== 'browse' || pwaBrowse);
+        !isExplore;
 
     const keepAlivePanels = useMemo(() => ({
         home: <GoldbackHome />,
         offers: <OffersPage />,
         browse: <SuperBrowsePage />,
         giftcards: <GiftCardsPage />,
+        getaway: <GetawayPage />,
         expenses: <Expenses />,
         planning: <ExpensePlanning />,
         bills: <Bills />,
@@ -491,23 +341,19 @@ const DashboardLayout: React.FC = () => {
     const activeLabel = NAV_ITEMS.find(i => i.id === activeTab)?.label || 'Home';
     const avatarUrl = googleAvatarUrl(user);
 
-    const NavLink = ({ item, idx }: { item: NavItem; idx: number }) => {
+    const NavLink = ({ item }: { item: NavItem }) => {
         const active = activeTab === item.id
         return (
         <Link to={item.path!} onClick={() => { if (window.innerWidth < 768) setIsSidebarOpen(false); }}>
-            <motion.div
-                initial={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -12 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ type: 'spring', bounce: 0, duration: 0.4, delay: idx * 0.02 }}
-                whileTap={{ scale: 0.97 }}
+            <div
                 className={
                     isSidebarOpen
-                        ? `w-full flex items-center gap-3 px-3 py-2.5 rounded-[1.15rem] ${
+                        ? `w-full flex items-center gap-3 px-3 py-2.5 rounded-[1.15rem] transition-colors duration-150 ${
                               active
                                   ? 'bg-white/[0.12] text-white'
                                   : 'text-white/45 hover:bg-white/[0.06] hover:text-white'
                           }`
-                        : `mx-auto flex h-11 w-11 items-center justify-center rounded-[1.05rem] ${
+                        : `mx-auto flex h-11 w-11 items-center justify-center rounded-[1.05rem] transition-colors duration-150 ${
                               active
                                   ? 'bg-white/[0.14] text-white'
                                   : 'text-white/40 hover:bg-white/[0.08] hover:text-white'
@@ -529,7 +375,7 @@ const DashboardLayout: React.FC = () => {
                         )}
                     </div>
                 )}
-            </motion.div>
+            </div>
         </Link>
         )
     };
@@ -554,7 +400,11 @@ const DashboardLayout: React.FC = () => {
                 />
             )}
 
-            <aside className={`fixed md:relative z-50 h-dvh md:h-full border-r border-white/[0.07] bg-[#0a0a0a]/95 backdrop-blur-xl md:backdrop-blur-none md:bg-[#0a0a0a] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] md:transition-[width] ${
+            <aside className={`fixed md:relative z-50 h-dvh md:h-full border-r border-white/[0.07] bg-[#0a0a0a]/95 backdrop-blur-xl md:backdrop-blur-none md:bg-[#0a0a0a] ${
+                sidebarReady
+                    ? 'transition-transform duration-300 ease-out md:transition-[width] md:duration-300'
+                    : ''
+            } ${
                 isSidebarOpen ? 'translate-x-0 w-[min(17.5rem,88vw)]' : '-translate-x-full md:translate-x-0 md:w-[4.5rem]'
             }`}
             style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
@@ -583,24 +433,24 @@ const DashboardLayout: React.FC = () => {
                             {isSidebarOpen && (
                                 <p className="px-4 pb-1 text-[9px] font-black uppercase tracking-[0.3em] text-white/25">Earn</p>
                             )}
-                            {PRIMARY_NAV.map((item, idx) => (
-                                <NavLink key={item.id} item={item} idx={idx} />
+                            {PRIMARY_NAV.map((item) => (
+                                <NavLink key={item.id} item={item} />
                             ))}
                         </div>
                         <div className="space-y-1">
                             {isSidebarOpen && (
                                 <p className="px-4 pb-1 text-[9px] font-black uppercase tracking-[0.3em] text-white/25">Account</p>
                             )}
-                            {SECONDARY_NAV.map((item, idx) => (
-                                <NavLink key={item.id} item={item} idx={idx + 2} />
+                            {SECONDARY_NAV.map((item) => (
+                                <NavLink key={item.id} item={item} />
                             ))}
                         </div>
                         <div className="space-y-1">
                             {isSidebarOpen && (
                                 <p className="px-4 pb-1 text-[9px] font-black uppercase tracking-[0.3em] text-white/25">Next</p>
                             )}
-                            {SOON_NAV.map((item, idx) => (
-                                <NavLink key={item.id} item={item} idx={idx + 7} />
+                            {SOON_NAV.map((item) => (
+                                <NavLink key={item.id} item={item} />
                             ))}
                         </div>
                     </nav>
@@ -692,7 +542,17 @@ const DashboardLayout: React.FC = () => {
                 </div>
                 )}
 
-                <div className={isEmbeddedBrowse ? 'flex min-h-0 flex-1 flex-col' : 'p-4 sm:p-5 md:p-10 max-w-6xl mx-auto'}>
+                <div
+                    className={
+                        isEmbeddedBrowse
+                            ? 'flex min-h-0 flex-1 flex-col'
+                            : activeTab === 'home'
+                              ? // Mobile home hides sticky chrome — content must clear the status bar itself.
+                                'max-w-6xl mx-auto px-4 pb-4 sm:px-5 sm:pb-5 md:p-10 pt-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem))] md:pt-10'
+                              : 'p-4 sm:p-5 md:p-10 max-w-6xl mx-auto'
+                    }
+                >
+                    {!isEmbeddedBrowse && <GmailSyncPrompt />}
                     {activeTab === 'home' && !isEmbeddedBrowse && <WelcomeBanner />}
                     {/* Keep primary tabs mounted so switching doesn't remount / refetch */}
                     {useKeepAlive && (
@@ -703,8 +563,11 @@ const DashboardLayout: React.FC = () => {
                                 return (
                                     <div
                                         key={id}
+                                        data-keepalive-panel={id}
                                         hidden={!active}
-                                        aria-hidden={!active}
+                                        // Prefer inert over aria-hidden so a focused child
+                                        // inside a parked tab doesn't trip a11y warnings.
+                                        inert={!active ? true : undefined}
                                         className={
                                           active
                                             ? isEmbeddedBrowse
@@ -713,7 +576,24 @@ const DashboardLayout: React.FC = () => {
                                             : 'hidden'
                                         }
                                     >
-                                        {keepAlivePanels[id]}
+                                        <ErrorBoundary
+                                            fallback={
+                                                <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-6 text-center">
+                                                    <p className="text-sm font-medium text-red-100/90">
+                                                        This tab hit an error.
+                                                    </p>
+                                                    <button
+                                                        type="button"
+                                                        className="mt-3 text-[12px] font-semibold text-clay underline"
+                                                        onClick={() => window.location.reload()}
+                                                    >
+                                                        Reload
+                                                    </button>
+                                                </div>
+                                            }
+                                        >
+                                            {keepAlivePanels[id]}
+                                        </ErrorBoundary>
                                     </div>
                                 )
                             })}
@@ -724,10 +604,12 @@ const DashboardLayout: React.FC = () => {
                         <Routes>
                             <Route index element={<Navigate to="home" replace />} />
                             <Route path="giftcards/orders/:orderId" element={<GiftCardOrderPage />} />
+                            <Route path="getaway/*" element={<GetawayPage />} />
                             <Route path="explore/:sceneId" element={<ExploreScenePage />} />
-                            <Route path="browse" element={pwaBrowse ? <SuperBrowsePage /> : <Navigate to="/dashboard/offers" replace />} />
+                            <Route path="browse" element={<SuperBrowsePage />} />
                             <Route path="yureka-ai" element={<YurekaAIPage />} />
-                            <Route path="join-waitlist" element={<WaitlistPage />} />
+                            {/* Waitlist paused — restore WaitlistPage when VITE_WAITLIST_REQUIRED=true */}
+                            <Route path="join-waitlist" element={<Navigate to="/dashboard/home" replace />} />
                             <Route path="extension" element={<ExtensionPage />} />
                             <Route path="*" element={renderEmpty()} />
                         </Routes>

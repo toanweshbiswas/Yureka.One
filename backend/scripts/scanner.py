@@ -262,7 +262,34 @@ def parse_transaction_data_expense(combined_text, sender, subject):
         'upi ref', 'upi-', 'neft', 'imps', 'rtgs', 'a/c', 'acct', 'account xx',
         'transaction value', 'amount paid', 'grand total', 'invoice total',
         'you paid', 'payment of', 'purchased',
+        'units allotted', 'units allocated', 'order executed', 'sip successful',
+        'sip instalment', 'sip installment', 'amount invested', 'shares bought',
+        'equity delivery', 'investment of', 'folio',
+        'you invested', 'successfully invested', 'sip processed', 'sip done',
+        'purchase of', 'allotment', 'redeemed', 'redemption',
     ])
+
+    investment_senders = (
+        'groww', 'zerodha', 'kite', 'upstox', 'angelone', 'angelbroking', 'angel one',
+        'kuvera', 'smallcase', 'indmoney', 'etmoney', 'paytmmoney', 'paytm money',
+        'hdfcsec', 'hdfc securities', 'icicidirect', 'icici direct', '5paisa',
+        'motilal', 'coin.zerodha', 'nsdl', 'cdsl', 'camsonline', 'kfintech',
+        'mfcentral', 'fyers', 'aliceblue', 'sharekhan', 'iifl', 'sbimf', 'axismf',
+        'hdfcfund', 'icicipru', 'nippon', 'mirae', 'paragparikh', 'growwmail',
+        'zrdha', 'zerodhabroking',
+    )
+    is_investment_mail = any(k in sender_lower for k in investment_senders) or any(
+        k in subject_lower for k in (
+            'units allotted', 'units allocated', 'order executed', 'sip successful',
+            'sip instalment', 'sip installment', 'mutual fund', 'shares bought',
+            'equity delivery', 'you invested', 'successfully invested', 'sip processed',
+            'amount invested', 'systematic investment',
+        )
+    ) or any(
+        k in corpus_lower for k in (
+            'groww.in', 'zerodha.com', 'kite.trade', 'upstox.com', 'angelone.in',
+        )
+    )
 
     if "eatclub" in sender_lower:
         match = re.search(
@@ -288,9 +315,29 @@ def parse_transaction_data_expense(combined_text, sender, subject):
         if match:
             amount = f"₹ {match.group(1)}"
 
+    elif 'cred' in sender_lower:
+        # CRED sends editorials with example ₹ figures — only accept real payments
+        if is_marketing_or_content_email(subject, '', combined_text, sender):
+            return brand_name, "N/A", "N/A"
+        if not re.search(
+            r'\b(bill\s+paid|payment\s+(?:successful|received|done|of)|debited|'
+            r'emi\s+(?:paid|of)|cleared|settled|txn|transaction\s+(?:of|alert)|'
+            r'amount\s+(?:paid|due)|outstanding)\b',
+            corpus_lower,
+            re.IGNORECASE,
+        ):
+            return brand_name, "N/A", "N/A"
+        match = re.search(
+            r'(?:debited|paid|payment(?:\s+of)?|bill(?:\s+amount)?|emi(?:\s+of)?|'
+            r'amount(?:\s+paid)?|outstanding)[:\s]*[₹Rs\.?INR]*\s*([\d,]+(?:\.\d{1,2})?)',
+            normalized_text, re.IGNORECASE,
+        )
+        if match and _is_plausible_amount(match.group(1)):
+            amount = f"₹ {match.group(1)}"
+
     elif any(k in sender_lower for k in (
         "axis", "hdfc", "icici", "sbi", "kotak", "yes bank", "yesbank",
-        "indusind", "idfc", "bob", "pnb", "canara", "union bank", "cred",
+        "indusind", "idfc", "bob", "pnb", "canara", "union bank",
     )):
         match = re.search(
             r'(?:debited(?:\s+for|\s+by|\s+with)?|spent|txn(?:\s+of)?|transaction(?:\s+of)?|'
@@ -321,6 +368,48 @@ def parse_transaction_data_expense(combined_text, sender, subject):
         )
         if match:
             amount = f"₹ {match.group(1)}"
+
+    elif is_investment_mail:
+        invest_patterns = [
+            r'(?:you\s+invested|successfully\s+invested|amount(?:\s+invested)?|investment(?:\s+amount)?|'
+            r'order(?:\s+value)?|total(?:\s+amount)?|trade(?:\s+value)?|debited|paid|'
+            r'sip(?:\s+(?:of|amount|instalment|installment))?|purchase(?:\s+amount)?|'
+            r'invested(?:\s+amount)?|value)[:\s]*[₹Rs\.?INR]*\s*([\d,]+(?:\.\d{1,2})?)',
+            r'(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)\s*(?:was\s+)?(?:invested|debited|paid|allotted)',
+            r'(?:sip\s+of|invested)\s*(?:₹|Rs\.?|INR)?\s*([\d,]+(?:\.\d{1,2})?)',
+        ]
+        for pattern in invest_patterns:
+            match = re.search(pattern, normalized_text, re.IGNORECASE)
+            if match and _is_plausible_amount(match.group(1)):
+                if not _looks_like_promo_amount(normalized_text, match.start(), match.end()):
+                    amount = f"₹ {match.group(1)}"
+                    break
+        if amount == "N/A":
+            match = re.search(
+                r'(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)',
+                normalized_text, re.IGNORECASE,
+            )
+            if match and _is_plausible_amount(match.group(1)):
+                if not _looks_like_promo_amount(normalized_text, match.start(), match.end()):
+                    amount = f"₹ {match.group(1)}"
+        # Normalize brand for planning category / UI
+        for label, needles in (
+            ('Groww', ('groww',)),
+            ('Zerodha', ('zerodha', 'kite', 'zrdha')),
+            ('Upstox', ('upstox',)),
+            ('Angel One', ('angelone', 'angelbroking', 'angel one')),
+            ('INDMoney', ('indmoney',)),
+            ('ET Money', ('etmoney',)),
+            ('Kuvera', ('kuvera',)),
+            ('Smallcase', ('smallcase',)),
+            ('Paytm Money', ('paytmmoney', 'paytm money')),
+            ('HDFC Securities', ('hdfcsec', 'hdfc securities')),
+            ('ICICI Direct', ('icicidirect', 'icici direct')),
+            ('Coin', ('coin.zerodha', 'coin by zerodha')),
+        ):
+            if any(n in sender_lower or n in subject_lower or n in corpus_lower for n in needles):
+                brand_name = label
+                break
 
     if amount == "N/A" and not is_transit_status:
         # Priority 1: debit / spent phrasing (real money movement)
@@ -361,6 +450,25 @@ def parse_transaction_data_expense(combined_text, sender, subject):
                 if not _looks_like_promo_amount(normalized_text, bare.start(), bare.end()):
                     amount = f"₹ {bare.group(1)}"
 
+    # Bank/UPI debit narratives that name a broker (GROWW / ZERODHA / …)
+    if amount != "N/A" and not is_investment_mail:
+        for label, needles in (
+            ('Groww', ('groww',)),
+            ('Zerodha', ('zerodha', 'kite', 'zrdha')),
+            ('Upstox', ('upstox',)),
+            ('Angel One', ('angelone', 'angel one')),
+            ('INDMoney', ('indmoney',)),
+            ('ET Money', ('etmoney',)),
+            ('Kuvera', ('kuvera',)),
+            ('Smallcase', ('smallcase',)),
+            ('Paytm Money', ('paytmmoney', 'paytm money')),
+            ('Coin', ('coin by zerodha', 'coin.zerodha')),
+        ):
+            if any(n in corpus_lower for n in needles):
+                brand_name = label
+                is_investment_mail = True
+                break
+
     item_details = "N/A"
     if "eatclub" in sender_lower and "product details" in combined_text.lower():
         lines = combined_text.split('\n')
@@ -392,6 +500,11 @@ def parse_transaction_data_expense(combined_text, sender, subject):
             item_details = subject_cleaned
         else:
             item_details = subject.strip()
+
+    # Tag investments so planning always maps Groww/Zerodha/etc. → Investment
+    if is_investment_mail and amount != "N/A":
+        if 'investment' not in item_details.lower() and 'sip' not in item_details.lower():
+            item_details = f"investment · {item_details}"
 
     return brand_name, amount, item_details
 
@@ -430,6 +543,11 @@ def _is_trusted_financial_sender(sender: str) -> bool:
         'razorpay', 'cashfree', 'swiggy', 'zomato', 'amazon', 'flipkart',
         'myntra', 'nykaa', 'blinkit', 'zepto', 'bigbasket', 'uber', 'ola',
         'makemytrip', 'bookmyshow', 'shiprocket', 'eatclub',
+        'groww', 'zerodha', 'kite', 'upstox', 'angelone', 'angelbroking',
+        'kuvera', 'smallcase', 'indmoney', 'etmoney', 'paytmmoney', 'hdfcsec',
+        'icicidirect', '5paisa', 'motilal', 'nsdl', 'cdsl', 'camsonline',
+        'kfintech', 'mfcentral', 'fyers', 'aliceblue', 'sharekhan', 'iifl',
+        'sbimf', 'axismf', 'hdfcfund', 'icicipru', 'nippon', 'mirae',
         'alerts@', 'noreply@', 'no-reply@', 'statement@', 'transactions@',
     )
     return any(t in s for t in trusted)
@@ -442,7 +560,14 @@ _PROMO_SUBJECT_RE = re.compile(
     r'coupon\s*code|flash\s+sale|mega\s+sale|clearance|don.?t\s+miss|'
     r'congratulations.?you.?ve\s+won|claim\s+your\s+(?:reward|gift|prize)|'
     r'invite\s+friends|refer\s+(?:and|&)\s+earn|weekly\s+digest|'
-    r'marketing\s+update|new\s+arrivals|just\s+for\s+you)',
+    r'marketing\s+update|new\s+arrivals|just\s+for\s+you|'
+    # Educational / content digests that quote example ₹ amounts (CRED etc.)
+    r'credit\s+utilization|utilisation\s+ratio|the\s+fine\s+print|'
+    r'\bdecoded\b|\bexplained\b|did\s+you\s+know|here.?s\s+why|'
+    r'how\s+to\s+(?:improve|boost|fix|build)|tips?\s+to\s+|'
+    r'money\s+tips?|credit\s+score\s+(?:tips?|guide|101)|'
+    r'read\s+this|what\s+(?:is|are)\s+(?:a\s+)?credit|'
+    r'weekly\s+wrap|month(?:ly)?\s+wrap|in\s+case\s+you\s+missed)',
     re.IGNORECASE,
 )
 
@@ -451,27 +576,129 @@ _STRONG_TXN_RE = re.compile(
     r'payment\s+successful|paid\s+successfully|order\s+confirmed|order\s+placed|'
     r'upi\s*ref|neft|imps|rtgs|a/c\s*xx|account\s+xx|amount\s+paid|grand\s+total|'
     r'invoice\s+(?:total|for)|credit\s+card\s+statement|outstanding\s+(?:amount|due)|'
-    r'minimum\s+amount\s+due|total\s+amount\s+due|emi\s+due)',
+    r'minimum\s+amount\s+due|total\s+amount\s+due|emi\s+due|bill\s+paid|payment\s+received|'
+    r'units?\s+allot(?:ted|ed)|order\s+executed|sip\s+(?:successful|instalment|installment|processed|done)|'
+    r'shares?\s+bought|equity\s+delivery|amount\s+invested|investment\s+of|'
+    r'you\s+invested|successfully\s+invested|allotment|redemption)',
     re.IGNORECASE,
 )
+
+# Content / digest mail — never treat example ₹ figures as expenses
+_CONTENT_DIGEST_RE = re.compile(
+    r'(credit\s+utilization|utilisation\s+ratio|the\s+fine\s+print|'
+    r'\bdecoded\b|\bexplained\b|did\s+you\s+know|here.?s\s+why|'
+    r'how\s+to\s+(?:improve|boost|fix|build)|tips?\s+to\b|'
+    r'money\s+tips?|credit\s+health|score\s+decoded|'
+    r'in\s+case\s+you\s+missed|weekly\s+(?:wrap|digest|roundup)|'
+    r'read\s+on|swipe\s+up|know\s+more|learn\s+more|'
+    r'your\s+credit\s+(?:report|score|limit)\s+(?:decoded|explained|guide)|'
+    r'portfolio\s+(?:value|update|summary)|current\s+value|total\s+(?:returns?|gains?)|'
+    r'\bxirr\b|\bcagr\b|market\s+(?:update|wrap|today)|stocks?\s+to\s+watch|watchlist|'
+    r'your\s+investments?\s+(?:are|have)|learn\s+to\s+invest|nfo\s+(?:alert|open)|'
+    r'what.?s\s+new\s+on\s+groww|motilal\s+oswal\s+(?:research|view|digest)|weekly\s+market)',
+    re.IGNORECASE,
+)
+
+
+def is_marketing_or_content_email(subject: str, snippet: str = '', body: str = '', sender: str = '') -> bool:
+    """True for newsletters / educational digests that are not payments."""
+    head = f"{subject or ''}\n{snippet or ''}"
+    if _CONTENT_DIGEST_RE.search(head):
+        return True
+    if _PROMO_SUBJECT_RE.search(head):
+        return True
+    sender_l = (sender or '').lower()
+    # CRED sends many editorial mails; only payment-shaped subjects count as spend
+    if 'cred' in sender_l or 'cred.club' in sender_l:
+        if not _STRONG_TXN_RE.search(head) and not _STRONG_TXN_RE.search((body or '')[:1200]):
+            soft = sum(
+                1 for k in (
+                    'utilization', 'utilisation', 'fine print', 'decoded', 'explained',
+                    'tips', 'guide', 'know more', 'read', 'credit score', 'credit limit',
+                    'unsubscribe', 'newsletter', 'digest',
+                ) if k in head.lower() or k in (body or '')[:800].lower()
+            )
+            if soft >= 1 and not re.search(
+                r'\b(bill\s+paid|payment\s+(?:successful|received|done)|debited|emi\s+paid|'
+                r'cleared\s+your|settled|txn\s+alert)\b',
+                head + '\n' + (body or '')[:800],
+                re.IGNORECASE,
+            ):
+                return True
+    return False
 
 
 def is_promotional_noise(subject: str, snippet: str = '', body: str = '', sender: str = '') -> bool:
     """
     Drop marketing / promo mail that happens to mention rupee amounts.
     Keep real debit / order / statement mail even if it also has offer copy.
+    Never drop broker / AMC investment senders (Groww, Zerodha, etc.).
     """
+    sender_l = (sender or '').lower()
+    investment_senders = (
+        'groww', 'zerodha', 'kite', 'upstox', 'angelone', 'angelbroking',
+        'kuvera', 'smallcase', 'indmoney', 'etmoney', 'paytmmoney', 'hdfcsec',
+        'icicidirect', '5paisa', 'motilal', 'nsdl', 'cdsl', 'camsonline',
+        'kfintech', 'mfcentral', 'fyers', 'aliceblue', 'sharekhan', 'iifl',
+        'sbimf', 'axismf', 'hdfcfund', 'icicipru', 'nippon', 'mirae', 'coin.zerodha',
+        'growwmail', 'zrdha',
+    )
+    if any(k in sender_l for k in investment_senders):
+        # Still drop broker digests / portfolio updates without a real invest cue
+        head = f"{subject}\n{snippet}"
+        if _CONTENT_DIGEST_RE.search(head) and not re.search(
+            r'\b(units?\s+allot|order\s+executed|sip\s+(?:successful|instalment|installment|processed)|'
+            r'you\s+invested|successfully\s+invested|amount\s+invested|shares?\s+bought|'
+            r'equity\s+delivery|debited)\b',
+            head,
+            re.IGNORECASE,
+        ):
+            return True
+        return False
+
+    # Content digests / CRED editorials — always drop (even if a ₹ figure appears)
+    if is_marketing_or_content_email(subject, snippet, body, sender):
+        # Override only when the subject itself is clearly a payment alert
+        head = f"{subject}\n{snippet}"
+        if not re.search(
+            r'\b(bill\s+paid|payment\s+(?:successful|received|done)|debited|'
+            r'emi\s+(?:paid|due)|txn\s+alert|transaction\s+alert|'
+            r'amount\s+due|statement\s+ready)\b',
+            head,
+            re.IGNORECASE,
+        ):
+            return True
+
     head = f"{subject}\n{snippet}"
     if _STRONG_TXN_RE.search(head) or _STRONG_TXN_RE.search(body[:2000] if body else ''):
+        # Still drop if subject is clearly editorial and body only mentions ₹ in examples
+        if _CONTENT_DIGEST_RE.search(subject or '') and not re.search(
+            r'\b(debited|bill\s+paid|payment\s+successful|txn\s+alert)\b',
+            head,
+            re.IGNORECASE,
+        ):
+            return True
         return False
     if _is_trusted_financial_sender(sender) and any(
-        k in head.lower() for k in ('debited', 'spent', 'statement', 'invoice', 'order confirmed', 'paid')
+        k in head.lower() for k in (
+            'debited', 'spent', 'statement', 'invoice', 'order confirmed', 'paid',
+            'units allotted', 'order executed', 'sip', 'mutual fund', 'invested',
+            'allotment', 'redeemed',
+        )
     ):
-        return False
+        # "paid" alone is too weak for CRED content ("get paid to…") — require stronger cue
+        if 'cred' in sender_l and not re.search(
+            r'\b(bill\s+paid|payment\s+(?:successful|received)|debited|emi\s+paid|'
+            r'txn|transaction\s+alert|amount\s+due)\b',
+            head,
+            re.IGNORECASE,
+        ):
+            pass  # fall through to promo checks
+        else:
+            return False
     blob = f"{subject}\n{snippet}\n{(body or '')[:1500]}"
     if _PROMO_SUBJECT_RE.search(blob):
         return True
-    # Soft promo: many offer cues and no debit language
     soft = sum(
         1 for k in (
             'offer', 'discount', 'cashback', 'coupon', 'sale', 'deal',
@@ -556,7 +783,7 @@ def extract_amount_from_snippet(text):
 
 def _gmail_expense_query() -> str:
     """
-    Fetch real purchase / UPI / bank debit mail.
+    Fetch real purchase / UPI / bank debit / investment mail.
     Explicitly exclude Gmail Promotions / Social / Forums.
     """
     banks = (
@@ -571,17 +798,59 @@ def _gmail_expense_query() -> str:
         'nykaa.com OR blinkit.com OR zepto.co OR bigbasket.com OR uber.com OR olacabs.com OR '
         'makemytrip.com OR bookmyshow.com OR shiprocket.in OR eatclub.in)'
     )
+    investments = (
+        'from:(groww.in OR groww.com OR growwmail.com OR zerodha.com OR kite.trade OR '
+        'upstox.com OR angelone.in OR angelbroking.com OR kuvera.in OR smallcase.com OR '
+        'indmoney.com OR etmoney.com OR paytmmoney.com OR hdfcsec.com OR icicidirect.com OR '
+        '5paisa.com OR motilaloswal.com OR coin.zerodha.com OR nsdl.com OR cdslindia.com OR '
+        'camsonline.com OR kfintech.com OR mfcentral.com OR fyers.in OR aliceblueonline.com OR '
+        'sharekhan.com OR iifl.com OR sbimf.com OR axismf.com OR hdfcfund.com OR '
+        'icicipruamc.com OR nipponindiamf.com OR paragparikh.com OR miraeassetmf.co.in OR '
+        'geojit.com)'
+    )
     # Transactional subject cues catch bank alerts that land in Primary/Updates
     subjects = (
         'subject:(debited OR spent OR "transaction successful" OR "payment successful" OR '
         '"order confirmed" OR "order placed" OR "upi" OR "txn alert" OR "account alert" OR '
-        'receipt OR invoice OR "amount paid")'
+        'receipt OR invoice OR "amount paid" OR "units allotted" OR "units allocated" OR '
+        '"order executed" OR "sip successful" OR "sip instalment" OR "sip installment" OR '
+        '"mutual fund" OR "shares bought" OR "equity delivery" OR folio OR "nav " OR '
+        '"systematic investment" OR "you invested" OR "successfully invested" OR '
+        '"sip processed" OR allotment OR redemption)'
     )
     return (
-        f'((category:purchases) OR ({banks}) OR ({merchants}) OR ({subjects})) '
+        f'((category:purchases) OR ({banks}) OR ({merchants}) OR ({investments}) OR ({subjects})) '
         f'-category:promotions -category:social -category:forums '
-        f'-subject:(newsletter OR unsubscribe OR "% off" OR "flat rs" OR "flash sale") '
+        f'-subject:(newsletter OR unsubscribe OR "% off" OR "flat rs" OR "flash sale" OR '
+        f'"refer and earn" OR "invite friends" OR "credit utilization" OR "fine print" OR '
+        f'decoded OR "did you know" OR "money tips" OR "weekly digest" OR "weekly wrap") '
         f'newer_than:2y'
+    )
+
+
+def _gmail_investment_query() -> str:
+    """
+    Wider net for broker / AMC mail. Does NOT exclude Promotions —
+    Groww/Zerodha confirmations often land outside Primary.
+    """
+    return (
+        '('
+        'from:(groww.in OR groww.com OR growwmail.com OR zerodha.com OR kite.trade OR '
+        'upstox.com OR angelone.in OR angelbroking.com OR kuvera.in OR smallcase.com OR '
+        'indmoney.com OR etmoney.com OR paytmmoney.com OR hdfcsec.com OR icicidirect.com OR '
+        '5paisa.com OR motilaloswal.com OR coin.zerodha.com OR nsdl.com OR cdslindia.com OR '
+        'camsonline.com OR kfintech.com OR mfcentral.com OR fyers.in OR aliceblueonline.com OR '
+        'sharekhan.com OR iifl.com OR sbimf.com OR axismf.com OR hdfcfund.com OR '
+        'icicipruamc.com OR nipponindiamf.com OR paragparikh.com OR miraeassetmf.co.in) '
+        'OR subject:("units allotted" OR "units allocated" OR "order executed" OR '
+        '"sip successful" OR "sip instalment" OR "sip installment" OR "sip processed" OR '
+        '"you invested" OR "successfully invested" OR "amount invested" OR "mutual fund" OR '
+        '"shares bought" OR "equity delivery" OR "systematic investment" OR allotment)'
+        ') '
+        '-category:social -category:forums '
+        '-subject:(newsletter OR "% off" OR "flash sale" OR "refer and earn" OR "invite friends" OR '
+        '"learn to invest" OR "markets today" OR "weekly digest") '
+        'newer_than:2y'
     )
 
 
@@ -672,6 +941,13 @@ def execute_expense_scanner(gmail_service):
 
                 brand, amount, description = parse_transaction_data_expense(unified_corpus, sender, subject)
 
+                # Final gate: example ₹ in content digests must never become expenses
+                if amount != "N/A" and is_marketing_or_content_email(
+                    subject, snippet, unified_corpus, sender,
+                ):
+                    skipped_promo += 1
+                    continue
+
                 if amount != "N/A":
                     flags = classify_order_signals(subject, sender, description, unified_corpus)
                     emails_data.append({
@@ -692,6 +968,90 @@ def execute_expense_scanner(gmail_service):
         sys.stderr.write(f"Expense Scanner: Query failed: {str(e)}\n")
 
     sys.stderr.write(f"Expense Scanner: Extracted {len(emails_data)} expense transactions.\n")
+    return emails_data
+
+
+def execute_investment_scanner(gmail_service):
+    """
+    Dedicated Groww / Zerodha / broker / AMC pass.
+    Includes Promotions-tab mail that the expense query excludes.
+    """
+    emails_data = []
+    query = _gmail_investment_query()
+    try:
+        sys.stderr.write("Investment Scanner: Fetching broker/AMC emails...\n")
+        sys.stderr.write(f"Investment Scanner query: {query}\n")
+        response = gmail_service.users().messages().list(userId='me', q=query, maxResults=150).execute()
+        messages = response.get('messages', [])
+        page_token = response.get('nextPageToken')
+        if page_token and len(messages) < 250:
+            more = gmail_service.users().messages().list(
+                userId='me', q=query, maxResults=100, pageToken=page_token,
+            ).execute()
+            messages.extend(more.get('messages', []))
+        sys.stderr.write(f"Investment Scanner: Found {len(messages)} emails.\n")
+        if not messages:
+            return []
+
+        messages_details = {}
+        def batch_callback(request_id, response, exception):
+            if exception is None:
+                messages_details[request_id] = response
+            else:
+                sys.stderr.write(f"Investment batch error for {request_id}: {str(exception)}\n")
+
+        chunk_size = 50
+        for i in range(0, len(messages), chunk_size):
+            chunk = messages[i:i + chunk_size]
+            batch = gmail_service.new_batch_http_request(callback=batch_callback)
+            for msg in chunk:
+                msg_id = msg['id']
+                batch.add(
+                    gmail_service.users().messages().get(userId='me', id=msg_id, format='full'),
+                    request_id=msg_id,
+                )
+            batch.execute()
+
+        for msg_id, m in messages_details.items():
+            try:
+                payload = m.get('payload', {})
+                headers = payload.get('headers', [])
+                headers_dict = {h['name'].lower(): h['value'] for h in headers}
+                snippet = m.get('snippet', '')
+                subject = headers_dict.get('subject', '(No Subject)')
+                sender = headers_dict.get('from', '(Unknown Sender)')
+                date = headers_dict.get('date', '(Unknown Date)')
+
+                html_content, pdf_content = extract_all_body_and_attachments(gmail_service, msg_id, payload)
+                soup = BeautifulSoup(html_content, 'html.parser')
+                clean_html_text = soup.get_text(separator=' ').strip()
+                unified_corpus = f"{clean_html_text}\n{snippet}\n{pdf_content}"
+
+                # Soft filter only — investment senders already bypass promo noise
+                if is_promotional_noise(subject, snippet, unified_corpus, sender):
+                    continue
+
+                brand, amount, description = parse_transaction_data_expense(unified_corpus, sender, subject)
+                if amount == "N/A":
+                    continue
+                if 'investment' not in (description or '').lower():
+                    description = f"investment · {description}"
+                flags = classify_order_signals(subject, sender, description, unified_corpus)
+                emails_data.append({
+                    'brandName': brand,
+                    'amount': amount,
+                    'description': description,
+                    'date': str(date or '').strip(),
+                    'sender': sender,
+                    'type': 'Transaction',
+                    **flags,
+                })
+            except Exception as e:
+                sys.stderr.write(f"Investment Scanner: Failed parsing {msg_id}: {str(e)}\n")
+    except Exception as e:
+        sys.stderr.write(f"Investment Scanner: Query failed: {str(e)}\n")
+
+    sys.stderr.write(f"Investment Scanner: Extracted {len(emails_data)} investment transactions.\n")
     return emails_data
 
 
@@ -777,26 +1137,29 @@ def execute_bill_scanner(gmail_service):
 
 def execute_financial_scanner(gmail_service):
     """
-    Orchestrator: Runs both Script 1 (expenses) and Script 2 (bills) scanners,
-    then merges and deduplicates the results.
-    - Expenses → type='Transaction' → shown in Expenses tab
-    - Bills → type='Credit Card Bill'/'Invoice'/'Bill'/'Bill Transaction' → shown in Bills tab
+    Orchestrator: expenses + investments + bills, then merge/dedupe.
+    - Expenses / investments → type='Transaction' → Expenses + Planning Investment
+    - Bills → Credit Card Bill / Invoice / Bill → Bills tab
     """
     sys.stderr.write("=== Starting Dual-Mode Financial Scanner ===\n")
 
     expense_data = execute_expense_scanner(gmail_service)
+    investment_data = execute_investment_scanner(gmail_service)
     bill_data = execute_bill_scanner(gmail_service)
 
     # Merge with deduplication by brand+date+amount
     seen = set()
     combined = []
-    for item in expense_data + bill_data:
+    for item in expense_data + investment_data + bill_data:
         key = f"{item['brandName']}|{item['date']}|{item['amount']}"
         if key not in seen:
             seen.add(key)
             combined.append(item)
 
-    sys.stderr.write(f"=== Total unique financial records: {len(combined)} (expenses: {len(expense_data)}, bills: {len(bill_data)}) ===\n")
+    sys.stderr.write(
+        f"=== Total unique financial records: {len(combined)} "
+        f"(expenses: {len(expense_data)}, investments: {len(investment_data)}, bills: {len(bill_data)}) ===\n"
+    )
     return combined
 
 def _parse_amount_value(amount_str):
@@ -856,14 +1219,22 @@ def classify_order_signals(subject, sender, description, corpus=''):
     """Detect COD / prepaid / return / refund / reject / fail from Gmail text."""
     text = f"{subject or ''}\n{sender or ''}\n{description or ''}\n{corpus or ''}".lower()
 
+    # IMPORTANT: do NOT match bare "return" / "returns" — that fires on
+    # "expected returns", "return on investment", email footers, etc. and
+    # collapses Yureka Score on every rescan that pulls broker mail.
     returned = bool(re.search(
-        r'\b(rto|return(?:ed|ing)?|reverse pickup|return initiated|return picked|'
-        r'item (?:was )?returned|exchange initiated)\b',
+        r'\b(rto|returned|returning|reverse pickup|return initiated|return picked|'
+        r'return request|return approved|return rejected|item (?:was )?returned|'
+        r'exchange initiated|pickup for return)\b',
         text,
-    ))
+    )) and not re.search(
+        r'\b(expected returns?|annual(?:ized)? returns?|return on invest|'
+        r'tax returns?|total returns?|absolute returns?|cagr|xirr)\b',
+        text,
+    )
     refunded = bool(re.search(
-        r'\b(refund(?:ed|ing)?|refund processed|reversal processed|'
-        r'amount (?:has been )?refunded|refund (?:initiated|completed))\b',
+        r'\b(refunded|refunding|refund processed|reversal processed|'
+        r'amount (?:has been )?refunded|refund (?:initiated|completed|credited))\b',
         text,
     ))
     rejected = bool(re.search(
@@ -876,11 +1247,12 @@ def classify_order_signals(subject, sender, description, corpus=''):
         r'payment unsuccessful|transaction failed|unable to place)\b',
         text,
     ))
+    # Avoid bare \bcod\b alone in long bodies — require payment/order context
     is_cod = bool(re.search(
         r'cash[\s-]?on[\s-]?delivery|pay[\s-]?on[\s-]?delivery|pay[\s-]?at[\s-]?delivery|'
         r'(?:payment\s*(?:mode|method|type)|paid\s*(?:by|via)|pay\s*method)\s*[:\-]?\s*cod\b|'
         r'\bcod\s+(?:order|payment|amount|collect|charge)|'
-        r'\bcollect\s+cod\b|\bcod\b',
+        r'\bcollect\s+cod\b',
         text,
     ))
     prepaid_hint = bool(re.search(
@@ -916,6 +1288,49 @@ def _in_last_months(date_iso, months=6):
         return False
 
 
+def _tx_dedupe_key(t):
+    brand = str(t.get('brandName') or '').strip().lower()
+    amount = str(t.get('amount') or '').strip().lower()
+    date = str(t.get('date') or '')[:10]
+    sender = str(t.get('sender') or '').strip().lower()
+    desc = str(t.get('description') or '').strip().lower()[:80]
+    return '|'.join([brand, amount, date, sender, desc])
+
+
+def _dedupe_transactions(transactions):
+    """Drop exact duplicate ledger rows before scoring (multi-inbox / rescan)."""
+    seen = set()
+    out = []
+    for t in transactions or []:
+        key = _tx_dedupe_key(t)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(t)
+    return out
+
+
+_INVESTMENT_SCORE_EXCLUDE = (
+    'groww', 'zerodha', 'kite.trade', 'upstox', 'angelone', 'angelbroking', 'angel one',
+    'kuvera', 'smallcase', 'indmoney', 'etmoney', 'paytmmoney', 'paytm money',
+    'hdfcsec', 'icicidirect', '5paisa', 'coin.zerodha', 'investment ·',
+    'mutual fund', 'units allotted', 'units allocated', 'sip successful',
+    'sip instalment', 'sip installment', 'systematic investment', 'shares bought',
+    'equity delivery', 'demat', 'nsdl', 'cdsl', 'camsonline', 'kfintech', 'mfcentral',
+)
+
+
+def _is_investment_for_score(t) -> bool:
+    """SIPs / brokerage mail belongs in Planning, not underwriting spend."""
+    hay = ' '.join([
+        str(t.get('brandName') or ''),
+        str(t.get('sender') or ''),
+        str(t.get('description') or ''),
+        str(t.get('type') or ''),
+    ]).lower()
+    return any(k in hay for k in _INVESTMENT_SCORE_EXCLUDE)
+
+
 def _spend_tier_score(avg):
     """Avg monthly INR spend → 0–100. Bands are inclusive lower bound."""
     if avg >= 100000: return 100
@@ -942,14 +1357,21 @@ def compute_yureka_score(transactions):
     Last-6-month INR purchase score.
 
     Base = avg monthly spend band.
-    Plus: order volume, prepaid mix.
+    Plus: order volume, prepaid mix, merchant diversity.
     Minus: COD, returns, refunds, rejected payments, failed orders.
+    Investments (Groww/Zerodha/SIP) are excluded — tracked in Planning only.
     """
     from collections import Counter
 
+    transactions = _dedupe_transactions(transactions)
+
     window = []
     bills = []
+    skipped_investments = 0
     for t in transactions:
+        if _is_investment_for_score(t):
+            skipped_investments += 1
+            continue
         value, currency = _parse_amount_value(t.get('amount'))
         if value is None:
             continue
@@ -964,6 +1386,19 @@ def compute_yureka_score(transactions):
                 'failed': bool(t.get('failed')),
                 'paymentMode': t.get('paymentMode') or ('cod' if t.get('cod') else 'prepaid'),
             }
+            # Re-check return/refund with tightened rules using stored text
+            # (legacy rows may carry false positives from bare "return").
+            reclass = classify_order_signals(
+                '', t.get('sender', ''), t.get('description', ''), '',
+            )
+            if flags['returned'] and not reclass['returned']:
+                flags['returned'] = False
+            if flags['refunded'] and not reclass['refunded']:
+                flags['refunded'] = False
+            if flags['cod'] and not reclass['cod']:
+                flags['cod'] = False
+                flags['paymentMode'] = 'prepaid'
+                flags['prepaid'] = True
         else:
             flags = classify_order_signals(
                 '', t.get('sender', ''), t.get('description', ''), '',
@@ -996,7 +1431,7 @@ def compute_yureka_score(transactions):
     ]
     spend_total = sum(r['Value'] for r in counted)
     avg_monthly_spend = spend_total / 6.0
-    merchants = len({r['Brand'] for r in counted})
+    merchants = len({r['Brand'] for r in counted if r.get('Brand')})
     methods = Counter(
         'COD' if r.get('cod') else ('UPI' if r.get('prepaid') else 'Other')
         for r in window
@@ -1004,7 +1439,8 @@ def compute_yureka_score(transactions):
 
     base = _spend_tier_score(avg_monthly_spend)
     denom = max(1, orders)
-    bonus = min(8, orders // 8) + round(6 * prepaid / denom)
+    diversity = min(6, merchants // 2) if merchants else 0
+    bonus = min(8, orders // 8) + round(6 * prepaid / denom) + diversity
     penalty = (
         round(12 * cod / denom)
         + min(16, returned * 2)
@@ -1013,7 +1449,14 @@ def compute_yureka_score(transactions):
         + min(12, failed * 3)
     )
     total = max(0, min(100, int(round(base + bonus - penalty))))
-    decision = "Approved" if total >= 20 else "Rejected"
+    if total >= 70:
+        decision = "Approved"
+    elif total >= 40:
+        decision = "Review"
+    elif total >= 20:
+        decision = "Conditional"
+    else:
+        decision = "Rejected"
 
     return {
         "score": total,
@@ -1035,6 +1478,8 @@ def compute_yureka_score(transactions):
             "distinct_merchants": merchants,
             "has_credit_card": bool(bills),
             "payment_methods": dict(methods),
+            "deduped_input": True,
+            "excluded_investments": skipped_investments,
         }
     }
 

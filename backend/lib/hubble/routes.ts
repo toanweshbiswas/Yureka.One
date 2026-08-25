@@ -34,7 +34,7 @@ import {
   handleWalletLowWebhook,
   requireHubbleWebhookSignature,
 } from './webhooks.js'
-import { productUserIdOrFail, resolveProductUserId } from '../auth/userId.js'
+import { productUserIdOrFail, resolveVerifiedIdentity } from '../auth/userId.js'
 import {
   createRazorpayOrder,
   getRazorpayPayment,
@@ -61,8 +61,8 @@ function fail(res: Response, status: number, error: string) {
   })
 }
 
-function userIdFrom(req: Request, res: Response): string | null {
-  const result = productUserIdOrFail(req)
+async function userIdFrom(req: Request, res: Response): Promise<string | null> {
+  const result = await productUserIdOrFail(req)
   if ('error' in result) {
     fail(res, 401, result.error)
     return null
@@ -207,7 +207,13 @@ export function registerGiftcardRoutes(app: Express) {
     }
   })
 
-  app.post('/api/giftcards/refresh', async (_req, res) => {
+  app.post('/api/giftcards/refresh', async (req, res) => {
+    const { verifyAdminToken } = await import('../admin/auth.js')
+    const token = req.header('x-admin-session') || req.header('X-Admin-Session')
+    const session = verifyAdminToken(token)
+    if (!session || (session.role !== 'admin' && session.role !== 'superadmin')) {
+      return fail(res, 401, 'Unauthorized')
+    }
     if (!hubbleConfigured()) {
       return fail(res, 503, 'Gift cards are temporarily unavailable')
     }
@@ -227,7 +233,7 @@ export function registerGiftcardRoutes(app: Express) {
 
   app.get('/api/giftcards/orders', async (req, res) => {
     try {
-      const userId = userIdFrom(req, res)
+      const userId = await userIdFrom(req, res)
       if (!userId) return
       const orders = await listOrdersForUser(userId)
       ok(res, { items: orders })
@@ -238,7 +244,7 @@ export function registerGiftcardRoutes(app: Express) {
 
   app.get('/api/giftcards/orders/:id', async (req, res) => {
     try {
-      const userId = userIdFrom(req, res)
+      const userId = await userIdFrom(req, res)
       if (!userId) return
       const id = String(req.params.id)
       const order = await getOrderById(id, userId)
@@ -297,13 +303,13 @@ export function registerGiftcardRoutes(app: Express) {
     }
 
     const wantGuest = Boolean(req.body?.guestCheckout)
-    const resolvedAuth = resolveProductUserId(req)
-    let userId = resolvedAuth
+    const resolvedAuth = await resolveVerifiedIdentity(req)
+    let userId = resolvedAuth?.userId ?? null
     let isGuest = false
 
     if (!userId) {
       if (!wantGuest) {
-        const required = productUserIdOrFail(req)
+        const required = await productUserIdOrFail(req)
         if ('error' in required) {
           fail(res, 401, required.error)
           return null
@@ -461,7 +467,7 @@ export function registerGiftcardRoutes(app: Express) {
         if (!byToken || byToken.id !== localId) return fail(res, 404, 'Order not found')
         order = byToken
       } else {
-        const userId = userIdFrom(req, res)
+        const userId = await userIdFrom(req, res)
         if (!userId) return
         order = await getOrderById(localId, userId)
         if (!order) return fail(res, 404, 'Order not found')
@@ -552,6 +558,22 @@ export function registerGiftcardRoutes(app: Express) {
         const latest = local ? await getOrderById(local.id) : null
         if (latest && latest.paymentStatus === 'paid' && !latest.hubbleOrderId) {
           await fulfillGiftCardWithHubble(latest)
+        }
+        // WanderWorld installment backup (same Razorpay account)
+        try {
+          const { findInstallmentByRazorpayOrder, markInstallmentPaid } = await import(
+            '../wanderworld/store.js'
+          )
+          const wwInst = await findInstallmentByRazorpayOrder(razorpayOrderId)
+          if (wwInst && wwInst.status !== 'paid' && paymentId) {
+            await markInstallmentPaid({
+              installmentId: wwInst.id,
+              razorpayOrderId,
+              razorpayPaymentId: paymentId,
+            })
+          }
+        } catch (wwErr: any) {
+          console.warn('[razorpay webhook] wanderworld:', wwErr?.message || wwErr)
         }
       }
       if (event === 'payment.failed' && razorpayOrderId) {

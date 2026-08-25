@@ -32,7 +32,7 @@ In production the built `dist/` is deployed as **static files on Hostinger (Apac
 
 ### Java Backend Migration (in progress)
 
-The app is mid-migration from "Supabase as the entire backend" to a separate **Java/Spring Boot backend** (spec in `docs/java-backend-spec.md`, endpoint reference in `docs/API.md` and `docs/RESPONSE_STRUCTURE.md`). The new backend owns the same Postgres (Supabase-managed) DB and is reachable via `lib/api/client.ts`.
+The app is mid-migration from "Supabase as the entire backend" to a separate API layer. The API owns the same Postgres (Supabase-managed) DB and is reachable via `lib/api/client.ts`.
 
 - `lib/api/client.ts` — thin fetch wrapper (`api.get/post/put/patch/delete`). Base URL from `VITE_API_BASE_URL` (empty = relative `/api/*`). Auto-attaches the Supabase session JWT as `Authorization: Bearer <token>` unless `skipAuth: true`. All responses are a `YurekaResponse<T>` envelope (`{ data, status, error?, details? }`) — check with `isApiError(res)` / `isValidationError(res)`.
 - `lib/api/types.ts` — camelCase entity types matching the Java/JPA schema (`Card`, `Blog`, `Review`, `Waitlist`, `UserOwnedCard`, `PlatformNotification`, etc.), plus JSON-string fields (e.g. `benefitItems`, `gridBenefits`) that need `JSON.parse()`.
@@ -79,7 +79,7 @@ All sections except `HowItWorksStepper` are lazy-loaded via `React.lazy` + `Susp
 
 The admin panel is accessible at `/admin` (no auth guard — it relies on hardcoded email checks in the component and `/api/auth/admin-check`). It is decomposed into sub-components under `components/admin/`:
 - `AdminBlogsTab`, `AdminCardsTab`, `AdminReviewsTab` — CMS content management with full CRUD and draft/scheduled publish support
-- `AdminWaitlistTab` — user approval workflow (pending → accepted/rejected/on-hold), triggers onboarding email via `/api/notify-team-member`
+- `AdminWaitlistTab` — user approval workflow (pending → accepted/rejected/on-hold); admin team invites use `/api/admin/team` + invite email (not the open mailer)
 - `AdminNotificationsTab` — push notifications to users
 - `AdminTrashTab` — soft-delete recovery ("Trash Engine")
 - `AdminUpdatesTab` — platform updates/changelog

@@ -78,9 +78,16 @@ export function registerPublicApiRoutes(app: Express) {
 
   app.get('/api/v1/ledger', async (req, res) => {
     try {
-      const email = String(req.query.email || '').trim().toLowerCase()
-      const data = await readLedgerCache(email || null)
-      const resyncQuota = email ? await getLedgerResyncQuota(email) : null
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+      const requested = String(req.query.email || '').trim().toLowerCase()
+      if (requested && requested !== auth.email) {
+        return fail(res, 403, 'Forbidden')
+      }
+      const email = auth.email
+      const data = await readLedgerCache(email)
+      const resyncQuota = await getLedgerResyncQuota(email)
       ok(res, {
         profile: data.profile || {},
         transactions: Array.isArray(data.transactions) ? data.transactions : [],
@@ -94,13 +101,21 @@ export function registerPublicApiRoutes(app: Express) {
 
   app.post('/api/v1/ledger/scan', async (req, res) => {
     try {
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+
       const accessToken = String(req.body?.accessToken || '').trim()
-      const email = String(req.body?.email || req.body?.fallbackData?.email || '')
+      const bodyEmail = String(req.body?.email || req.body?.fallbackData?.email || '')
         .trim()
         .toLowerCase()
+      if (bodyEmail && bodyEmail !== auth.email) {
+        return fail(res, 403, 'Forbidden')
+      }
+      const email = auth.email
       const fallbackData =
         req.body?.fallbackData && typeof req.body.fallbackData === 'object'
-          ? req.body.fallbackData
+          ? { ...req.body.fallbackData, email }
           : { email }
 
       if (!accessToken) {
@@ -109,14 +124,12 @@ export function registerPublicApiRoutes(app: Express) {
         })
       }
 
-      if (email) {
-        const quota = await getLedgerResyncQuota(email)
-        if (!quota.allowed) {
-          return fail(res, 429, 'RESYNC_LIMIT', {
-            details: `You can resync inbox twice every ${quota.windowDays} days.`,
-            resyncQuota: quota,
-          })
-        }
+      const quota = await getLedgerResyncQuota(email)
+      if (!quota.allowed) {
+        return fail(res, 429, 'RESYNC_LIMIT', {
+          details: `You can resync inbox ${quota.limit} times every ${quota.windowDays} days.`,
+          resyncQuota: quota,
+        })
       }
 
       const result = await runGmailScanner({
@@ -134,38 +147,39 @@ export function registerPublicApiRoutes(app: Express) {
         })
       }
 
-      await writeLedgerCache(email || String((result.profile as any)?.email || ''), result)
-      const recipient = email || String((result.profile as any)?.email || '').trim().toLowerCase()
-      let resyncQuota = recipient ? await getLedgerResyncQuota(recipient) : null
-      if (recipient && result.score && Number.isFinite(Number(result.score.score))) {
+      await writeLedgerCache(email, result)
+      const recipient = email
+      let resyncQuota = await getLedgerResyncQuota(recipient)
+      let scoreOut = result.score || null
+      if (result.score && Number.isFinite(Number(result.score.score))) {
         const { persistScoreToWaitlist } = await import('../waitlist/score.js')
+        const { refineYurekaScore } = await import('../waitlist/scoreRefine.js')
         try {
+          const refined = await refineYurekaScore({
+            ...(result.score as any),
+            metrics: (result.score as any)?.metrics as Record<string, unknown>,
+          })
+          scoreOut = refined
           await persistScoreToWaitlist({
             email: recipient,
             profile: result.profile as { name?: string } | undefined,
-            // Python scanner returns a loosely-typed JSON blob for `metrics`.
-            // Normalize it into the expected `Record<string, unknown>` shape.
-            score: {
-              ...(result.score as any),
-              metrics: (result.score as any)?.metrics as Record<string, unknown>,
-            } as any,
+            score: refined,
             notify: true,
+            refine: false,
           })
         } catch (err) {
           console.error('[ledger] persist score failed:', err)
         }
       }
-      if (recipient) {
-        try {
-          resyncQuota = await consumeLedgerResync(recipient)
-        } catch (err) {
-          console.error('[ledger] resync quota update failed:', err)
-        }
+      try {
+        resyncQuota = await consumeLedgerResync(recipient)
+      } catch (err) {
+        console.error('[ledger] resync quota update failed:', err)
       }
       ok(res, {
         profile: result.profile || {},
         transactions: Array.isArray(result.transactions) ? result.transactions : [],
-        score: result.score || null,
+        score: scoreOut,
         resyncQuota,
       })
     } catch (e: any) {
@@ -199,46 +213,12 @@ export function registerPublicApiRoutes(app: Express) {
     ok(res, { id: String(req.params.id), ...(req.body || {}) })
   })
 
-  // Admin CMS mirrors used by SupabaseProvider on /admin — empty until full CMS lands.
-  app.get('/api/v1/admin/cards', (_req, res) => ok(res, []))
-  app.get('/api/v1/admin/blogs', async (_req, res) => {
-    try {
-      const posts = await listBlogs({ includeDrafts: false })
-      ok(res, posts.map(blogToApi))
-    } catch (e: any) {
-      fail(res, 500, e?.message || 'Failed to load blogs')
-    }
-  })
-  app.get('/api/v1/admin/reviews', (_req, res) => ok(res, []))
-  app.get('/api/v1/admin/waitlist', async (_req, res) => {
-    try {
-      const { listWaitlist } = await import('../admin/store.js')
-      const rows = await listWaitlist({ status: 'all' })
-      ok(
-        res,
-        rows.map((r) => ({
-          id: r.id,
-          name: r.fullName || '',
-          email: r.email,
-          status: r.status === 'on_hold' ? 'on-hold' : r.status,
-          mobileNumber: r.mobileNumber,
-          monthlySpend: r.monthlySpend,
-          mostUsedFor: r.topCategory,
-          yurekaScore: r.yurekaScore,
-          joinedAt: r.createdAt,
-          createdAt: r.createdAt,
-          role: 'user',
-        }))
-      )
-    } catch (e: any) {
-      res.status(500).json({
-        data: null,
-        status: 500,
-        error: e?.message || 'Failed to list waitlist',
-        timestamp: new Date().toISOString(),
-      })
-    }
-  })
-  app.get('/api/v1/admin/team', (_req, res) => ok(res, []))
-  app.get('/api/v1/admin/audit-logs', (_req, res) => ok(res, []))
+  // Admin CMS stubs — never expose waitlist/team/audit without admin session.
+  // Real admin data lives on /api/admin/* with X-Admin-Session.
+  app.get('/api/v1/admin/cards', (_req, res) => fail(res, 401, 'Unauthorized'))
+  app.get('/api/v1/admin/blogs', (_req, res) => fail(res, 401, 'Unauthorized'))
+  app.get('/api/v1/admin/reviews', (_req, res) => fail(res, 401, 'Unauthorized'))
+  app.get('/api/v1/admin/waitlist', (_req, res) => fail(res, 401, 'Unauthorized'))
+  app.get('/api/v1/admin/team', (_req, res) => fail(res, 401, 'Unauthorized'))
+  app.get('/api/v1/admin/audit-logs', (_req, res) => fail(res, 401, 'Unauthorized'))
 }

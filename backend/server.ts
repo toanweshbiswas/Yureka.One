@@ -6,6 +6,7 @@ import fs from "fs";
 import cors from "cors";
 import * as dotenv from "dotenv";
 import { resolveRouteMeta } from './lib/seo/resolveRouteMeta';
+import { staticPageMeta } from './lib/seo/pageMeta';
 import { injectHtml } from './lib/seo/inject';
 import { buildSitemapXml } from './lib/seo/sitemap';
 import { registerGoldbackRoutes } from './lib/goldback/routes';
@@ -13,14 +14,18 @@ import { registerAdminRoutes } from './lib/admin/routes';
 import { registerGiftcardRoutes } from './lib/hubble/routes';
 import { registerCuelinksRoutes } from './lib/cuelinks/routes';
 import { registerBrowseRoutes } from './lib/browse/routes';
+import { registerCatalogRoutes } from './lib/catalog/routes';
 import { registerMediaRoutes } from './lib/media/routes';
 // import { registerEmbedRoutes } from './lib/embed/routes';
 import { registerWaitlistRoutes } from './lib/waitlist/routes';
 import { registerAuthRoutes } from './lib/auth/routes';
+import { registerAccountDeletionRoutes } from './lib/accountDeletion/routes';
 import { registerPublicApiRoutes } from './lib/publicApi/routes';
 import { registerNotificationRoutes } from './lib/notifications/routes';
 import { registerPlanningRoutes } from './lib/planning/routes';
 import { registerBrandRoutes } from './lib/brand/routes';
+import { registerWanderworldRoutes } from './lib/wanderworld/routes';
+import { registerPwaRoutes } from './lib/pwa/routes';
 
 dotenv.config({ path: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '.env') });
 
@@ -78,7 +83,43 @@ async function startServer() {
   const app = express();
   app.disable('x-powered-by');
   app.use(compression());
-  app.use(cors());
+  const corsOrigins = [
+    process.env.APP_ORIGIN,
+    process.env.FRONTEND_URL,
+    process.env.PUBLIC_APP_URL,
+    process.env.VITE_APP_URL,
+    process.env.VITE_LANDING_URL,
+    process.env.VITE_ADMIN_PORTAL_URL,
+    process.env.VITE_BRAND_URL,
+    process.env.VITE_WANDERWORLD_URL,
+    'https://app.yureka.one',
+    'https://yureka.one',
+    'https://www.yureka.one',
+    'https://admin.yureka.one',
+    'https://brand.yureka.one',
+    'https://wanderworld.yureka.one',
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+  ]
+    .map((o) => (o || '').trim().replace(/\/$/, ''))
+    .filter(Boolean)
+  const allowAnyCors = process.env.CORS_ALLOW_ANY === 'true'
+  app.use(
+    cors({
+      origin(origin, cb) {
+        if (allowAnyCors || !origin) return cb(null, true)
+        const normalized = origin.replace(/\/$/, '')
+        if (corsOrigins.includes(normalized)) return cb(null, true)
+        if (process.env.NODE_ENV !== 'production' && /localhost|127\.0\.0\.1/.test(normalized)) {
+          return cb(null, true)
+        }
+        return cb(null, false)
+      },
+      credentials: true,
+    })
+  );
   const PORT = Number(process.env.PORT) || 3000;
 
   // Keep raw body for Hubble webhook HMAC (X-Verify) verification.
@@ -186,41 +227,58 @@ async function startServer() {
   registerGoldbackRoutes(app);
   registerPlanningRoutes(app);
   registerBrandRoutes(app);
+  registerWanderworldRoutes(app);
   registerAdminRoutes(app);
   registerGiftcardRoutes(app);
   registerCuelinksRoutes(app);
   registerBrowseRoutes(app);
+  registerCatalogRoutes(app);
   registerMediaRoutes(app);
   // registerEmbedRoutes(app);
   registerAuthRoutes(app);
+  registerAccountDeletionRoutes(app);
   registerWaitlistRoutes(app);
   registerNotificationRoutes(app);
+  registerPwaRoutes(app);
   registerPublicApiRoutes(app);
 
 
 
-  // Get cached financial transactions & profile
+  // Per-user ledger cache only — requires verified Bearer. Legacy global file removed from public API.
   app.get("/api/financial-ledger", async (req, res) => {
-    const fs = await import("fs/promises");
-    const cachePath = path.join(__dirname, "..", "data", "financial_cache.json");
     try {
-      const dataStr = await fs.readFile(cachePath, "utf-8");
-      const data = JSON.parse(dataStr);
-      res.json(data);
-    } catch (err) {
-      res.json({ profile: {}, transactions: [] });
+      const { requireAuthEmail } = await import("./lib/auth/userId.js");
+      const auth = await requireAuthEmail(req);
+      if ("error" in auth) {
+        return res.status(auth.status).json({ error: auth.error, profile: {}, transactions: [] });
+      }
+      const { readLedgerCache } = await import("./lib/ledger/scannerRunner.js");
+      const data = await readLedgerCache(auth.email);
+      res.json({
+        profile: data.profile || {},
+        transactions: Array.isArray(data.transactions) ? data.transactions : [],
+        score: data.score || null,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || "Failed to load ledger", profile: {}, transactions: [] });
     }
   });
 
-  // Fast profile-only lookup (name/phone/dob/age/gender/location) — skips the
-  // slow Gmail inbox scan so Step 1 of the waitlist can move on immediately.
+  // Fast profile-only lookup — requires a Gmail accessToken; rate-limited.
   app.post("/api/scan-profile", async (req, res) => {
-    const { accessToken, fallbackData } = req.body;
+    const { isRateLimited } = await import("./lib/auth/rateLimit.js");
+    if (isRateLimited(req, "scan-profile", { limit: 20, windowMs: 15 * 60_000 })) {
+      return res.status(429).json({ error: "Too many profile scans. Try again later." });
+    }
+    const { accessToken, fallbackData } = req.body || {};
+    if (!accessToken || typeof accessToken !== "string") {
+      return res.status(401).json({ error: "Gmail accessToken is required" });
+    }
     const { spawn } = await import("child_process");
     const pythonExecutable = resolvePythonExecutable();
     const pythonProcess = spawn(pythonExecutable, [
       path.join(__dirname, "scripts", "scanner.py"),
-      accessToken || "",
+      accessToken,
       JSON.stringify(fallbackData || {}),
       "profile_only"
     ]);
@@ -249,20 +307,22 @@ async function startServer() {
     });
   });
 
-  // Email Deep Scanner API — runs the full inbox scan + Yureka Score. This is
-  // slow (can take a minute+), so the frontend fires it in the background and
-  // doesn't block on the response; once done, we email the user their score.
+  // Email Deep Scanner — bind waitlist score to Gmail-derived email only (never body email).
   app.post("/api/scan-email", async (req, res) => {
-    const { accessToken, email, fallbackData } = req.body;
-    if (!accessToken) {
+    const { isRateLimited } = await import("./lib/auth/rateLimit.js");
+    if (isRateLimited(req, "scan-email", { limit: 10, windowMs: 15 * 60_000 })) {
+      return res.status(429).json({ error: "Too many inbox scans. Try again later." });
+    }
+    const { accessToken, email, fallbackData } = req.body || {};
+    if (!accessToken || typeof accessToken !== "string") {
       return res.status(400).json({ error: "accessToken is required for Gmail scoring" });
     }
     const { spawn } = await import("child_process");
     const pythonExecutable = resolvePythonExecutable();
     const pythonProcess = spawn(pythonExecutable, [
       path.join(__dirname, "scripts", "scanner.py"),
-      accessToken || "",
-      JSON.stringify(fallbackData || {})
+      accessToken,
+      JSON.stringify(fallbackData && typeof fallbackData === "object" ? fallbackData : {})
     ]);
 
     let output = "";
@@ -288,26 +348,42 @@ async function startServer() {
           return res.status(400).json({ error: result.error });
         }
 
-        // Cache success output locally
-        const fs = await import("fs/promises");
-        const cacheDir = path.join(__dirname, "..", "data");
-        try {
-          await fs.mkdir(cacheDir, { recursive: true });
-        } catch {}
-        await fs.writeFile(
-          path.join(cacheDir, "financial_cache.json"),
-          JSON.stringify(result, null, 2)
-        );
+        // Persist score only to the Gmail account that was scanned — never trust body.email.
+        const gmailEmail = String(result.profile?.email || "")
+          .trim()
+          .toLowerCase();
+        const claimed = String(email || fallbackData?.email || "")
+          .trim()
+          .toLowerCase();
+        if (claimed && gmailEmail && claimed !== gmailEmail) {
+          return res.status(403).json({
+            error: "email_mismatch",
+            details: "Body email must match the Gmail account used for the scan",
+          });
+        }
+        const recipient = gmailEmail || null;
 
-        const recipient = email || result.profile?.email;
+        if (recipient) {
+          const { writeLedgerCache } = await import("./lib/ledger/scannerRunner.js");
+          try {
+            await writeLedgerCache(recipient, result);
+          } catch (err) {
+            console.error("Failed to write per-user ledger cache:", err);
+          }
+        }
+
         if (recipient && result.score?.score != null) {
           const { persistScoreToWaitlist } = await import('./lib/waitlist/score.js');
+          const { refineYurekaScore } = await import('./lib/waitlist/scoreRefine.js');
           try {
+            const refined = await refineYurekaScore(result.score);
+            result.score = refined;
             await persistScoreToWaitlist({
               email: recipient,
               profile: result.profile,
-              score: result.score,
+              score: refined,
               notify: true,
+              refine: false,
             });
           } catch (err) {
             console.error("Failed to persist score to waitlist:", err);
@@ -321,33 +397,46 @@ async function startServer() {
     });
   });
 
-  // Email Notification API
+  // Admin onboarding email — requires admin session (was unauthenticated; open mailer).
   app.post("/api/notify-team-member", async (req, res) => {
-    const { email, role, firstName } = req.body;
+    const { verifyAdminToken } = await import("./lib/admin/auth.js");
+    const token = req.header("x-admin-session") || req.header("X-Admin-Session");
+    const session = verifyAdminToken(token);
+    if (!session || (session.role !== "admin" && session.role !== "superadmin")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
 
-    if (!email) {
-        return res.status(400).json({ error: "Missing recipient email" });
+    const { isRateLimited } = await import("./lib/auth/rateLimit.js");
+    if (isRateLimited(req, "notify-team-member", { limit: 20, windowMs: 15 * 60_000 })) {
+      return res.status(429).json({ error: "Too many onboarding emails. Try again later." });
+    }
+
+    const { email, role, firstName } = req.body || {};
+    if (!email || typeof email !== "string") {
+      return res.status(400).json({ error: "Missing recipient email" });
     }
 
     console.log(`Attempting to send onboarding email to: ${email}`);
 
     const { sendMail } = await import("./lib/mail/transport.js");
 
-    const portalLink = process.env.VITE_ADMIN_PORTAL_URL?.replace(/\/$/, '') || 'https://admin.yureka.one';
+    const portalLink = process.env.VITE_ADMIN_PORTAL_URL?.replace(/\/$/, "") || "https://admin.yureka.one";
     const adminLogin = `${portalLink}/admin`;
+    const safeRole = String(role || "admin").slice(0, 40);
+    const safeName = String(firstName || "there").slice(0, 80);
     const result = await sendMail({
       to: email,
       subject: "Welcome to Yureka One Admin Dashboard",
-      text: `Hi ${firstName || 'there'},\n\nAnwesh has added you as ${role}, to yureka.one, you can access the same using ${adminLogin}, make sure due to nature of security you will get automatically logged out of the admin dashboard within 15 minutes of inactivity`,
+      text: `Hi ${safeName},\n\nYou've been added as ${safeRole} on yureka.one. Sign in at ${adminLogin}. For security, the admin dashboard signs you out after 15 minutes of inactivity.`,
       html: `
         <div style="font-family: sans-serif; padding: 20px; color: #333;">
-          <p>Hi ${firstName || 'there'},</p>
-          <p>Anwesh has added you as <strong>${role}</strong>, to <a href="https://yureka.one">yureka.one</a>.</p>
-          <p>You can access the portal here: <a href="${adminLogin}">${adminLogin}</a></p>
-          <p style="color: #666; font-size: 0.9em;">Important: For security purposes, you will be automatically logged out of the admin dashboard after 15 minutes of inactivity.</p>
+          <p>Hi ${safeName},</p>
+          <p>You've been added as <strong>${safeRole}</strong> on <a href="https://yureka.one">yureka.one</a>.</p>
+          <p>Sign in here: <a href="${adminLogin}">${adminLogin}</a></p>
+          <p style="color: #666; font-size: 0.9em;">For security, you will be signed out of the admin dashboard after 15 minutes of inactivity.</p>
           <p>Welcome aboard!</p>
         </div>
-      `
+      `,
     });
 
     if (!result.sent) {
@@ -433,7 +522,22 @@ async function startServer() {
       });
 
       try {
-        const resolved = await resolveRouteMeta(req.path);
+        const host = String(req.get('host') || '').toLowerCase().split(':')[0]
+        const isWanderworldHost = host === 'wanderworld.yureka.one' || host.endsWith('.wanderworld.yureka.one')
+        let resolved = await resolveRouteMeta(req.path);
+
+        // WanderWorld ops host: never serve marketing meta for `/`.
+        if (isWanderworldHost) {
+          const wwMeta =
+            staticPageMeta['/ww'] || {
+              title: 'WanderWorld ops | Yureka.One',
+              description: 'Invite-only WanderWorld trips admin and promoter portal.',
+              robots: 'noindex, nofollow' as const,
+            }
+          if (req.path === '/' || req.path === '/login' || req.path === '/signup' || req.path === '/reset-password' || req.path.startsWith('/ww')) {
+            resolved = { status: 200, meta: staticPageMeta[req.path] || wwMeta }
+          }
+        }
 
         if (resolved.redirect) {
           return res.redirect(301, resolved.redirect);
@@ -501,6 +605,21 @@ async function startServer() {
   }
 
   scheduleDailySync();
+
+  // Account deletion: purge approved requests after 30-day retention.
+  const runDeletionPurge = async () => {
+    try {
+      const { runDueDeletionPurges } = await import('./lib/accountDeletion/service.js')
+      const result = await runDueDeletionPurges()
+      if (result.purged || result.errors.length) {
+        console.log('[deletion] purge cycle', result)
+      }
+    } catch (err) {
+      console.error('[deletion] purge cycle failed', err)
+    }
+  }
+  void runDeletionPurge()
+  setInterval(runDeletionPurge, 60 * 60_000)
 
   // Do not block listen on pip install — run in background so health checks pass.
   void ensurePythonDeps().then(() => {

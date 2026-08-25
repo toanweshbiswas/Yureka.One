@@ -11,15 +11,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.23",
     "@supabase/supabase-js": "^2.111.0",
     "@types/compression": "^1.8.1",
     "@yureka/app": "workspace:*",
     "@yureka/backend": "workspace:*",
     "@yureka/landing": "workspace:*",
     "@yureka/shared": "workspace:*",
+    "clsx": "^2.1.1",
     "compression": "^1.8.1",
     "cors": "^2.8.6",
     "d3": "^7.9.0",
+    "date-fns": "^4.4.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "firebase": "^12.17.1",
@@ -28,10 +31,12 @@
     "motion": "^12.38.0",
     "nodemailer": "^8.0.4",
     "react": "^19.2.4",
+    "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.13.0",
     "remark-gfm": "^4.0.0",
+    "tailwind-merge": "^3.6.0",
     "tsx": "^4.21.0"
   },
   "devDependencies": {

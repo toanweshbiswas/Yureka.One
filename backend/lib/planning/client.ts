@@ -14,9 +14,14 @@ async function planningFetch<T>(
   userId: string,
   init?: RequestInit & { timeoutMs?: number },
 ): Promise<Envelope<T>> {
-  const { timeoutMs = 12_000, ...rest } = init || {}
+  const { timeoutMs = 12_000, signal: outerSignal, ...rest } = init || {}
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
+  const onOuterAbort = () => controller.abort()
+  if (outerSignal) {
+    if (outerSignal.aborted) controller.abort()
+    else outerSignal.addEventListener('abort', onOuterAbort, { once: true })
+  }
   try {
     const token = getAuthAccessToken()
     const res = await fetch(path, {
@@ -49,10 +54,14 @@ async function planningFetch<T>(
       }
     }
     return json as Envelope<T>
-  } catch {
+  } catch (err: any) {
+    if (err?.name === 'AbortError' || controller.signal.aborted) {
+      return { data: null, status: 499, error: 'aborted' }
+    }
     return { data: null, status: 503, error: 'Planning API unreachable' }
   } finally {
     clearTimeout(timer)
+    if (outerSignal) outerSignal.removeEventListener('abort', onOuterAbort)
   }
 }
 
@@ -70,10 +79,15 @@ export function onPlanningUpdated(handler: () => void) {
 }
 
 export const planningApi = {
-  overview: (userId: string, month?: string) =>
+  overview: (
+    userId: string,
+    month?: string,
+    opts?: { signal?: AbortSignal; timeoutMs?: number },
+  ) =>
     planningFetch<PlanningOverview>(
       `/api/v1/planning${month ? `?month=${encodeURIComponent(month)}` : ''}`,
       userId,
+      { signal: opts?.signal, timeoutMs: opts?.timeoutMs ?? 20_000 },
     ),
   saveBudgets: (
     userId: string,
@@ -128,7 +142,12 @@ export const planningApi = {
       },
     ),
   scanInbox: (userId: string, inboxId: string, accessToken: string) =>
-    planningFetch<{ inbox: PlanningInbox; transactions: PlanningTransaction[]; count: number }>(
+    planningFetch<{
+      inbox: PlanningInbox
+      transactions: PlanningTransaction[]
+      count: number
+      overview?: PlanningOverview
+    }>(
       `/api/v1/planning/inboxes/${encodeURIComponent(inboxId)}/scan`,
       userId,
       {

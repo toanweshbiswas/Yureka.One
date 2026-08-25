@@ -177,7 +177,8 @@ const Footer: React.FC = () => {
                 <ul className="space-y-3.5">
                   {[
                     { label: 'FAQ', to: '/faq' },
-                    { label: 'Waitlist', to: '/join-waitlist' },
+                    { label: 'Get Started', to: '/login' },
+                    // { label: 'Waitlist', to: '/join-waitlist' },
                     { label: 'Privacy Policy', to: '/privacy-policy' },
                     { label: 'Terms of Service', to: '/terms-of-service' },
                   ].map(({ label, to }) => (

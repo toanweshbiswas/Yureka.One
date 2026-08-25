@@ -128,6 +128,28 @@ export async function resolveRouteMeta(pathname: string): Promise<ResolvedRoute>
     };
   }
 
+  if (path === '/brand' || path.startsWith('/brand/')) {
+    return {
+      status: 200,
+      meta: staticPageMeta['/brand'] || {
+        title: formatTitle('Brand portal | Yureka One'),
+        description: 'Partner portal.',
+        robots: 'noindex, nofollow',
+      },
+    };
+  }
+
+  if (path === '/ww' || path.startsWith('/ww/')) {
+    const meta =
+      staticPageMeta[path] ||
+      staticPageMeta['/ww'] || {
+        title: formatTitle('WanderWorld ops | Yureka One'),
+        description: 'WanderWorld ops portal.',
+        robots: 'noindex, nofollow',
+      };
+    return { status: 200, meta };
+  }
+
   if (staticPageMeta[path]) {
     return { status: 200, meta: staticPageMeta[path], schemas: extraSchemas(path) };
   }

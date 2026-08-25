@@ -9,6 +9,38 @@ const MERCHANT_DOMAINS: Record<string, string> = {
   blinkit: 'blinkit.com',
   bigbasket: 'bigbasket.com',
   jiomart: 'jiomart.com',
+  zepto: 'zeptonow.com',
+  meesho: 'meesho.com',
+  bookmyshow: 'bookmyshow.com',
+  makemytrip: 'makemytrip.com',
+  goibibo: 'goibibo.com',
+  uber: 'uber.com',
+}
+
+/** Same-origin marks shipped in /public — sharper than remote favicons. */
+const LOCAL_LOGO_BY_HOST: Record<string, string> = {
+  'amazon.in': '/assets/brand-logos/amazon-logo.png',
+  'amazon.com': '/assets/brand-logos/amazon-logo.png',
+  'flipkart.com': '/assets/brand-logos/flipkart-logo.png',
+  'myntra.com': '/assets/brand-logos/myntra-logo.jpeg',
+  'blinkit.com': '/assets/brand-logos/blinkit-logo.png',
+  'zeptonow.com': '/assets/brand-logos/zepto-logo.png',
+  'swiggy.com': '/assets/brand-logos/swiggy-logo.png',
+  'ajio.com': '/assets/brand-logos/ajio-logo.jpeg',
+  'bookmyshow.com': '/assets/brand-logos/bookmyshow-logo.png',
+  'bigbasket.com': '/assets/brand-logos/bigbasket-logo.png',
+  'meesho.com': '/assets/brand-logos/meesho-mark.svg',
+  'makemytrip.com': '/assets/brand-logos/makemytrip-logo.png',
+  'goibibo.com': '/assets/brand-logos/goibibo-logo.png',
+  'jiomart.com': '/assets/brand-logos/jiomart-full.png',
+  'uber.com': '/assets/brand-logos/uber-logo.png',
+  'nykaa.com': '/assets/brand-logos/nykaa-logo.jpeg',
+}
+
+function localLogoForHost(host: string | null): string | null {
+  if (!host) return null
+  const h = host.toLowerCase().replace(/^www\./, '')
+  return LOCAL_LOGO_BY_HOST[h] || null
 }
 
 const CUELINKS_CDN_HOSTS = new Set([
@@ -38,7 +70,9 @@ export function faviconUrl(domain: string): string {
     .toLowerCase()
     .replace(/^www\./, '')
   if (!host) return ''
-  return `https://icons.duckduckgo.com/ip3/${encodeURIComponent(host)}.ico`
+  const local = localLogoForHost(host)
+  if (local) return local
+  return `https://www.google.com/s2/favicons?sz=256&domain_url=${encodeURIComponent(`https://www.${host}`)}`
 }
 
 export function merchantLogoUrl(merchant?: string | null, pageUrl?: string | null): string | null {

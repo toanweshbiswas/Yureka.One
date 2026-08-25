@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
 import { ArrowRight, Loader2, Search, Copy, RefreshCw } from 'lucide-react'
-import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
-import { formatPaise, goldbackApi, goldbackEarnKey } from '@backend/lib/goldback/client'
+import { formatPaise, goldbackApi } from '@backend/lib/goldback/client'
 import type { GoldbackOffer } from '@backend/lib/goldback/types'
 import type { CueLinksOffer } from '@backend/lib/cuelinks/types'
-import { cacheGet, cacheSet, cacheInvalidate, CACHE_TTL } from '@shared/dashboardCache'
-import { notifyGoldbackUpdated } from '@shared/goldbackEvents'
+import { cacheGet, cacheSet, CACHE_TTL } from '@shared/dashboardCache'
+import { onCatalogUpdate } from '@shared/catalogSync'
 import { getExploreScene, matchesSceneBrands, sceneBrandNames } from '@shared/exploreScenes'
 import Icon3d from '@shared/Icon3d'
 import { isAffiliateRedirectUrl, sanitizeBrowseUrl } from '@shared/inAppBrowse'
@@ -95,7 +95,6 @@ const OffersPage: React.FC = () => {
   const reduceMotion = useReducedMotion()
   const { user } = useSupabase()
   const location = useLocation()
-  const navigate = useNavigate()
   const userId = user?.id || user?.email || ''
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
@@ -241,6 +240,14 @@ const OffersPage: React.FC = () => {
     void loadGoldback()
   }, [tab, loadGoldback])
 
+  // Admin catalog edits → refetch both tabs' data (cache already cleared by sync).
+  useEffect(() => {
+    return onCatalogUpdate(() => {
+      void loadMarketplace({ silent: true, refresh: false })
+      void loadGoldback({ silent: true })
+    })
+  }, [loadMarketplace, loadGoldback])
+
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 4200)
@@ -312,63 +319,60 @@ const OffersPage: React.FC = () => {
     rawUrl: string,
     title?: string,
     affiliateUrl?: string | null,
+    opts?: { preferWeb?: boolean },
   ) => {
     const dest = sanitizeBrowseUrl(rawUrl)
     if (!dest) return
     const aff = sanitizeBrowseUrl(affiliateUrl || '')
     const knownOpenUrl =
-      aff && aff !== dest && isAffiliateRedirectUrl(aff) ? aff : undefined
+      aff && isAffiliateRedirectUrl(aff) ? aff : undefined
     void openStoreBrowse(dest, userId, {
       knownOpenUrl,
       title,
       returnTo: offersReturnTo,
-      navigate,
+      // Stay on Offers — never swap into /dashboard/browse.
+      forceExternal: true,
+      // CueLinks needs window.open of the tracked URL when present.
+      preferWeb: opts?.preferWeb ?? !knownOpenUrl,
     })
   }
 
   const handleGoldback = async (offer: GoldbackOffer) => {
     setBusyId(offer.id)
     setToast(null)
-    await goldbackApi.click(userId, offer.id)
-    const earn = await goldbackApi.earn(userId, offer.id, goldbackEarnKey(userId, offer.id))
-    openBrandOrOffer(offer.url, offer.merchant || offer.title)
-    if (earn.error || !earn.data) {
-      setToast(earn.error || 'Opened offer — earn credit failed')
-    } else if (earn.data.created) {
-      setToast(`+${formatPaise(earn.data.entry.amountPaise)} Goldback credited`)
-      cacheInvalidate('goldback:home:')
-      notifyGoldbackUpdated({
-        balancePaise: earn.data.balance.balancePaise,
-        userId,
-      })
-    } else {
-      setToast('Offer opened — Goldback already credited for this deal')
-      notifyGoldbackUpdated({
-        balancePaise: earn.data.balance.balancePaise,
-        userId,
-      })
-    }
-    setBusyId(null)
+    // Open under the tap gesture first — awaiting the click API made iOS close the tab.
+    openBrandOrOffer(offer.url, offer.merchant || offer.title, null, { preferWeb: true })
+    void goldbackApi.click(userId, offer.id).finally(() => setBusyId(null))
   }
 
   const handleMarketplace = (offer: CueLinksOffer) => {
     const merchantUrl = sanitizeBrowseUrl(offer.url)
     const affiliateUrl = sanitizeBrowseUrl(offer.affiliateUrl)
-    // If CueLinks only gave an affiliate redirect, fall back to the brand homepage.
     const brandHome =
       brands.find((b) => b.merchant.toLowerCase() === String(offer.merchant || '').toLowerCase())
         ?.homeUrl || null
-    const dest =
+
+    const cue =
+      (affiliateUrl && isAffiliateRedirectUrl(affiliateUrl) ? affiliateUrl : null) ||
+      (merchantUrl && isAffiliateRedirectUrl(merchantUrl) ? merchantUrl : null)
+
+    const site =
       (merchantUrl && !isAffiliateRedirectUrl(merchantUrl) ? merchantUrl : null) ||
-      sanitizeBrowseUrl(brandHome) ||
-      merchantUrl ||
-      affiliateUrl
-    if (!dest) {
+      sanitizeBrowseUrl(brandHome)
+
+    if (!cue && !site) {
       setToast('No affiliate link for this offer')
       return
     }
-    openBrandOrOffer(dest, offer.merchant || offer.title, affiliateUrl)
-    setToast(`Opened ${offer.merchant}`)
+
+    // Marketplace: window.open CueLinks when we have it (provider rejects beacon/iframe).
+    // Prefer merchant site only when there is no affiliate URL.
+    if (cue) {
+      openBrandOrOffer(site || cue, offer.merchant || offer.title, cue, { preferWeb: false })
+      return
+    }
+
+    openBrandOrOffer(site!, offer.merchant || offer.title, null, { preferWeb: true })
   }
 
   const copyCode = async (code: string) => {
@@ -524,11 +528,7 @@ const OffersPage: React.FC = () => {
             <p className="text-[11px] text-white/35">{filteredBrands.length} stores</p>
           </div>
           <div
-            className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-none"
-            style={{
-              maskImage: 'linear-gradient(to right, #000 0%, #000 90%, transparent 100%)',
-              WebkitMaskImage: 'linear-gradient(to right, #000 0%, #000 90%, transparent 100%)',
-            }}
+            className="-mx-0.5 flex gap-3 overflow-x-auto px-0.5 pb-1 snap-x snap-mandatory scrollbar-none"
           >
             {filteredBrands.slice(0, 48).map((brand) => (
               <motion.button
@@ -539,11 +539,10 @@ const OffersPage: React.FC = () => {
                 onClick={() => {
                   if (!brand.homeUrl) return
                   openBrandOrOffer(brand.homeUrl, brand.merchant)
-                  setToast(`Opening ${brand.merchant}`)
                 }}
-                className="flex w-[4.6rem] shrink-0 flex-col items-center gap-1.5"
+                className="flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5"
               >
-                <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-[1rem] border border-white/10 bg-white/[0.06]">
+                <span className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-[1.1rem] border border-white/10 bg-white/[0.06]">
                   {brand.imageUrl ? (
                     <img
                       src={brand.imageUrl}
@@ -638,7 +637,6 @@ const OffersPage: React.FC = () => {
               return (
                 <motion.article
                   key={offer.id}
-                  layout
                   initial={enter}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ ...spring, delay: reduceMotion ? 0 : Math.min(idx * 0.03, 0.2) }}
@@ -703,7 +701,6 @@ const OffersPage: React.FC = () => {
             {visibleMarket.map((offer, idx) => (
               <motion.article
                 key={offer.id}
-                layout
                 initial={enter}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ ...spring, delay: reduceMotion ? 0 : Math.min(idx * 0.012, 0.16) }}
@@ -746,7 +743,7 @@ const OffersPage: React.FC = () => {
                     whileTap={{ scale: 0.97 }}
                     transition={spring}
                     onClick={() => handleMarketplace(offer)}
-                    className="mt-auto inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-black"
+                    className="mt-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-black"
                   >
                     <ArrowRight size={14} /> Shop
                   </motion.button>

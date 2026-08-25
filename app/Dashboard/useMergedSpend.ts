@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useSupabase } from '@shared/SupabaseProvider'
-import { onPlanningUpdated, planningApi } from '@backend/lib/planning/client'
-import type { PlanningTransaction } from '@backend/lib/planning/types'
+import { isMarketingLedgerRow, collapseRepetitiveTransactions } from '@backend/lib/ledger/marketingFilter'
+import { isInvestmentTransaction } from '@backend/lib/planning/categories'
 
 export type SpendTransaction = {
   brandName: string
@@ -11,51 +11,30 @@ export type SpendTransaction = {
   sender: string
   type?: string
   sourceEmail?: string
+  category?: string
 }
 
-function txKey(tx: Pick<SpendTransaction, 'brandName' | 'date' | 'amount'>) {
-  return `${String(tx.brandName || '').trim().toLowerCase()}|${String(tx.date || '').trim()}|${String(tx.amount || '').trim()}`
-}
+/**
+ * Expenses / Bills read the PRIMARY Gmail ledger only.
+ * Planning extras + investments stay on the Planning path — never merge here.
+ */
+export function useExpenseLedger() {
+  const { ledgerTransactions } = useSupabase()
 
-function mergeSpend(primary: SpendTransaction[], extra: SpendTransaction[]): SpendTransaction[] {
-  const seen = new Set<string>()
-  const out: SpendTransaction[] = []
-  for (const row of [...(primary || []), ...(extra || [])]) {
-    const key = txKey(row)
-    if (seen.has(key)) continue
-    seen.add(key)
-    out.push(row)
-  }
-  return out
-}
-
-export function useMergedSpend() {
-  const { user, ledgerTransactions } = useSupabase()
-  const userId = user?.id || user?.email || ''
-  const [extra, setExtra] = useState<PlanningTransaction[]>([])
-
-  useEffect(() => {
-    if (!userId) return
-    let cancelled = false
-    const load = async () => {
-      const res = await planningApi.extraTransactions(userId)
-      if (cancelled || !res.data) return
-      setExtra(res.data.transactions || [])
-    }
-    void load()
-    const off = onPlanningUpdated(() => {
-      void load()
+  const lifestyle = useMemo(() => {
+    const rows = (ledgerTransactions || []) as SpendTransaction[]
+    const filtered = rows.filter((tx) => {
+      if (isMarketingLedgerRow(tx)) return false
+      if (isInvestmentTransaction(tx)) return false
+      return true
     })
-    return () => {
-      cancelled = true
-      off()
-    }
-  }, [userId])
+    return collapseRepetitiveTransactions(filtered as any) as SpendTransaction[]
+  }, [ledgerTransactions])
 
-  const merged = useMemo(
-    () => mergeSpend((ledgerTransactions || []) as SpendTransaction[], extra),
-    [ledgerTransactions, extra],
-  )
+  return { transactions: lifestyle }
+}
 
-  return { transactions: merged, extraCount: extra.length }
+/** @deprecated Use useExpenseLedger — kept so old imports fail loudly in types if needed */
+export function useMergedSpend() {
+  return useExpenseLedger()
 }

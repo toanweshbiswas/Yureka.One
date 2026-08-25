@@ -39,45 +39,50 @@ const WelcomeBanner: React.FC = () => {
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ opacity: 0, y: -12 }}
+          initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -8 }}
-          className="mb-8 rounded-[1.75rem] border border-clay/25 bg-clay/10 px-5 py-5 md:px-7 md:py-6 relative overflow-hidden"
+          transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+          className="relative mb-5 overflow-hidden rounded-[1.5rem] border border-clay/25 bg-clay/10 px-4 py-4 md:mb-8 md:rounded-[1.75rem] md:px-7 md:py-6"
         >
-          <button
+          <motion.button
             type="button"
             onClick={dismiss}
-            className="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/20 text-white/50 hover:text-white flex items-center justify-center"
+            whileTap={{ scale: 0.94 }}
+            transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
+            className="absolute right-3 top-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/25 text-white/55 active:bg-black/40 active:text-white md:right-4 md:top-4 md:h-9 md:w-9"
             aria-label="Dismiss welcome"
           >
             <X size={16} />
-          </button>
+          </motion.button>
 
-          <p className="text-[9px] font-black uppercase tracking-[0.4em] text-clay mb-2">You're approved</p>
-          <h2 className="text-xl md:text-2xl font-black text-white tracking-tight mb-2 pr-10">
+          <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-clay">
+            You&apos;re approved
+          </p>
+          <h2 className="mb-1.5 pr-11 text-[1.25rem] font-semibold tracking-[-0.03em] text-white md:mb-2 md:text-2xl md:font-black md:tracking-tight">
             Welcome to Yureka
           </h2>
-          <p className="text-sm text-white/45 mb-5 max-w-xl">
+          <p className="mb-4 max-w-xl text-[13px] leading-snug text-white/45 md:mb-5 md:text-sm">
             Your account is unlocked. Start with these three steps.
           </p>
 
-          <ul className="space-y-3">
+          <ul className="space-y-2.5 md:space-y-3">
             {[
+              { icon: 'chart', label: 'Sync Gmail for expenses & bills', to: '/dashboard/expenses' },
               { icon: 'boy', label: 'Complete your profile', to: '/dashboard/profile' },
               { icon: 'bag', label: 'Browse offers & earn Goldback', to: '/dashboard/offers' },
-              { icon: 'gift', label: 'Explore gift cards', to: '/dashboard/giftcards' },
             ].map((item) => (
               <li key={item.to}>
                 <Link
                   to={item.to}
                   onClick={dismiss}
-                  className="flex items-center gap-3 text-sm text-white/80 hover:text-white transition-colors group"
+                  className="group flex items-center gap-3 rounded-xl py-0.5 text-[13px] text-white/80 active:text-white md:text-sm"
                 >
-                  <span className="w-8 h-8 rounded-xl bg-black/25 border border-white/10 flex items-center justify-center group-hover:border-clay/40">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/25 group-active:border-clay/40">
                     <Icon3d name={item.icon} className="h-5 w-5 object-contain" alt="" />
                   </span>
-                  <span className="font-semibold">{item.label}</span>
-                  <Icon3d name="tick" className="h-4 w-4 object-contain opacity-40 ml-auto" alt="" />
+                  <span className="font-semibold tracking-[-0.01em]">{item.label}</span>
+                  <Icon3d name="tick" className="ml-auto h-4 w-4 object-contain opacity-40" alt="" />
                 </Link>
               </li>
             ))}

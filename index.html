@@ -190,12 +190,36 @@
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
   <script>
-    var cId = "291471";
+    // CueLinks page-link script is for marketing pages only.
+    // App / admin / brand already use /api/cuelinks; loading the CDN script there
+    // just trips ad blockers (net::ERR_BLOCKED_BY_CLIENT) with no product benefit.
     (function () {
       if (window.__YUREKA_PWA__) return;
-      var s = document.createElement("script");
+      var host = (location.hostname || '').toLowerCase();
+      if (
+        host === 'app.yureka.one' ||
+        host === 'admin.yureka.one' ||
+        host === 'brand.yureka.one'
+      ) {
+        return;
+      }
+      // Product shell on shared localhost / preview hosts
+      var path = location.pathname || '';
+      if (
+        path.indexOf('/dashboard') === 0 ||
+        path.indexOf('/login') === 0 ||
+        path.indexOf('/admin') === 0 ||
+        path.indexOf('/brand') === 0
+      ) {
+        return;
+      }
+      window.cId = '291471';
+      var s = document.createElement('script');
       s.async = true;
-      s.src = "https://cdn0.cuelinks.com/js/cuelinksv2.js";
+      s.src = 'https://cdn0.cuelinks.com/js/cuelinksv2.js';
+      s.onerror = function () {
+        /* blocked or offline — offers still work via /api/cuelinks */
+      };
       document.body.appendChild(s);
     })();
   </script>

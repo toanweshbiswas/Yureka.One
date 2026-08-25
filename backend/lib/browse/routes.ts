@@ -19,8 +19,8 @@ function fail(res: Response, status: number, error: string) {
   })
 }
 
-function requireUser(req: Request, res: Response): string | null {
-  const result = productUserIdOrFail(req)
+async function requireUser(req: Request, res: Response): Promise<string | null> {
+  const result = await productUserIdOrFail(req)
   if ('error' in result) {
     fail(res, 401, result.error)
     return null
@@ -30,7 +30,7 @@ function requireUser(req: Request, res: Response): string | null {
 
 export function registerBrowseRoutes(app: Express) {
   app.post('/api/browse/out', async (req: Request, res: Response) => {
-    const userId = requireUser(req, res)
+    const userId = await requireUser(req, res)
     if (!userId) return
     const url = typeof req.body?.url === 'string' ? req.body.url : ''
     const record = req.body?.record !== false
@@ -43,7 +43,7 @@ export function registerBrowseRoutes(app: Express) {
   })
 
   app.get('/api/browse/super-browse', async (req: Request, res: Response) => {
-    const userId = requireUser(req, res)
+    const userId = await requireUser(req, res)
     if (!userId) return
     try {
       const links = await resolveSuperBrowseLinks(userId)

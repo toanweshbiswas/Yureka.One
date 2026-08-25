@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'motion/react'
 import { Download, Share, X, Smartphone } from 'lucide-react'
 import { resolveSiteRole } from '@shared/hosts'
@@ -80,7 +81,11 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null)
   const [visible, setVisible] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
-  const [iosHint, setIosHint] = useState(false)
+  const [portalReady, setPortalReady] = useState(false)
+
+  useEffect(() => {
+    setPortalReady(true)
+  }, [])
 
   const closeAll = useCallback(() => {
     setVisible(false)
@@ -107,17 +112,21 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
     registerInstallServiceWorker()
 
     const onBip = (e: Event) => {
+      // Required for a custom install UI. Chrome may log
+      // "Banner not shown: beforeinstallpromptevent.preventDefault()…" until
+      // the user taps Install (which calls deferred.prompt()). That log is
+      // expected, not a failure.
       e.preventDefault()
       setDeferred(e as BeforeInstallPromptEvent)
-      showBanner()
+      if (mode === 'banner') showBanner()
     }
     window.addEventListener('beforeinstallprompt', onBip)
 
     // Soft prompt on mobile app shell — BIP often never fires without engagement heuristics
     const t = window.setTimeout(() => {
+      if (mode !== 'banner') return
       if (wasShownThisSession() && !isIosDevice()) return
       if (!isLikelyMobile()) return
-      setIosHint(isIosDevice())
       showBanner()
     }, 1200)
 
@@ -125,60 +134,74 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
       window.removeEventListener('beforeinstallprompt', onBip)
       window.clearTimeout(t)
     }
-  }, [role, showBanner])
+  }, [role, showBanner, mode])
 
   useEffect(() => {
-    if (forceOpen) {
-      setSheetOpen(true)
-      setIosHint(isIosDevice() || !deferred)
-    }
-  }, [forceOpen, deferred])
+    if (forceOpen) setSheetOpen(true)
+  }, [forceOpen])
 
   const installNative = async () => {
     if (!deferred) {
       setSheetOpen(true)
-      setIosHint(true)
       return
     }
-    await deferred.prompt()
-    const choice = await deferred.userChoice
-    setDeferred(null)
-    if (choice.outcome === 'accepted') {
-      markDismissed()
-      closeAll()
-    } else {
-      dismiss()
+    try {
+      await deferred.prompt()
+      const choice = await deferred.userChoice
+      setDeferred(null)
+      if (choice.outcome === 'accepted') {
+        markDismissed()
+        closeAll()
+        void import('@shared/pwaInstallTrack').then(({ trackPwaPresence }) =>
+          trackPwaPresence({ force: true, source: 'appinstalled' }),
+        )
+      } else {
+        dismiss()
+      }
+    } catch {
+      setSheetOpen(true)
     }
   }
 
   const openHowTo = () => {
     setSheetOpen(true)
-    setIosHint(true)
   }
 
+  const sheet = (
+    <InstallSheet
+      open={sheetOpen || forceOpen}
+      canNativeInstall={Boolean(deferred) && !isIosDevice()}
+      onClose={() => {
+        setSheetOpen(false)
+        onCloseForced?.()
+      }}
+      onInstall={deferred ? () => void installNative() : undefined}
+    />
+  )
+
+  const sheetPortal = portalReady && typeof document !== 'undefined' ? createPortal(sheet, document.body) : null
+
   if (mode === 'button') {
-    if (isStandalone()) return null
+    if (isStandalone()) {
+      return (
+        <div className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-clay/20 bg-clay/10 px-3.5 py-3 text-[12px] font-semibold tracking-[-0.01em] text-clay">
+          <Smartphone size={14} />
+          On your Home Screen
+        </div>
+      )
+    }
     return (
       <>
         <button
           type="button"
-          onPointerDown={() => {}}
-          onClick={deferred ? () => void installNative() : openHowTo}
-          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-white/70 active:scale-[0.97] transition-transform duration-100"
+          onClick={() => void (deferred && !isIosDevice() ? installNative() : openHowTo())}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-3 text-[13px] font-semibold tracking-[-0.01em] text-white/75 active:scale-[0.98] transition-transform duration-100"
           aria-label="Add Yureka to Home Screen"
         >
-          <Smartphone size={14} className="text-clay" />
-          Home screen
+          <Smartphone size={15} className="text-clay" />
+          {deferred && !isIosDevice() ? 'Install app' : 'Add to Home Screen'}
         </button>
-        <InstallSheet
-          open={sheetOpen || forceOpen}
-          ios={iosHint || isIosDevice()}
-          onClose={() => {
-            setSheetOpen(false)
-            onCloseForced?.()
-          }}
-          onInstall={deferred ? () => void installNative() : undefined}
-        />
+        {sheetPortal}
       </>
     )
   }
@@ -212,10 +235,10 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => void (deferred ? installNative() : openHowTo())}
+                      onClick={() => void (deferred && !isIosDevice() ? installNative() : openHowTo())}
                       className="inline-flex items-center justify-center rounded-xl bg-clay px-4 py-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-black active:scale-[0.97] transition-transform duration-100"
                     >
-                      {deferred ? 'Install' : 'How to'}
+                      {deferred && !isIosDevice() ? 'Install' : 'How to'}
                     </button>
                     <button
                       type="button"
@@ -240,30 +263,24 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
         )}
       </AnimatePresence>
 
-      <InstallSheet
-        open={sheetOpen || forceOpen}
-        ios={iosHint || isIosDevice()}
-        onClose={() => {
-          setSheetOpen(false)
-          onCloseForced?.()
-        }}
-        onInstall={deferred ? () => void installNative() : undefined}
-      />
+      {sheetPortal}
     </>
   )
 }
 
 function InstallSheet({
   open,
-  ios,
+  canNativeInstall,
   onClose,
   onInstall,
 }: {
   open: boolean
-  ios: boolean
+  canNativeInstall: boolean
   onClose: () => void
   onInstall?: () => void
 }) {
+  const ios = isIosDevice()
+
   return (
     <AnimatePresence>
       {open && (
@@ -275,7 +292,7 @@ function InstallSheet({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-[100] bg-black/65 backdrop-blur-sm"
+            className="fixed inset-0 z-[200] bg-black/65 backdrop-blur-sm"
             onClick={onClose}
           />
           <motion.div
@@ -286,7 +303,7 @@ function InstallSheet({
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', bounce: 0.15, duration: 0.45 }}
-            className="fixed z-[110] inset-x-0 bottom-0 max-h-[min(85dvh,36rem)] rounded-t-[1.75rem] border border-white/10 border-b-0 bg-[#0e0e0e]/96 backdrop-blur-2xl shadow-[0_-24px_80px_rgba(0,0,0,0.55)]"
+            className="fixed z-[210] inset-x-0 bottom-0 max-h-[min(85dvh,36rem)] rounded-t-[1.75rem] border border-white/10 border-b-0 bg-[#0e0e0e]/96 backdrop-blur-2xl shadow-[0_-24px_80px_rgba(0,0,0,0.55)]"
             style={{ paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom))' }}
           >
             <div className="flex justify-center pt-3 pb-1">
@@ -298,7 +315,7 @@ function InstallSheet({
                   Add to Home Screen
                 </h2>
                 <p className="mt-1 text-[13px] text-white/45 leading-relaxed">
-                  Keep Yureka one tap away — works offline-ready as a home icon.
+                  Keep Yureka one tap away — full screen, like an app.
                 </p>
               </div>
               <button
@@ -312,7 +329,7 @@ function InstallSheet({
             </div>
 
             <div className="px-6 pb-4 space-y-3">
-              {onInstall && !ios ? (
+              {canNativeInstall && onInstall ? (
                 <button
                   type="button"
                   onClick={onInstall}
@@ -321,10 +338,11 @@ function InstallSheet({
                   <Download size={16} />
                   Install Yureka
                 </button>
-              ) : (
+              ) : ios ? (
                 <ol className="space-y-3">
                   <Step n={1}>
-                    Tap the <Share className="inline mx-1 text-clay" size={14} aria-hidden /> <strong className="text-white/80">Share</strong> button in Safari
+                    Tap the <Share className="inline mx-1 text-clay" size={14} aria-hidden />{' '}
+                    <strong className="text-white/80">Share</strong> button in Safari
                   </Step>
                   <Step n={2}>
                     Scroll and choose <strong className="text-white/80">Add to Home Screen</strong>
@@ -333,11 +351,19 @@ function InstallSheet({
                     Tap <strong className="text-white/80">Add</strong> — Yureka appears on your Home Screen
                   </Step>
                 </ol>
-              )}
-              {!onInstall && !ios && (
-                <p className="text-[12px] text-white/40 leading-relaxed">
-                  In Chrome: open the browser menu → <strong className="text-white/70">Install app</strong> or <strong className="text-white/70">Add to Home screen</strong>.
-                </p>
+              ) : (
+                <ol className="space-y-3">
+                  <Step n={1}>
+                    Open the browser menu <strong className="text-white/80">⋮</strong> (Chrome) or share sheet
+                  </Step>
+                  <Step n={2}>
+                    Choose <strong className="text-white/80">Install app</strong> or{' '}
+                    <strong className="text-white/80">Add to Home screen</strong>
+                  </Step>
+                  <Step n={3}>
+                    Confirm — Yureka opens full screen from your Home Screen
+                  </Step>
+                </ol>
               )}
             </div>
           </motion.div>

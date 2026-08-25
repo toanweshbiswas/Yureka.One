@@ -45,13 +45,24 @@ export function restoreDashboardScroll(path?: string) {
   })
 }
 
-/** Scroll to #id inside the dashboard main scroller. */
+/** Scroll to #id inside the dashboard main scroller. Prefers a visible match. */
 export function scrollDashboardToId(id: string, behavior: ScrollBehavior = 'auto') {
   const clean = id.replace(/^#/, '').trim()
   if (!clean) return false
-  const target = document.getElementById(clean)
+  const nodes = Array.from(document.querySelectorAll(`#${CSS.escape(clean)}`)) as HTMLElement[]
+  const target =
+    nodes.find((el) => {
+      const style = window.getComputedStyle(el)
+      return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null
+    }) ||
+    nodes[0]
   if (!target) return false
-  target.scrollIntoView({ block: 'start', behavior })
+  // Walk up if the id is on a sr-only stub inside a section.
+  const scrollEl =
+    target.classList.contains('sr-only') && target.parentElement instanceof HTMLElement
+      ? target.parentElement
+      : target
+  scrollEl.scrollIntoView({ block: 'start', behavior })
   saveDashboardScroll()
   return true
 }
@@ -76,9 +87,10 @@ export function consumeBrowseReturn(): string | null {
   }
 }
 
-/** After paint: honor hash (#super-browse) or restore saved scroll for this path. */
+/** After paint: honor hash (#explore-brands / legacy #super-browse) or restore saved scroll. */
 export function restoreDashboardPosition(opts?: { pathname?: string; hash?: string }) {
-  const hash = (opts?.hash ?? (typeof location !== 'undefined' ? location.hash : '')).replace(/^#/, '')
+  let hash = (opts?.hash ?? (typeof location !== 'undefined' ? location.hash : '')).replace(/^#/, '')
+  if (hash === 'super-browse') hash = 'explore-brands'
   const path = pathKey(opts?.pathname)
 
   const run = () => {

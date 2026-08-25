@@ -7,6 +7,7 @@ import type {
 } from './types.js'
 import { PLANNING_CATEGORIES } from './types.js'
 import {
+  categorizeTransaction,
   currentMonthKey,
   isBillType,
   isSameMonth,
@@ -52,12 +53,19 @@ export function buildForecast(
     const date = parseTxDate(tx.date)
     return date ? isSameMonth(date, now) : false
   })
+  // Pace / projection = lifestyle only. SIPs stay in the Investment category card.
+  const lifestyleTxs = monthTxs.filter((tx) => {
+    const cat = tx.category || categorizeTransaction(tx)
+    return cat !== 'investment'
+  })
   const spentSoFarInr = Math.round(
-    monthTxs.reduce((sum, tx) => sum + parseInr(tx.amount), 0) * 100,
+    lifestyleTxs.reduce((sum, tx) => sum + parseInr(tx.amount), 0) * 100,
   ) / 100
   const dailyPaceInr = Math.round((spentSoFarInr / elapsed) * 100) / 100
   const projectedMonthEndInr = Math.round(dailyPaceInr * inMonth * 100) / 100
-  const totalBudgetInr = budgets.reduce((sum, b) => sum + Math.max(0, Number(b.monthlyLimitInr) || 0), 0)
+  const totalBudgetInr = budgets
+    .filter((b) => b.category !== 'investment')
+    .reduce((sum, b) => sum + Math.max(0, Number(b.monthlyLimitInr) || 0), 0)
 
   const upcomingBills: UpcomingBill[] = []
   const seenMerchant = new Set<string>()
