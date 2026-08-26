@@ -1,14 +1,17 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Loader2, RefreshCw, Search, Percent, MousePointerClick } from 'lucide-react'
+import { Loader2, RefreshCw, Search, Percent, MousePointerClick, Save } from 'lucide-react'
 import {
   Callout,
   EmptyState,
+  FieldLabel,
   PageHeader,
   StatusPill,
   Surface,
   fieldClass,
   pressClass,
+  primaryBtnClass,
   secondaryBtnClass,
+  surfaceClass,
 } from './ui'
 
 interface Envelope<T> {
@@ -57,7 +60,16 @@ type CampaignsPayload = {
   fetchedAt: string
 }
 
+type PassThrough = {
+  memberSharePercent: number
+  campaignOverrides: Record<string, number>
+  notes: string
+  updatedAt: string
+}
+
 type FilterMode = 'all' | 'cpc' | 'new_existing'
+
+const PAGE_SIZE = 100
 
 async function adminFetch<T>(path: string, token: string | null, init?: RequestInit): Promise<Envelope<T>> {
   try {
@@ -98,42 +110,85 @@ export default function CueLinksCampaignsTab({
 }) {
   const [rows, setRows] = useState<CampaignRow[]>([])
   const [meta, setMeta] = useState<Omit<CampaignsPayload, 'items' | 'hasMore'> | null>(null)
+  const [hasMore, setHasMore] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [q, setQ] = useState('')
   const [draftQ, setDraftQ] = useState('')
-  const [filter, setFilter] = useState<FilterMode>('new_existing')
+  const [filter, setFilter] = useState<FilterMode>('all')
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [passThrough, setPassThrough] = useState<PassThrough>({
+    memberSharePercent: 50,
+    campaignOverrides: {},
+    notes: '',
+    updatedAt: '',
+  })
+  const [shareDraft, setShareDraft] = useState('50')
+  const [notesDraft, setNotesDraft] = useState('')
+  const [savingShare, setSavingShare] = useState(false)
+  const [shareNotice, setShareNotice] = useState<string | null>(null)
+  const [overrideDrafts, setOverrideDrafts] = useState<Record<string, string>>({})
+  const [savingOverrideId, setSavingOverrideId] = useState<string | null>(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    const params = new URLSearchParams()
-    params.set('filter', filter)
-    if (q.trim()) params.set('q', q.trim())
-    params.set('limit', '500')
-    const res = await adminFetch<CampaignsPayload>(`/api/marketplace/campaigns?${params}`, token)
-    if (!res.data) {
-      setError(res.error || 'Failed to load CueLinks campaigns')
-      setRows([])
-      setLoading(false)
-      return
+  const loadPassThrough = useCallback(async () => {
+    const res = await adminFetch<PassThrough>('/api/admin/commission/cuelinks', token)
+    if (res.data) {
+      setPassThrough(res.data)
+      setShareDraft(String(res.data.memberSharePercent))
+      setNotesDraft(res.data.notes || '')
+      const drafts: Record<string, string> = {}
+      for (const [k, v] of Object.entries(res.data.campaignOverrides || {})) {
+        drafts[k] = String(v)
+      }
+      setOverrideDrafts(drafts)
     }
-    setRows(res.data.items)
-    setMeta({
-      total: res.data.total,
-      catalogTotal: res.data.catalogTotal,
-      payPerClickTotal: res.data.payPerClickTotal,
-      newExistingTotal: res.data.newExistingTotal,
-      fetchedAt: res.data.fetchedAt,
-    })
-    setLoading(false)
-  }, [token, filter, q])
+  }, [token])
+
+  const loadPage = useCallback(
+    async (offset: number, append: boolean) => {
+      if (append) setLoadingMore(true)
+      else {
+        setLoading(true)
+        setError(null)
+      }
+      const params = new URLSearchParams()
+      params.set('filter', filter)
+      if (q.trim()) params.set('q', q.trim())
+      params.set('limit', String(PAGE_SIZE))
+      params.set('offset', String(offset))
+      const res = await adminFetch<CampaignsPayload>(`/api/marketplace/campaigns?${params}`, token)
+      if (append) setLoadingMore(false)
+      else setLoading(false)
+      if (!res.data) {
+        setError(res.error || 'Failed to load CueLinks campaigns')
+        if (!append) {
+          setRows([])
+          setHasMore(false)
+        }
+        return
+      }
+      setRows((prev) => (append ? [...prev, ...res.data!.items] : res.data!.items))
+      setHasMore(Boolean(res.data.hasMore))
+      setMeta({
+        total: res.data.total,
+        catalogTotal: res.data.catalogTotal,
+        payPerClickTotal: res.data.payPerClickTotal,
+        newExistingTotal: res.data.newExistingTotal,
+        fetchedAt: res.data.fetchedAt,
+      })
+    },
+    [token, filter, q],
+  )
 
   useEffect(() => {
-    void load()
-  }, [load])
+    void loadPassThrough()
+  }, [loadPassThrough])
+
+  useEffect(() => {
+    void loadPage(0, false)
+  }, [loadPage])
 
   const onRefresh = async () => {
     if (!canWrite) return
@@ -148,23 +203,82 @@ export default function CueLinksCampaignsTab({
       setError(res.error)
       return
     }
-    await load()
+    await loadPage(0, false)
+  }
+
+  const saveShare = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canWrite || savingShare) return
+    setSavingShare(true)
+    setShareNotice(null)
+    setError(null)
+    const res = await adminFetch<PassThrough>('/api/admin/commission/cuelinks', token, {
+      method: 'PUT',
+      body: JSON.stringify({
+        memberSharePercent: Number(shareDraft),
+        notes: notesDraft,
+        campaignOverrides: passThrough.campaignOverrides,
+      }),
+    })
+    setSavingShare(false)
+    if (!res.data) {
+      setError(res.error || 'Failed to save member share')
+      return
+    }
+    setPassThrough(res.data)
+    setShareDraft(String(res.data.memberSharePercent))
+    setNotesDraft(res.data.notes || '')
+    setShareNotice('Member share saved (policy only — earn wiring comes later)')
+  }
+
+  const saveOverride = async (campaignId: number) => {
+    if (!canWrite) return
+    const key = String(campaignId)
+    const raw = overrideDrafts[key]
+    setSavingOverrideId(key)
+    setError(null)
+    const res = await adminFetch<PassThrough>('/api/admin/commission/cuelinks', token, {
+      method: 'PUT',
+      body: JSON.stringify({
+        campaignId,
+        campaignOverride: raw === undefined || raw.trim() === '' ? null : Number(raw),
+      }),
+    })
+    setSavingOverrideId(null)
+    if (!res.data) {
+      setError(res.error || 'Failed to save campaign override')
+      return
+    }
+    setPassThrough(res.data)
+    const drafts: Record<string, string> = {}
+    for (const [k, v] of Object.entries(res.data.campaignOverrides || {})) {
+      drafts[k] = String(v)
+    }
+    setOverrideDrafts(drafts)
   }
 
   const filters: { id: FilterMode; label: string }[] = useMemo(
     () => [
+      { id: 'all', label: 'All campaigns' },
       { id: 'new_existing', label: 'New / Existing' },
       { id: 'cpc', label: 'Pay per click' },
-      { id: 'all', label: 'All campaigns' },
     ],
     [],
   )
+
+  const shown = rows.length
+  const totalMatching = meta?.total ?? 0
+  const effectiveShare = (id: number) => {
+    const key = String(id)
+    if (passThrough.campaignOverrides[key] != null) return passThrough.campaignOverrides[key]
+    return passThrough.memberSharePercent
+  }
 
   return (
     <section className="space-y-5">
       <PageHeader
         title="CueLinks commissions"
-        subtitle="Live brand payouts from CueLinks — pay-per-click, New User, and Existing User rates. Read-only in admin; not shown in the member app."
+        subtitle="Vendor rates from CueLinks are read-only. Set Yureka’s member Goldback share of those payouts below."
         actions={
           <button
             type="button"
@@ -178,13 +292,55 @@ export default function CueLinksCampaignsTab({
         }
       />
 
+      <form onSubmit={saveShare} className={`${surfaceClass} grid gap-3 p-5 md:grid-cols-2`}>
+        <h3 className="md:col-span-2 text-[15px] font-semibold tracking-[-0.015em] text-white">
+          Member Goldback share of CueLinks payout
+        </h3>
+        <div>
+          <FieldLabel>Default member share (%)</FieldLabel>
+          <input
+            type="number"
+            min={0}
+            max={100}
+            step={1}
+            disabled={!canWrite}
+            className={fieldClass}
+            value={shareDraft}
+            onChange={(e) => setShareDraft(e.target.value)}
+          />
+          <p className="mt-1 text-[12px] text-white/40">
+            Stored for future earn wiring — does not credit members yet.
+          </p>
+        </div>
+        <div>
+          <FieldLabel>Ops notes</FieldLabel>
+          <input
+            disabled={!canWrite}
+            className={fieldClass}
+            value={notesDraft}
+            onChange={(e) => setNotesDraft(e.target.value)}
+            placeholder="Optional"
+          />
+        </div>
+        {canWrite && (
+          <div className="md:col-span-2">
+            <button type="submit" disabled={savingShare} className={primaryBtnClass}>
+              {savingShare ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              Save share %
+            </button>
+          </div>
+        )}
+      </form>
+
+      {shareNotice && <Callout tone="ok">{shareNotice}</Callout>}
+
       {meta && (
         <div className="flex flex-wrap gap-2">
           <StatusPill tone="neutral">{meta.catalogTotal.toLocaleString('en-IN')} in catalog</StatusPill>
           <StatusPill tone="ok">{meta.newExistingTotal.toLocaleString('en-IN')} with new/existing</StatusPill>
           <StatusPill tone="warn">{meta.payPerClickTotal.toLocaleString('en-IN')} pay-per-click</StatusPill>
           <StatusPill tone="neutral">
-            Showing {meta.total.toLocaleString('en-IN')}
+            Showing {shown.toLocaleString('en-IN')} of {totalMatching.toLocaleString('en-IN')}
             {meta.fetchedAt ? ` · synced ${new Date(meta.fetchedAt).toLocaleString('en-IN')}` : ''}
           </StatusPill>
         </div>
@@ -239,7 +395,13 @@ export default function CueLinksCampaignsTab({
             <Loader2 size={18} className="animate-spin" /> Loading CueLinks campaigns…
           </div>
         ) : rows.length === 0 ? (
-          <EmptyState>No campaigns match this filter</EmptyState>
+          <EmptyState>
+            {filter === 'new_existing'
+              ? 'No campaigns with new/existing rates — try “All campaigns” or refresh the catalog.'
+              : filter === 'cpc'
+                ? 'No pay-per-click campaigns match — try “All campaigns” or clear search.'
+                : 'No campaigns match this filter'}
+          </EmptyState>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-[13px]">
@@ -250,12 +412,15 @@ export default function CueLinksCampaignsTab({
                   <th className="px-4 py-3 font-medium">Base</th>
                   <th className="px-4 py-3 font-medium">New user</th>
                   <th className="px-4 py-3 font-medium">Existing user</th>
+                  <th className="px-4 py-3 font-medium">Member share</th>
                   <th className="px-4 py-3 font-medium">Flags</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
                   const open = expandedId === row.id
+                  const key = String(row.id)
+                  const hasOverride = passThrough.campaignOverrides[key] != null
                   return (
                     <React.Fragment key={row.id}>
                       <tr
@@ -294,6 +459,10 @@ export default function CueLinksCampaignsTab({
                             row.existingUserPayoutType || row.payoutType,
                           )}
                         </td>
+                        <td className="px-4 py-3 tabular-nums text-white/70">
+                          {effectiveShare(row.id)}%
+                          {hasOverride ? <span className="ml-1 text-[11px] text-clay">override</span> : null}
+                        </td>
                         <td className="px-4 py-3">
                           <div className="flex flex-wrap gap-1.5">
                             {row.isPayPerClick && <StatusPill tone="warn">CPC</StatusPill>}
@@ -306,7 +475,7 @@ export default function CueLinksCampaignsTab({
                       </tr>
                       {open && (
                         <tr className="border-b border-white/[0.05] bg-black/20">
-                          <td colSpan={6} className="px-4 py-4">
+                          <td colSpan={7} className="px-4 py-4">
                             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-white/40">
                               Payout categories
                             </p>
@@ -327,6 +496,75 @@ export default function CueLinksCampaignsTab({
                                   </li>
                                 ))}
                               </ul>
+                            )}
+                            {canWrite && (
+                              <div
+                                className="mt-4 flex flex-wrap items-end gap-2"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div className="min-w-[140px]">
+                                  <FieldLabel>Override member share %</FieldLabel>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    className={fieldClass}
+                                    placeholder={`Default ${passThrough.memberSharePercent}`}
+                                    value={overrideDrafts[key] ?? ''}
+                                    onChange={(e) =>
+                                      setOverrideDrafts((prev) => ({ ...prev, [key]: e.target.value }))
+                                    }
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled={savingOverrideId === key}
+                                  className={secondaryBtnClass}
+                                  onClick={() => void saveOverride(row.id)}
+                                >
+                                  {savingOverrideId === key ? (
+                                    <Loader2 size={14} className="animate-spin" />
+                                  ) : (
+                                    <Save size={14} />
+                                  )}
+                                  Save override
+                                </button>
+                                {hasOverride && (
+                                  <button
+                                    type="button"
+                                    disabled={savingOverrideId === key}
+                                    className={secondaryBtnClass}
+                                    onClick={() => {
+                                      setOverrideDrafts((prev) => ({ ...prev, [key]: '' }))
+                                      void (async () => {
+                                        setSavingOverrideId(key)
+                                        const res = await adminFetch<PassThrough>(
+                                          '/api/admin/commission/cuelinks',
+                                          token,
+                                          {
+                                            method: 'PUT',
+                                            body: JSON.stringify({
+                                              campaignId: row.id,
+                                              campaignOverride: null,
+                                            }),
+                                          },
+                                        )
+                                        setSavingOverrideId(null)
+                                        if (res.data) {
+                                          setPassThrough(res.data)
+                                          const drafts: Record<string, string> = {}
+                                          for (const [k, v] of Object.entries(res.data.campaignOverrides || {})) {
+                                            drafts[k] = String(v)
+                                          }
+                                          setOverrideDrafts(drafts)
+                                        }
+                                      })()
+                                    }}
+                                  >
+                                    Clear override
+                                  </button>
+                                )}
+                              </div>
                             )}
                             {(row.affiliateUrl || row.cookieDuration) && (
                               <p className="mt-3 text-[12px] text-white/35">
@@ -356,6 +594,25 @@ export default function CueLinksCampaignsTab({
           </div>
         )}
       </Surface>
+
+      {!loading && rows.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[13px] text-white/45">
+            Showing {shown.toLocaleString('en-IN')} of {totalMatching.toLocaleString('en-IN')}
+          </p>
+          {hasMore && (
+            <button
+              type="button"
+              disabled={loadingMore}
+              className={secondaryBtnClass}
+              onClick={() => void loadPage(rows.length, true)}
+            >
+              {loadingMore ? <Loader2 size={16} className="animate-spin" /> : null}
+              Load more
+            </button>
+          )}
+        </div>
+      )}
     </section>
   )
 }

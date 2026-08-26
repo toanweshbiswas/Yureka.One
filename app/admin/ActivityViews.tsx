@@ -541,7 +541,7 @@ export function UsersTab({
     <section className="space-y-6">
       <PageHeader
         title="Users"
-        subtitle="Drill into transactions, top categories, and savings. Edit score, Goldback, and reward points."
+        subtitle="Drill into transactions, top categories, and savings. Edit score, Goldback, and points balance override (earn rates: Club → Reward points)."
         actions={
           onRefresh ? (
             <button type="button" onClick={onRefresh} className={ghostBtnClass} aria-label="Refresh users">
@@ -755,7 +755,7 @@ export function UsersTab({
                         )}
                         {canWrite && (
                           <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-4 space-y-3">
-                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Edit score / Goldback / points</p>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Edit score / Goldback / points balance</p>
                             <div className="space-y-2">
                               <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-2">
                                 <input className={fieldClass} placeholder="Name" value={edit.fullName} onChange={(e) => setEdit({ ...edit, fullName: e.target.value })} onClick={(e) => e.stopPropagation()} />
@@ -769,7 +769,7 @@ export function UsersTab({
                               </div>
                               <div className="grid sm:grid-cols-2 gap-2">
                                 <input className={fieldClass} type="number" placeholder="Goldback paise" value={edit.goldbackPaise} onChange={(e) => setEdit({ ...edit, goldbackPaise: e.target.value })} onClick={(e) => e.stopPropagation()} />
-                                <input className={fieldClass} type="number" placeholder="Reward points" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: e.target.value })} onClick={(e) => e.stopPropagation()} />
+                                <input className={fieldClass} type="number" placeholder="Points balance override" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: e.target.value })} onClick={(e) => e.stopPropagation()} title="Balance override — earn rates are under Club → Reward points" />
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>

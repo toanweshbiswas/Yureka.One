@@ -49,14 +49,21 @@ New admins: **Admins** tab (superadmin) → invite → they accept invite link a
 
 ---
 
-## 5. Club — offers, brands, push, super-browse
+## 5. Club — commission structures & ops
 
-| Tab | Use |
-|-----|-----|
-| **Offers** | CRUD club / Goldback offers |
+Deep-link: `?tab=club&sub=offers` (or `reward-points`, `cuelinks`, `brands`, `wanderworld`, `push`, `super-browse`).
+
+| Sub-tab | Use |
+|---------|-----|
+| **Offers** | Goldback **commission structure** — fixed earn per offer (`rewardPaise` / label). Create, edit, Live/Off toggle, delete. |
+| **Reward points** | Default earn rates (`pointsPerHundredInr`, max % of order). Per-member **balance override** stays on Users. |
+| **CueLinks** | Read-only vendor rates from CueLinks + editable **member Goldback share %** (global + optional per-campaign). Policy store only until conversion wiring. |
 | **Brands** | Partner brands (also brand.yureka.one portal) |
+| **WanderWorld** | Trip / catalog ops |
 | **Push** | In-app notifications — **default one user**; broadcasts require explicit confirm |
 | **Super Browse** | PWA store grid links |
+
+**Goldback tab** (top nav) is balances & ledger only — not offer rates.
 
 **Push rules**
 1. Prefer single-email send for support follow-ups.

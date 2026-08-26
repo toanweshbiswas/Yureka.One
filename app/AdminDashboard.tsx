@@ -10,14 +10,12 @@ import type { AdminOverview } from '@backend/lib/admin/overview'
 import { GiftOrdersTab, OverviewTab, UsersTab, ScoreBadge, ScoreSignals, UserScoreAnalysis } from './admin/ActivityViews'
 import { DeletionsTab } from './admin/DeletionsTab'
 import BlogsTab from './admin/BlogsTab'
-import ClubHub, { type ClubSubTab } from './admin/ClubHub'
+import ClubHub, { isClubSubTab, type ClubSubTab } from './admin/ClubHub'
 import { compareWaitlistRows, type WaitlistSortKey } from './admin/listSort'
 import {
   Callout,
-  ConfirmDialog,
   EmptyState,
   FieldLabel,
-  ImageUrlField,
   PageHeader,
   Surface,
   fieldClass,
@@ -115,6 +113,8 @@ const AdminDashboard: React.FC = () => {
     ) {
       setTab(t)
     }
+    const sub = searchParams.get('sub')
+    if (isClubSubTab(sub)) setClubSub(sub)
   }, [searchParams])
   const [invitePreview, setInvitePreview] = useState<{ email: string; role: string } | null>(null)
   const [invitePreviewError, setInvitePreviewError] = useState<string | null>(null)
@@ -404,82 +404,6 @@ const AdminDashboard: React.FC = () => {
     }
     resetUserInviteForm()
     fetchWaitlist()
-  }
-
-  // ─── Offers ───
-  const [offers, setOffers] = useState<any[]>([])
-  const [offersLoading, setOffersLoading] = useState(false)
-  const [offerError, setOfferError] = useState<string | null>(null)
-  const [deletingOfferId, setDeletingOfferId] = useState<string | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<{ id: string; title: string } | null>(null)
-  const [offerForm, setOfferForm] = useState({
-    title: '',
-    merchant: '',
-    url: '',
-    category: 'marketplace',
-    description: '',
-    imageUrl: '',
-    rewardPaise: 2500,
-    rewardLabel: '₹25 Goldback',
-    active: true,
-  })
-
-  const fetchOffers = useCallback(async () => {
-    if (!token) return
-    setOffersLoading(true)
-    const res = await adminFetch<any[]>('/api/admin/offers', token)
-    setOffersLoading(false)
-    if (res.data) setOffers(res.data)
-  }, [token])
-
-  useEffect(() => {
-    if (token && (tab === 'club' && clubSub === 'offers')) fetchOffers()
-  }, [token, tab, clubSub, fetchOffers])
-
-  const saveOffer = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setOfferError(null)
-    const res = await adminFetch('/api/admin/offers', token, {
-      method: 'POST',
-      body: JSON.stringify(offerForm),
-    })
-    if (res.error) {
-      setOfferError(res.error)
-      return
-    }
-    setOfferForm({
-      title: '',
-      merchant: '',
-      url: '',
-      category: 'marketplace',
-      description: '',
-      imageUrl: '',
-      rewardPaise: 2500,
-      rewardLabel: '₹25 Goldback',
-      active: true,
-    })
-    fetchOffers()
-  }
-
-  const removeOffer = async (id: string) => {
-    if (!id || deletingOfferId) return
-    setOfferError(null)
-    setDeletingOfferId(id)
-    const previous = offers
-    setOffers((prev) => prev.filter((o) => o.id !== id))
-    const res = await adminFetch<{ deleted?: boolean }>(
-      `/api/admin/offers/${encodeURIComponent(id)}`,
-      token,
-      { method: 'DELETE' },
-    )
-    setDeletingOfferId(null)
-    setPendingDelete(null)
-    if (res.error) {
-      setOffers(previous)
-      setOfferError(res.error)
-      return
-    }
-    fetchOffers()
   }
 
   // ─── Ledger ───
@@ -810,6 +734,8 @@ const AdminDashboard: React.FC = () => {
         setSearchParams((prev) => {
           const next = new URLSearchParams(prev)
           next.set('tab', t.id)
+          if (t.id === 'club') next.set('sub', clubSub)
+          else next.delete('sub')
           return next
         }, { replace: true })
       }}
@@ -1131,86 +1057,17 @@ const AdminDashboard: React.FC = () => {
         {tab === 'club' && (
           <ClubHub
             sub={clubSub}
-            onSubChange={setClubSub}
+            onSubChange={(s) => {
+              setClubSub(s)
+              setSearchParams((prev) => {
+                const next = new URLSearchParams(prev)
+                next.set('tab', 'club')
+                next.set('sub', s)
+                return next
+              }, { replace: true })
+            }}
             token={token}
             canWrite={canWrite}
-            offersPanel={
-              <div className="space-y-6">
-                {canWrite && (
-                  <form onSubmit={saveOffer} className={`${surfaceClass} p-5 grid md:grid-cols-2 gap-3`}>
-                    <h3 className="md:col-span-2 text-[15px] font-semibold tracking-[-0.015em] text-white flex items-center gap-2">
-                      <Plus size={16} /> New offer
-                    </h3>
-                    <input className={fieldClass} placeholder="Title" value={offerForm.title} onChange={(e) => setOfferForm({ ...offerForm, title: e.target.value })} required />
-                    <input className={fieldClass} placeholder="Merchant" value={offerForm.merchant} onChange={(e) => setOfferForm({ ...offerForm, merchant: e.target.value })} required />
-                    <input className={`${fieldClass} md:col-span-2`} placeholder="URL" value={offerForm.url} onChange={(e) => setOfferForm({ ...offerForm, url: e.target.value })} required />
-                    <ImageUrlField
-                      className="md:col-span-2"
-                      label="Offer image"
-                      value={offerForm.imageUrl}
-                      onChange={(imageUrl) => setOfferForm({ ...offerForm, imageUrl })}
-                      token={token}
-                      canWrite={canWrite}
-                      placeholder="or paste an image URL"
-                      previewClassName="h-28 w-full max-w-xs object-cover rounded-[14px] border border-white/10"
-                    />
-                    <input className={fieldClass} placeholder="Category" value={offerForm.category} onChange={(e) => setOfferForm({ ...offerForm, category: e.target.value })} />
-                    <input className={fieldClass} placeholder="Reward label" value={offerForm.rewardLabel} onChange={(e) => setOfferForm({ ...offerForm, rewardLabel: e.target.value })} />
-                    <input type="number" className={fieldClass} placeholder="Reward paise" value={offerForm.rewardPaise} onChange={(e) => setOfferForm({ ...offerForm, rewardPaise: Number(e.target.value) })} />
-                    <textarea className={`${fieldClass} md:col-span-2`} placeholder="Description" rows={2} value={offerForm.description} onChange={(e) => setOfferForm({ ...offerForm, description: e.target.value })} />
-                    <button type="submit" className={`${primaryBtnClass} md:col-span-2`}>Publish offer</button>
-                  </form>
-                )}
-
-                {offerError && <Callout tone="error">{offerError}</Callout>}
-                {offersLoading ? (
-                  <div className="py-16 flex justify-center"><Loader2 className="animate-spin text-clay" /></div>
-                ) : (
-                  <div className="grid md:grid-cols-2 gap-3">
-                    {offers.map((o) => (
-                      <Surface key={o.id} className="p-5">
-                        <div className="flex justify-between gap-3">
-                          <div>
-                            <p className="text-[17px] font-semibold tracking-[-0.015em]">{o.title}</p>
-                            <p className="text-white/40 text-[13px] mt-1">{o.merchant} · {o.category}</p>
-                          </div>
-                          <span className="text-clay text-[13px] font-semibold shrink-0 bg-clay/10 rounded-full px-2.5 py-1 h-fit">
-                            {o.rewardLabel || formatPaise(o.rewardPaise)}
-                          </span>
-                        </div>
-                        <p className="text-white/45 text-[15px] mt-3 line-clamp-2 leading-relaxed">{o.description}</p>
-                        <div className="mt-4 flex items-center justify-between">
-                          <span className={`text-[12px] font-medium capitalize rounded-full px-2.5 py-1 ${o.active ? 'text-clay bg-clay/10' : 'text-white/35 bg-white/5'}`}>
-                            {o.active ? 'Live' : 'Off'}
-                          </span>
-                          {canWrite && (
-                            <button
-                              type="button"
-                              onClick={() => setPendingDelete({ id: o.id, title: o.title })}
-                              disabled={deletingOfferId === o.id}
-                              className={`${pressClass} text-red-300/60 hover:text-red-300 p-2 rounded-[10px] hover:bg-red-500/10 disabled:opacity-40`}
-                              aria-label={`Delete ${o.title}`}
-                            >
-                              {deletingOfferId === o.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                            </button>
-                          )}
-                        </div>
-                      </Surface>
-                    ))}
-                    {!offers.length && <EmptyState>No offers yet</EmptyState>}
-                  </div>
-                )}
-                <ConfirmDialog
-                  open={Boolean(pendingDelete)}
-                  title="Delete this offer?"
-                  body={pendingDelete ? `${pendingDelete.title} will be removed from the catalog. Members will no longer earn Goldback from it.` : ''}
-                  confirmLabel="Delete offer"
-                  busy={Boolean(pendingDelete && deletingOfferId === pendingDelete.id)}
-                  onCancel={() => setPendingDelete(null)}
-                  onConfirm={() => pendingDelete && removeOffer(pendingDelete.id)}
-                />
-              </div>
-            }
           />
         )}
 
@@ -1218,7 +1075,7 @@ const AdminDashboard: React.FC = () => {
           <section className="space-y-8">
             <PageHeader
               title="Goldback"
-              subtitle="Balances and earn ledger across members. Admins can edit any balance."
+              subtitle="Balances & ledger (not rates). Offer earn amounts live under Club → Offers."
               actions={
                 <div className="flex items-center gap-2">
                   {canWrite && (

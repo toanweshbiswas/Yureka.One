@@ -122,7 +122,8 @@ export async function buildUserActivity(key: string): Promise<AdminUserActivity 
   const discountsInr = asNum(
     metrics.discount_savings_inr ?? metrics.total_discount_inr ?? metrics.savings_inr ?? metrics.estimated_savings_inr,
   )
-  const rewardPoints = asNum(meta.rewardPoints ?? balancePaise / 100)
+  // Reward points are independent of Goldback; never infer from balancePaise.
+  const rewardPoints = meta.rewardPoints != null && meta.rewardPoints !== '' ? asNum(meta.rewardPoints) : 0
 
   return {
     key: userKey,

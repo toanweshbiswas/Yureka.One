@@ -947,4 +947,69 @@ export function registerAdminRoutes(app: Express) {
       fail(res, 500, e?.message || 'Failed to delete store')
     }
   })
+
+  // ─── Commission structures (reward points rates + CueLinks pass-through) ───
+  app.get('/api/admin/commission/reward-points', requireAdmin, async (_req, res) => {
+    try {
+      const { getRewardPointsCommission } = await import('../commission/rewardPointsStore.js')
+      ok(res, getRewardPointsCommission())
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load reward points commission')
+    }
+  })
+
+  app.put('/api/admin/commission/reward-points', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { saveRewardPointsCommission } = await import('../commission/rewardPointsStore.js')
+      ok(
+        res,
+        saveRewardPointsCommission({
+          enabled: req.body?.enabled,
+          pointsPerHundredInr: req.body?.pointsPerHundredInr,
+          maxPercentOfOrder: req.body?.maxPercentOfOrder,
+          notes: req.body?.notes,
+        }),
+      )
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to save reward points commission')
+    }
+  })
+
+  app.get('/api/admin/commission/cuelinks', requireAdmin, async (_req, res) => {
+    try {
+      const { getCueLinksPassThrough } = await import('../commission/cuelinksPassThroughStore.js')
+      ok(res, getCueLinksPassThrough())
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load CueLinks pass-through')
+    }
+  })
+
+  app.put('/api/admin/commission/cuelinks', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const { saveCueLinksPassThrough, setCampaignOverride } = await import(
+        '../commission/cuelinksPassThroughStore.js'
+      )
+      if (req.body?.campaignId != null && Object.prototype.hasOwnProperty.call(req.body, 'campaignOverride')) {
+        const override = req.body.campaignOverride
+        ok(
+          res,
+          setCampaignOverride(
+            req.body.campaignId,
+            override == null || override === '' ? null : Number(override),
+          ),
+        )
+        return
+      }
+      ok(
+        res,
+        saveCueLinksPassThrough({
+          memberSharePercent: req.body?.memberSharePercent,
+          campaignOverrides: req.body?.campaignOverrides,
+          notes: req.body?.notes,
+        }),
+      )
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to save CueLinks pass-through')
+    }
+  })
 }

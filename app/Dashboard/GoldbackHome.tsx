@@ -7,7 +7,7 @@ import {
   Search,
   TrendingUp,
 } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { formatPaise, goldbackApi } from '@backend/lib/goldback/client'
 import type { GoldbackBalance, GoldbackLedgerEntry, GoldbackOffer } from '@backend/lib/goldback/types'
@@ -22,7 +22,6 @@ import { SUPER_BROWSE_STORES, fetchSuperBrowseStores, type SuperBrowseStore } fr
 import { BrandLogo } from '@shared/BrandLogo'
 import { openStoreBrowse, prefetchSuperBrowseLinks, type TrackedOpen } from '@shared/trackedBrowse'
 import { onCatalogUpdate } from '@shared/catalogSync'
-import { canUseInAppBrowse, isLikelyMobile } from '@shared/pwaDisplay'
 import ExploreBrandScenes from './ExploreBrandScenes'
 import { SuperBrowseGrid } from './SuperBrowse'
 import NotificationBell from './NotificationBell'
@@ -282,17 +281,24 @@ function MobileHome({
           </div>
         </div>
 
-        <MotionLink
-          to="/dashboard/browse"
-          whileTap={{ scale: 0.985 }}
-          transition={springSnappy}
-          className="flex min-h-12 w-full items-center justify-between gap-3 rounded-[1.25rem] bg-white px-4 py-3.5 text-black shadow-[0_12px_28px_rgba(0,0,0,0.22)]"
-        >
-          <span className="text-[15px] font-semibold tracking-[-0.02em]">Open Super Browser</span>
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black text-white">
-            <ArrowRight size={15} />
-          </span>
-        </MotionLink>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <MotionLink
+            to="/dashboard/browse"
+            whileTap={{ scale: 0.985 }}
+            transition={springSnappy}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-[1.25rem] bg-white px-3 py-3.5 text-black shadow-[0_12px_28px_rgba(0,0,0,0.22)]"
+          >
+            <span className="text-[13px] font-semibold tracking-[-0.02em]">Super Browse</span>
+          </MotionLink>
+          <MotionLink
+            to="/dashboard/offers?tab=marketplace"
+            whileTap={{ scale: 0.985 }}
+            transition={springSnappy}
+            className="flex min-h-12 items-center justify-center gap-2 rounded-[1.25rem] border border-white/15 bg-white/[0.06] px-3 py-3.5 text-white"
+          >
+            <span className="text-[13px] font-semibold tracking-[-0.02em]">Explore offers</span>
+          </MotionLink>
+        </div>
       </motion.section>
 
       <motion.section
@@ -303,8 +309,24 @@ function MobileHome({
         className="scroll-mt-24 space-y-3"
       >
         <span id="super-browse" className="sr-only" aria-hidden />
-        {/* Mobile Explore brands = Super Browse (store grid + in-app browser) */}
         <SuperBrowseGrid showChrome={false} />
+      </motion.section>
+
+      <motion.section
+        initial={enter}
+        animate={settle}
+        transition={{ ...spring, delay: reduceMotion ? 0 : 0.08 }}
+        className="space-y-3"
+      >
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">
+            Explore offers
+          </p>
+          <p className="mt-1 text-[13px] text-white/50">
+            Coupons and deals by category.
+          </p>
+        </div>
+        <ExploreBrandScenes compact />
       </motion.section>
 
       <motion.section
@@ -967,18 +989,14 @@ const GoldbackHome: React.FC = () => {
     scoreDecision,
   })
 
-  const navigate = useNavigate()
-
   const openStore = (url: string, title: string, storeId?: string) => {
     const known = storeId ? trackedLinks[storeId] : undefined
     const cue = known?.affiliate ? known.openUrl : undefined
     const cueOk = Boolean(cue)
-    const preferInApp = canUseInAppBrowse() || isLikelyMobile()
     void openStoreBrowse(url, userId, {
       title,
       returnTo: '/dashboard/home#explore-brands',
-      forceExternal: !preferInApp,
-      navigate: preferInApp ? (path) => navigate(path) : undefined,
+      forceExternal: true,
       knownOpenUrl: cueOk ? cue : undefined,
       preferWeb: !cueOk,
     })

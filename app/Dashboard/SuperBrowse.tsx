@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { Search } from 'lucide-react'
 import { SUPER_BROWSE_STORES, fetchSuperBrowseStores, type SuperBrowseStore } from '@shared/superBrowseStores'
@@ -12,7 +12,6 @@ import {
 } from '@shared/trackedBrowse'
 import { onCatalogUpdate } from '@shared/catalogSync'
 import { useSupabase } from '@shared/SupabaseProvider'
-import { canUseInAppBrowse, isLikelyMobile } from '@shared/pwaDisplay'
 import { InAppBrowserFrame } from './InAppBrowser'
 
 const spring = { type: 'spring' as const, bounce: 0, duration: 0.35 }
@@ -33,16 +32,13 @@ function CashbackBadge({ pct }: { pct: string }) {
 }
 
 function useSuperBrowseOpen() {
-  const navigate = useNavigate()
-  // Mobile (and installed PWA): keep shopping inside Yureka's Super Browser chrome.
-  const preferInApp = canUseInAppBrowse() || isLikelyMobile()
+  // Always window.open — Super Browse is a store launcher, not the in-app iframe.
   return (url: string, userId: string, opts?: { title?: string; knownOpenUrl?: string }) => {
     const cueOk = Boolean(opts?.knownOpenUrl)
     void openStoreBrowse(url, userId, {
       title: opts?.title,
       returnTo: '/dashboard/browse',
-      forceExternal: !preferInApp,
-      navigate: preferInApp ? (path) => navigate(path) : undefined,
+      forceExternal: true,
       knownOpenUrl: cueOk ? opts?.knownOpenUrl : undefined,
       preferWeb: !cueOk,
     })
@@ -180,8 +176,8 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
       )}
 
       <div>
-        <h2 className="text-[1.65rem] font-semibold tracking-[-0.04em] text-white">Explore brands</h2>
-        <p className="mt-0.5 text-[13px] text-white/45">Shop inside Yureka's Super Browser.</p>
+        <h2 className="text-[1.65rem] font-semibold tracking-[-0.04em] text-white">Super Browse</h2>
+        <p className="mt-0.5 text-[13px] text-white/45">Tap a store to open it in a new window.</p>
       </div>
 
       <div className="grid grid-cols-4 gap-x-2 gap-y-5">

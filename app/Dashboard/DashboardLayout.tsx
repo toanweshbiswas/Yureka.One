@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
-    Compass,
     Ellipsis,
     Gift,
+    Globe,
     House,
-    PanelLeft, PanelLeftClose, ShoppingBag, X,
+    PanelLeft, PanelLeftClose, Tag, X,
 } from 'lucide-react';
 import { useNavigate, Routes, Route, Link, useLocation, Navigate } from 'react-router-dom';
 import { useSupabase } from '@shared/SupabaseProvider';
@@ -61,7 +61,7 @@ const PRIMARY_NAV: NavItem[] = [
     { id: 'getaway', label: 'Join your getaway', icon: 'flash', path: '/dashboard/getaway' },
 ];
 
-const BROWSE_NAV: NavItem = { id: 'browse', label: 'Explore', icon: 'flash', path: '/dashboard/browse' };
+const BROWSE_NAV: NavItem = { id: 'browse', label: 'Super Browse', icon: 'flash', path: '/dashboard/browse' };
 
 const SECONDARY_NAV: NavItem[] = [
     { id: 'expenses', label: 'Expenses', icon: 'chart', path: '/dashboard/expenses' },
@@ -80,14 +80,14 @@ const NAV_ITEMS = [...PRIMARY_NAV, BROWSE_NAV, ...SECONDARY_NAV, ...SOON_NAV];
 
 const TAB_ICONS: Record<string, typeof House> = {
     home: House,
-    browse: Compass,
-    offers: ShoppingBag,
+    browse: Globe,
+    offers: Tag,
     giftcards: Gift,
 };
 
 const TAB_LABELS: Record<string, string> = {
     home: 'Home',
-    browse: 'Explore',
+    browse: 'Super',
     offers: 'Offers',
     giftcards: 'Gifts',
 };
@@ -646,10 +646,14 @@ const DashboardLayout: React.FC = () => {
                     {MOBILE_TABS.map((item) => {
                         const active = activeTab === item.id
                         const Icon = TAB_ICONS[item.id] || House
+                        const tabLabel = TAB_LABELS[item.id] || item.label
+                        const ariaLabel =
+                            item.id === 'browse' ? 'Super Browse' : tabLabel
                         return (
                             <Link
                                 key={item.id}
                                 to={item.path}
+                                aria-label={ariaLabel}
                                 aria-current={active ? 'page' : undefined}
                                 className="flex h-full min-w-0 flex-col items-center justify-center select-none"
                             >
@@ -662,13 +666,14 @@ const DashboardLayout: React.FC = () => {
                                         size={22}
                                         strokeWidth={active ? 2.25 : 1.75}
                                         className={active ? 'text-clay' : 'text-white/45'}
+                                        aria-hidden
                                     />
                                     <span
                                         className={`text-[10px] font-medium leading-none tracking-tight ${
                                             active ? 'text-clay' : 'text-white/45'
                                         }`}
                                     >
-                                        {TAB_LABELS[item.id] || item.label}
+                                        {tabLabel}
                                     </span>
                                 </motion.span>
                             </Link>
