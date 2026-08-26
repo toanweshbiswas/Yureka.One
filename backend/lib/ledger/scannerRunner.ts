@@ -1,20 +1,23 @@
 import fs from 'fs'
-import fsp from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { spawn } from 'child_process'
 import { filterMarketingTransactions } from './marketingFilter.js'
+import type { ScanResult } from './types.js'
+
+export type { ScanResult } from './types.js'
+export type { LedgerStoreRecord } from './cache.js'
+export {
+  readLedgerCache,
+  writeLedgerCache,
+  resolveLedgerUserId,
+  ledgerCachePath,
+  ledgerUserFilePath,
+  legacyEmailFilePath,
+} from './cache.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..', '..', '..')
-
-export type ScanResult = {
-  profile?: Record<string, unknown>
-  transactions?: Array<Record<string, unknown>>
-  score?: { score?: number; decision?: string; metrics?: unknown }
-  error?: string
-  details?: string
-}
 
 function resolvePythonExecutable(): string {
   const candidates = [
@@ -27,61 +30,6 @@ function resolvePythonExecutable(): string {
     if (fs.existsSync(candidate)) return candidate
   }
   return 'python3'
-}
-
-function safeEmailKey(email: string) {
-  return email
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._@+-]/g, '_')
-    .slice(0, 180)
-}
-
-export function ledgerCachePath(email?: string | null) {
-  const dir = path.join(ROOT, 'data', 'financial_cache')
-  if (!email) return path.join(ROOT, 'data', 'financial_cache.json')
-  return path.join(dir, `${safeEmailKey(email)}.json`)
-}
-
-export async function readLedgerCache(email?: string | null): Promise<ScanResult> {
-  const paths = [
-    email ? ledgerCachePath(email) : null,
-    path.join(ROOT, 'data', 'financial_cache.json'),
-  ].filter(Boolean) as string[]
-
-  for (const p of paths) {
-    try {
-      const raw = await fsp.readFile(p, 'utf-8')
-      const data = JSON.parse(raw) as ScanResult
-      if (email) {
-        const cachedEmail = String((data.profile as any)?.email || '').toLowerCase()
-        if (cachedEmail && cachedEmail !== email.toLowerCase()) continue
-      }
-      return {
-        ...data,
-        transactions: filterMarketingTransactions(data.transactions),
-      }
-    } catch {
-      // try next
-    }
-  }
-  return { profile: {}, transactions: [] }
-}
-
-export async function writeLedgerCache(email: string | null | undefined, result: ScanResult) {
-  const cleaned: ScanResult = {
-    ...result,
-    transactions: filterMarketingTransactions(result.transactions),
-  }
-  const target = ledgerCachePath(email || String((cleaned.profile as any)?.email || ''))
-  await fsp.mkdir(path.dirname(target), { recursive: true })
-  await fsp.writeFile(target, JSON.stringify(cleaned, null, 2))
-  // Keep legacy global cache for older clients.
-  try {
-    await fsp.writeFile(path.join(ROOT, 'data', 'financial_cache.json'), JSON.stringify(cleaned, null, 2))
-  } catch {
-    // ignore
-  }
 }
 
 export function runGmailScanner(opts: {

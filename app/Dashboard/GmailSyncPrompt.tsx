@@ -50,7 +50,7 @@ const GmailSyncPrompt: React.FC = () => {
                   Sync your Gmail to unlock Expenses & Bills
                 </h2>
                 <p className="mt-1.5 max-w-xl text-[13px] leading-snug text-white/45 md:text-sm">
-                  Grant read-only inbox access once. We pull purchase and bill emails into your ledger. this prompt stays until you sync.
+                  Grant read-only Gmail access once. We read only financial emails—card statements, dues, and bank alerts—for your ledger. Revoke anytime in Google Account settings.
                 </p>
                 {ledgerError === 'AUTH_EXPIRED' && (
                   <p className="mt-2 text-xs text-red-300/90">

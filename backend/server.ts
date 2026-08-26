@@ -253,11 +253,12 @@ async function startServer() {
         return res.status(auth.status).json({ error: auth.error, profile: {}, transactions: [] });
       }
       const { readLedgerCache } = await import("./lib/ledger/scannerRunner.js");
-      const data = await readLedgerCache(auth.email);
+      const data = await readLedgerCache({ userId: auth.userId, authEmail: auth.email });
       res.json({
         profile: data.profile || {},
         transactions: Array.isArray(data.transactions) ? data.transactions : [],
         score: data.score || null,
+        scannedAt: data.scannedAt || null,
       });
     } catch (err: any) {
       res.status(500).json({ error: err?.message || "Failed to load ledger", profile: {}, transactions: [] });
@@ -307,96 +308,66 @@ async function startServer() {
     });
   });
 
-  // Email Deep Scanner. bind waitlist score to Gmail-derived email only (never body email).
+  // Email Deep Scanner (waitlist). Uses unified ledger scan service.
   app.post("/api/scan-email", async (req, res) => {
     const { isRateLimited } = await import("./lib/auth/rateLimit.js");
     if (isRateLimited(req, "scan-email", { limit: 10, windowMs: 15 * 60_000 })) {
       return res.status(429).json({ error: "Too many inbox scans. Try again later." });
     }
-    const { accessToken, email, fallbackData } = req.body || {};
-    if (!accessToken || typeof accessToken !== "string") {
+    const { accessToken, email, fallbackData, authCode, code } = req.body || {};
+    const token = String(accessToken || "").trim();
+    const authCodeIn = String(authCode || code || "").trim();
+    if (!token && !authCodeIn) {
       return res.status(400).json({ error: "accessToken is required for Gmail scoring" });
     }
-    const { spawn } = await import("child_process");
-    const pythonExecutable = resolvePythonExecutable();
-    const pythonProcess = spawn(pythonExecutable, [
-      path.join(__dirname, "scripts", "scanner.py"),
-      accessToken,
-      JSON.stringify(fallbackData && typeof fallbackData === "object" ? fallbackData : {})
-    ]);
 
-    let output = "";
-    let errorOutput = "";
+    try {
+      const { resolveLedgerUserId } = await import("./lib/ledger/scannerRunner.js");
+      const { runLedgerScan } = await import("./lib/ledger/scanService.js");
 
-    pythonProcess.stdout.on("data", (data) => {
-      output += data.toString();
-    });
+      const claimed = String(email || fallbackData?.email || "")
+        .trim()
+        .toLowerCase();
+      const userId =
+        (await resolveLedgerUserId({ authEmail: claimed, gmailEmail: claimed })) ||
+        (claimed ? `email:${claimed.replace(/[^a-z0-9._@+-]/g, "_")}` : "anonymous");
 
-    pythonProcess.stderr.on("data", (data) => {
-      errorOutput += data.toString();
-    });
+      const outcome = await runLedgerScan({
+        userId,
+        authEmail: claimed || userId,
+        accessToken: token || undefined,
+        authCode: authCodeIn || undefined,
+        redirectUri: "postmessage",
+        persistScore: true,
+        consumeQuota: false,
+      });
 
-    pythonProcess.on("close", async (code) => {
-      if (code !== 0) {
-        console.error("Python deep scanner process failed with exit code:", code, errorOutput);
-        return res.status(500).json({ error: "Deep scanner script failed to execute", details: errorOutput });
+      if (outcome.error) {
+        const status =
+          outcome.error === "AUTH_EXPIRED" ? 401 : outcome.error === "email_mismatch" ? 403 : 400;
+        return res.status(status).json({ error: outcome.error, details: outcome.details });
       }
 
-      try {
-        const result = JSON.parse(output.trim());
-        if (result.error) {
-          return res.status(400).json({ error: result.error });
-        }
-
-        // Persist score only to the Gmail account that was scanned. never trust body.email.
-        const gmailEmail = String(result.profile?.email || "")
-          .trim()
-          .toLowerCase();
-        const claimed = String(email || fallbackData?.email || "")
-          .trim()
-          .toLowerCase();
-        if (claimed && gmailEmail && claimed !== gmailEmail) {
-          return res.status(403).json({
-            error: "email_mismatch",
-            details: "Body email must match the Gmail account used for the scan",
-          });
-        }
-        const recipient = gmailEmail || null;
-
-        if (recipient) {
-          const { writeLedgerCache } = await import("./lib/ledger/scannerRunner.js");
-          try {
-            await writeLedgerCache(recipient, result);
-          } catch (err) {
-            console.error("Failed to write per-user ledger cache:", err);
-          }
-        }
-
-        if (recipient && result.score?.score != null) {
-          const { persistScoreToWaitlist } = await import('./lib/waitlist/score.js');
-          const { refineYurekaScore } = await import('./lib/waitlist/scoreRefine.js');
-          try {
-            const refined = await refineYurekaScore(result.score);
-            result.score = refined;
-            // Persist mutates refined.score to the smoothed value members see.
-            await persistScoreToWaitlist({
-              email: recipient,
-              profile: result.profile,
-              score: refined,
-              notify: true,
-              refine: false,
-            });
-            result.score = refined;
-          } catch (err) {
-            console.error("Failed to persist score to waitlist:", err);
-          }
-        }
-        res.json(result);
-      } catch (err: any) {
-        console.error("Failed to parse Python deep scanner JSON response:", err, output);
-        res.status(500).json({ error: "Invalid JSON output from deep scanner script", raw: output });
+      const gmailEmail = String((outcome.saved.profile as any)?.email || claimed || "")
+        .trim()
+        .toLowerCase();
+      if (claimed && gmailEmail && claimed !== gmailEmail) {
+        return res.status(403).json({
+          error: "email_mismatch",
+          details: "Body email must match the Gmail account used for the scan",
+        });
       }
-    });
+
+      res.json({
+        profile: outcome.saved.profile || {},
+        transactions: outcome.saved.transactions || [],
+        score: outcome.score || null,
+        scannedAt: outcome.saved.scannedAt || null,
+      });
+    } catch (err: any) {
+      console.error("[scan-email] failed:", err);
+      res.status(500).json({ error: err?.message || "Deep scanner failed" });
+    }
   });
 
   // Admin onboarding email. requires admin session (was unauthenticated; open mailer).
@@ -554,59 +525,9 @@ async function startServer() {
     });
   }
 
-  async function runDeepScannerBackground() {
-    console.log("Auto-triggering background financial deep sync...");
-    const { spawn } = await import("child_process");
-    const pythonExecutable = resolvePythonExecutable();
-    const pythonProcess = spawn(pythonExecutable, [
-      path.join(__dirname, "scripts", "scanner.py"),
-      "",
-      "{}"
-    ]);
-    let output = "";
-    pythonProcess.stdout.on("data", (data) => {
-      output += data.toString();
-    });
-    pythonProcess.on("close", async (code) => {
-      if (code === 0) {
-        try {
-          const result = JSON.parse(output.trim());
-          if (!result.error) {
-            const fs = await import("fs/promises");
-            const cacheDir = path.join(__dirname, "..", "data");
-            try {
-              await fs.mkdir(cacheDir, { recursive: true });
-            } catch {}
-            await fs.writeFile(
-              path.join(cacheDir, "financial_cache.json"),
-              JSON.stringify(result, null, 2)
-            );
-            console.log("Successfully updated daily financial deep cache!");
-          }
-        } catch (e) {
-          console.error("Failed to parse background deep sync result:", e);
-        }
-      } else {
-        console.error("Background daily sync failed with exit code:", code);
-      }
-    });
-  }
-
-  function scheduleDailySync() {
-    console.log("Daily background email deep sync scheduled for 12:00 PM local time.");
-    setInterval(async () => {
-      const now = new Date();
-      if (now.getHours() === 12 && now.getMinutes() === 0) {
-        try {
-          await runDeepScannerBackground();
-        } catch (err) {
-          console.error("Failed executing scheduled background sync:", err);
-        }
-      }
-    }, 60000); // Check every 60 seconds
-  }
-
-  scheduleDailySync();
+  // Per-user Gmail resync requires stored refresh tokens (see docs/sops/ledger-email-sync-plan.md).
+  const { scheduleWeeklyLedgerSync } = await import('./lib/ledger/scheduledSync.js')
+  scheduleWeeklyLedgerSync()
 
   // Account deletion: purge approved requests after 30-day retention.
   const runDeletionPurge = async () => {

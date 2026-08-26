@@ -20,7 +20,7 @@ const LOG_LINES = [
   'Parsing regex (brand, amt, date)...',
   'Score >= 5 -> Match',
   'Deduplicating via hash...',
-  'UPSERT INTO financial_ledger',
+  'Persist financial_ledger_cache (Supabase)',
   'SYNC COMPLETED SUCCESSFULLY.',
 ]
 

@@ -151,10 +151,11 @@ async function extraTransactions(userId: string): Promise<PlanningTransaction[]>
   )
 }
 
-async function primaryTransactions(email: string | null): Promise<PlanningTransaction[]> {
-  if (!email) return []
-  const cache = await readLedgerCache(email)
-  return asTransactions(cache.transactions || [], email)
+async function primaryTransactions(userId: string, sessionEmail: string | null): Promise<PlanningTransaction[]> {
+  if (!userId && !sessionEmail) return []
+  const cache = await readLedgerCache({ userId, authEmail: sessionEmail })
+  const source = cache.gmail || sessionEmail || ''
+  return asTransactions(cache.transactions || [], source)
 }
 
 async function buildOverview(
@@ -168,7 +169,7 @@ async function buildOverview(
     listInboxes(userId),
     listBudgets(userId, month),
     extraTransactions(userId),
-    primaryTransactions(sessionEmail),
+    primaryTransactions(userId, sessionEmail),
     listEntries(userId),
     listOverrides(userId),
   ])

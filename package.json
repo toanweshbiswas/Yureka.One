@@ -8,7 +8,9 @@
     "build": "tsx backend/scripts/generate-sitemap.ts && vite build",
     "start": "tsx backend/server.ts",
     "lint": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:ec2": "./deploy-ec2.sh",
+    "ledger:backfill": "node backend/scripts/backfill-ledger-cache.mjs"
   },
   "dependencies": {
     "@radix-ui/react-popover": "^1.1.23",

@@ -1,6 +1,14 @@
 import type { Express, Request, Response } from 'express'
-import { readLedgerCache, runGmailScanner, writeLedgerCache } from '../ledger/scannerRunner.js'
-import { consumeLedgerResync, getLedgerResyncQuota } from '../ledger/resyncQuota.js'
+import { readLedgerCache, resolveLedgerUserId } from '../ledger/scannerRunner.js'
+import { getLedgerResyncQuota } from '../ledger/resyncQuota.js'
+import { filterBillTransactions } from '../ledger/bills.js'
+import { runLedgerScan } from '../ledger/scanService.js'
+import {
+  getPrimaryLedgerConnection,
+  revokeLedgerConnection,
+  saveLedgerConnection,
+} from '../ledger/connections.js'
+import { exchangeGoogleAuthCode } from '../ledger/googleOAuth.js'
 import { blogToApi, getBlogBySlug, listBlogs } from '../cms/blogStore.js'
 import { careerToApi, listCareers } from '../cms/careersStore.js'
 import { sendAppPasswordResetEmail } from '../auth/passwordReset.js'
@@ -96,16 +104,105 @@ export function registerPublicApiRoutes(app: Express) {
         return fail(res, 403, 'Forbidden')
       }
       const email = auth.email
-      const data = await readLedgerCache(email)
+      const data = await readLedgerCache({ userId: auth.userId, authEmail: email })
       const resyncQuota = await getLedgerResyncQuota(email)
       ok(res, {
         profile: data.profile || {},
         transactions: Array.isArray(data.transactions) ? data.transactions : [],
         score: data.score || null,
+        scannedAt: data.scannedAt || null,
         resyncQuota,
       })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to load ledger')
+    }
+  })
+
+  app.get('/api/v1/ledger/bills', async (req, res) => {
+    try {
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+      const email = auth.email
+      const data = await readLedgerCache({ userId: auth.userId, authEmail: email })
+      const bills = filterBillTransactions(data.transactions)
+      ok(res, {
+        bills,
+        scannedAt: data.scannedAt || null,
+        count: bills.length,
+      })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load bills')
+    }
+  })
+
+  app.post('/api/v1/ledger/connect', async (req, res) => {
+    try {
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+
+      const code = String(req.body?.code || '').trim()
+      const redirectUri = typeof req.body?.redirectUri === 'string' ? req.body.redirectUri : 'postmessage'
+      if (!code) return fail(res, 400, 'Authorization code is required')
+
+      const userId =
+        auth.userId || (await resolveLedgerUserId({ authEmail: auth.email })) || null
+      if (!userId) return fail(res, 401, 'Authentication required')
+
+      const tokens = await exchangeGoogleAuthCode({ code, redirectUri })
+      const gmail = auth.email.trim().toLowerCase()
+      if (tokens.refreshToken) {
+        await saveLedgerConnection({ userId, gmail, refreshToken: tokens.refreshToken })
+      }
+
+      ok(res, {
+        connected: true,
+        gmail,
+        hasRefreshToken: Boolean(tokens.refreshToken),
+        expiresIn: tokens.expiresIn || null,
+        accessToken: tokens.accessToken,
+      })
+    } catch (e: any) {
+      const msg = e?.message || 'Gmail connect failed'
+      if (msg === 'AUTH_EXPIRED') return fail(res, 401, 'AUTH_EXPIRED')
+      fail(res, 400, msg)
+    }
+  })
+
+  app.delete('/api/v1/ledger/connect', async (req, res) => {
+    try {
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+      const userId =
+        auth.userId || (await resolveLedgerUserId({ authEmail: auth.email })) || null
+      if (!userId) return fail(res, 401, 'Authentication required')
+      const gmail = String(req.body?.gmail || auth.email).trim().toLowerCase()
+      await revokeLedgerConnection(userId, gmail)
+      ok(res, { revoked: true, gmail })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to revoke Gmail connect')
+    }
+  })
+
+  app.get('/api/v1/ledger/connection', async (req, res) => {
+    try {
+      const { requireAuthEmail } = await import('../auth/userId.js')
+      const auth = await requireAuthEmail(req)
+      if ('error' in auth) return fail(res, auth.status, auth.error)
+      const userId =
+        auth.userId || (await resolveLedgerUserId({ authEmail: auth.email })) || null
+      if (!userId) return fail(res, 401, 'Authentication required')
+      const conn = await getPrimaryLedgerConnection(userId)
+      ok(res, {
+        connected: Boolean(conn?.syncEnabled),
+        gmail: conn?.gmail || null,
+        lastSyncAt: conn?.lastSyncAt || null,
+        lastSyncError: conn?.lastSyncError || null,
+      })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load Gmail connection')
     }
   })
 
@@ -116,6 +213,8 @@ export function registerPublicApiRoutes(app: Express) {
       if ('error' in auth) return fail(res, auth.status, auth.error)
 
       const accessToken = String(req.body?.accessToken || '').trim()
+      const authCode = String(req.body?.authCode || req.body?.code || '').trim()
+      const redirectUri = typeof req.body?.redirectUri === 'string' ? req.body.redirectUri : undefined
       const bodyEmail = String(req.body?.email || req.body?.fallbackData?.email || '')
         .trim()
         .toLowerCase()
@@ -123,75 +222,48 @@ export function registerPublicApiRoutes(app: Express) {
         return fail(res, 403, 'Forbidden')
       }
       const email = auth.email
-      const fallbackData =
-        req.body?.fallbackData && typeof req.body.fallbackData === 'object'
-          ? { ...req.body.fallbackData, email }
-          : { email }
+      const forceFull = Boolean(req.body?.forceFull)
 
-      if (!accessToken) {
+      if (!accessToken && !authCode) {
         return fail(res, 401, 'AUTH_EXPIRED', {
-          details: 'Gmail read-only access token is required to sync spending.',
+          details: 'Gmail read-only access is required to sync spending.',
         })
       }
 
-      const quota = await getLedgerResyncQuota(email)
-      if (!quota.allowed) {
-        return fail(res, 429, 'RESYNC_LIMIT', {
-          details: `You can resync inbox ${quota.limit} times every ${quota.windowDays} days.`,
-          resyncQuota: quota,
-        })
+      const userId =
+        auth.userId ||
+        (await resolveLedgerUserId({ authEmail: email })) ||
+        null
+      if (!userId) {
+        return fail(res, 401, 'Authentication required')
       }
 
-      const result = await runGmailScanner({
-        accessToken,
-        fallbackData,
-        mode: 'full',
-        timeoutMs: 180_000,
+      const outcome = await runLedgerScan({
+        userId,
+        authEmail: email,
+        accessToken: accessToken || undefined,
+        authCode: authCode || undefined,
+        redirectUri,
+        forceFull,
+        persistScore: true,
+        consumeQuota: true,
       })
 
-      if (result.error) {
-        const isAuth =
-          result.error === 'AUTH_EXPIRED' || String(result.error).includes('AUTH_EXPIRED')
-        return fail(res, isAuth ? 401 : 400, isAuth ? 'AUTH_EXPIRED' : result.error, {
-          details: result.details,
+      if (outcome.error) {
+        const isAuth = outcome.error === 'AUTH_EXPIRED'
+        const isLimit = outcome.error === 'RESYNC_LIMIT'
+        return fail(res, isAuth ? 401 : isLimit ? 429 : 400, outcome.error, {
+          details: outcome.details,
+          resyncQuota: outcome.resyncQuota,
         })
       }
 
-      await writeLedgerCache(email, result)
-      const recipient = email
-      let resyncQuota = await getLedgerResyncQuota(recipient)
-      let scoreOut = result.score || null
-      if (result.score && Number.isFinite(Number(result.score.score))) {
-        const { persistScoreToWaitlist } = await import('../waitlist/score.js')
-        const { refineYurekaScore } = await import('../waitlist/scoreRefine.js')
-        try {
-          const refined = await refineYurekaScore({
-            ...(result.score as any),
-            metrics: (result.score as any)?.metrics as Record<string, unknown>,
-          })
-          // Persist mutates refined to the smoothed score shown on home.
-          await persistScoreToWaitlist({
-            email: recipient,
-            profile: result.profile as { name?: string } | undefined,
-            score: refined,
-            notify: true,
-            refine: false,
-          })
-          scoreOut = refined
-        } catch (err) {
-          console.error('[ledger] persist score failed:', err)
-        }
-      }
-      try {
-        resyncQuota = await consumeLedgerResync(recipient)
-      } catch (err) {
-        console.error('[ledger] resync quota update failed:', err)
-      }
       ok(res, {
-        profile: result.profile || {},
-        transactions: Array.isArray(result.transactions) ? result.transactions : [],
-        score: scoreOut,
-        resyncQuota,
+        profile: outcome.saved.profile || {},
+        transactions: Array.isArray(outcome.saved.transactions) ? outcome.saved.transactions : [],
+        score: outcome.score || null,
+        scannedAt: outcome.saved.scannedAt || null,
+        resyncQuota: outcome.resyncQuota,
       })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Ledger scan failed')

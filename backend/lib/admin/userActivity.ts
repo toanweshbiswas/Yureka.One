@@ -1,4 +1,4 @@
-import { readLedgerCache } from '../ledger/scannerRunner.js'
+import { readLedgerCache, resolveLedgerUserId } from '../ledger/scannerRunner.js'
 import { listLedger, getBalance } from '../goldback/store.js'
 import { listOrdersForUser } from '../hubble/store.js'
 import { findWaitlistByEmail, findWaitlistById } from './store.js'
@@ -65,7 +65,14 @@ export async function buildUserActivity(key: string): Promise<AdminUserActivity 
   const userKey = email || waitlist?.id || raw
   const meta = waitlist ? parseWaitlistMeta(waitlist) : {}
 
-  const cache = email ? await readLedgerCache(email) : { transactions: [] as Array<Record<string, unknown>> }
+  const ledgerUserId =
+    waitlist?.id ||
+    (email ? await resolveLedgerUserId({ authEmail: email, gmailEmail: email }) : null)
+
+  const cache =
+    ledgerUserId || email
+      ? await readLedgerCache({ userId: ledgerUserId, authEmail: email })
+      : { transactions: [] as Array<Record<string, unknown>> }
   const txs = Array.isArray(cache.transactions) ? cache.transactions : []
 
   const normalized = txs.map((tx, i) => {

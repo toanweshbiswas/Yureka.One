@@ -40,6 +40,7 @@ type LedgerCachePayload = {
   score?: unknown
   resyncQuota?: LedgerResyncQuota
   cachedAt?: string
+  scannedAt?: string | null
   source?: 'scan' | 'server' | 'local'
 }
 
@@ -70,25 +71,32 @@ function persistGmailSyncedFlag(email: string) {
   }
 }
 
-function spendTotalInr(txs: ParsedTransaction[] | undefined | null): number {
-  let sum = 0
-  for (const tx of txs || []) {
-    const n = parseFloat(String(tx.amount || '').replace(/[₹$,\s]/g, ''))
-    if (Number.isFinite(n)) sum += n
-  }
-  return Math.round(sum)
-}
-
-function shouldPreferServer(local: LedgerCachePayload | null, serverTxs: ParsedTransaction[]): boolean {
+function shouldPreferServer(
+  local: LedgerCachePayload | null,
+  serverTxs: ParsedTransaction[],
+  serverScannedAt?: string | null,
+): boolean {
   const localTxs = local?.transactions || []
   if (!localTxs.length) return serverTxs.length > 0
   if (!serverTxs.length) return false
-  // Prefer the fuller ledger so mobile PWA can't stay stuck on an old local scan
+
+  const serverAt = serverScannedAt ? Date.parse(serverScannedAt) : 0
+  const localAt = local?.scannedAt
+    ? Date.parse(local.scannedAt)
+    : local?.cachedAt
+      ? Date.parse(local.cachedAt)
+      : 0
+  if (Number.isFinite(serverAt) && serverAt > 0) {
+    if (!Number.isFinite(localAt) || localAt <= 0) return true
+    if (serverAt >= localAt) return true
+    return false
+  }
+
+  // Fallback when server has no scannedAt yet (legacy cache).
   if (serverTxs.length > localTxs.length) return true
-  if (spendTotalInr(serverTxs) > spendTotalInr(localTxs) + 1) return true
-  const localAt = local?.cachedAt ? Date.parse(local.cachedAt) : 0
-  // Refresh at least every 6 hours from server cache (no Gmail quota used)
-  if (!Number.isFinite(localAt) || Date.now() - localAt > 6 * 60 * 60 * 1000) return true
+  const localCachedAt = local?.cachedAt ? Date.parse(local.cachedAt) : 0
+  // Soft refresh from server cache every hour (no Gmail quota).
+  if (!Number.isFinite(localCachedAt) || Date.now() - localCachedAt > 60 * 60 * 1000) return true
   return false
 }
 
@@ -100,7 +108,9 @@ function readLocalLedger(email: string): LedgerCachePayload | null {
     if (!Array.isArray(data.transactions)) return null
     return {
       ...data,
-      transactions: filterMarketingTransactions(data.transactions) as ParsedTransaction[],
+      transactions: filterMarketingTransactions(
+        data.transactions as unknown as Array<Record<string, unknown>>,
+      ) as unknown as ParsedTransaction[],
     }
   } catch {
     return null
@@ -110,7 +120,9 @@ function readLocalLedger(email: string): LedgerCachePayload | null {
 function writeLocalLedger(email: string, data: LedgerCachePayload) {
   const payload: LedgerCachePayload = {
     ...data,
-    transactions: filterMarketingTransactions(data.transactions || []) as ParsedTransaction[],
+    transactions: filterMarketingTransactions(
+      (data.transactions || []) as unknown as Array<Record<string, unknown>>,
+    ) as unknown as ParsedTransaction[],
     cachedAt: data.cachedAt || new Date().toISOString(),
   }
   localStorage.setItem(ledgerCacheKey(email), JSON.stringify(payload))
@@ -334,22 +346,34 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
         setScanProgress(10);
         let gmailToken = getStoredGmailAccessToken() || '';
+        let authCode = '';
         if (!gmailToken) {
           setScanProgress(20);
-          const consent = await requestGmailReadonlyToken({ forceConsent: true });
-          if (!consent.accessToken) {
+          const consent = await requestGmailReadonlyToken({ forceConsent: true, offline: true });
+          if (consent.authCode) {
+            authCode = consent.authCode;
+          } else if (consent.accessToken) {
+            gmailToken = consent.accessToken;
+          } else {
             setLedgerError(consent.error || 'AUTH_EXPIRED');
             setScanProgress(0);
             return;
           }
-          gmailToken = consent.accessToken;
         }
 
         setScanProgress(35);
-        const scanRes = await api.post<{ profile: any; transactions: any[]; score?: any; resyncQuota?: LedgerResyncQuota }>(
+        const scanRes = await api.post<{
+          profile: any
+          transactions: any[]
+          score?: any
+          scannedAt?: string | null
+          resyncQuota?: LedgerResyncQuota
+        }>(
           '/api/v1/ledger/scan',
           {
-            accessToken: gmailToken,
+            accessToken: gmailToken || undefined,
+            authCode: authCode || undefined,
+            redirectUri: 'postmessage',
             email: userEmail,
             fallbackData: { email: userEmail },
           },
@@ -364,6 +388,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           const saved = writeLocalLedger(userEmail, {
             ...scanRes.data,
             source: 'scan',
+            scannedAt: scanRes.data.scannedAt || new Date().toISOString(),
             cachedAt: new Date().toISOString(),
           })
           setLedgerTransactions(saved.transactions || []);
@@ -391,7 +416,12 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
         }
 
-        const dbRes = await api.get<{ profile: any; transactions: any[]; resyncQuota?: LedgerResyncQuota }>(
+        const dbRes = await api.get<{
+          profile: any
+          transactions: any[]
+          scannedAt?: string | null
+          resyncQuota?: LedgerResyncQuota
+        }>(
           `/api/v1/ledger?email=${encodeURIComponent(userEmail)}`,
           { timeoutMs: 15000 }
         );
@@ -399,6 +429,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           const saved = writeLocalLedger(userEmail, {
             ...dbRes.data,
             source: 'server',
+            scannedAt: dbRes.data.scannedAt || new Date().toISOString(),
             cachedAt: new Date().toISOString(),
           })
           setLedgerTransactions(saved.transactions || []);
@@ -411,17 +442,24 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
         setScanProgress(100);
       } else {
-        const res = await api.get<{ profile: any; transactions: any[]; score?: any; resyncQuota?: LedgerResyncQuota }>(
+        const res = await api.get<{
+          profile: any
+          transactions: any[]
+          score?: any
+          scannedAt?: string | null
+          resyncQuota?: LedgerResyncQuota
+        }>(
           `/api/v1/ledger?email=${encodeURIComponent(userEmail)}`,
           { timeoutMs: 15000 }
         );
         if (!isApiError(res) && Array.isArray(res.data?.transactions)) {
           const serverTxs = filterMarketingTransactions(res.data.transactions) as ParsedTransaction[]
-          if (shouldPreferServer(local, serverTxs)) {
+          if (shouldPreferServer(local, serverTxs, res.data.scannedAt)) {
             const saved = writeLocalLedger(userEmail, {
               ...res.data,
               transactions: serverTxs,
               source: 'server',
+              scannedAt: res.data.scannedAt || new Date().toISOString(),
               cachedAt: new Date().toISOString(),
             })
             setLedgerTransactions(saved.transactions || []);
@@ -430,6 +468,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               ...res.data,
               transactions: serverTxs,
               source: 'server',
+              scannedAt: res.data.scannedAt || new Date().toISOString(),
               cachedAt: new Date().toISOString(),
             })
             setLedgerTransactions(saved.transactions || []);

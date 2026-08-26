@@ -720,6 +720,50 @@ def extract_amount_bill(text):
     return "N/A"
 
 
+def parse_bill_fields(subject, snippet):
+    """Extract Cred-style bill metadata from email subject + snippet (no PDF)."""
+    text = f"{subject or ''} {snippet or ''}"
+    text_lower = text.lower()
+
+    due_date = ''
+    for pat in (
+        r'(?:due\s+(?:on|by|date)[:\s]+)(\d{1,2}[\-/]\d{1,2}[\-/]\d{2,4})',
+        r'(?:payment\s+due\s+(?:on|by)[:\s]+)(\d{1,2}[\-/]\d{1,2}[\-/]\d{2,4})',
+        r'(?:due\s+date[:\s]+)(\d{1,2}[\-/]\d{1,2}[\-/]\d{2,4})',
+        r'(\d{1,2}\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4})',
+    ):
+        m = re.search(pat, text_lower, re.IGNORECASE)
+        if m:
+            due_date = _parse_date_iso(m.group(1)) or m.group(1).strip()
+            break
+
+    minimum_due = 'N/A'
+    m = re.search(
+        r'(?:minimum\s+(?:amount\s+)?due|min\.?\s+due|mad)[:\s]*(?:rs\.?|inr|₹)?\s*([\d,]+\.?\d*)',
+        text_lower,
+        re.IGNORECASE,
+    )
+    if m:
+        try:
+            minimum_due = f"₹ {float(m.group(1).replace(',', '')):,.2f}"
+        except Exception:
+            pass
+
+    total_due = 'N/A'
+    m = re.search(
+        r'(?:total\s+(?:amount\s+)?due|total\s+due|outstanding(?:\s+amount)?|amount\s+due)[:\s]*(?:rs\.?|inr|₹)?\s*([\d,]+\.?\d*)',
+        text_lower,
+        re.IGNORECASE,
+    )
+    if m:
+        try:
+            total_due = f"₹ {float(m.group(1).replace(',', '')):,.2f}"
+        except Exception:
+            pass
+
+    return due_date, minimum_due, total_due
+
+
 def classify_type_bill(subject, snippet):
     text = (subject + snippet).lower()
     if any(k in text for k in ['statement', 'due', 'outstanding', 'minimum amount']):
@@ -781,7 +825,19 @@ def extract_amount_from_snippet(text):
     return "N/A"
 
 
-def _gmail_expense_query() -> str:
+def _newer_than_clause(since_days=None, default='2y'):
+    """Gmail search window — incremental rescans use since_days from last scan."""
+    if since_days is not None:
+        try:
+            days = int(since_days)
+            if days > 0:
+                return f'newer_than:{days}d'
+        except (TypeError, ValueError):
+            pass
+    return f'newer_than:{default}'
+
+
+def _gmail_expense_query(since_days=None) -> str:
     """
     Fetch real purchase / UPI / bank debit / investment mail.
     Explicitly exclude Gmail Promotions / Social / Forums.
@@ -824,11 +880,11 @@ def _gmail_expense_query() -> str:
         f'-subject:(newsletter OR unsubscribe OR "% off" OR "flat rs" OR "flash sale" OR '
         f'"refer and earn" OR "invite friends" OR "credit utilization" OR "fine print" OR '
         f'decoded OR "did you know" OR "money tips" OR "weekly digest" OR "weekly wrap") '
-        f'newer_than:2y'
+        f'{_newer_than_clause(since_days)}'
     )
 
 
-def _gmail_investment_query() -> str:
+def _gmail_investment_query(since_days=None) -> str:
     """
     Wider net for broker / AMC mail. Does NOT exclude Promotions —
     Groww/Zerodha confirmations often land outside Primary.
@@ -850,32 +906,34 @@ def _gmail_investment_query() -> str:
         '-category:social -category:forums '
         '-subject:(newsletter OR "% off" OR "flash sale" OR "refer and earn" OR "invite friends" OR '
         '"learn to invest" OR "markets today" OR "weekly digest") '
-        'newer_than:2y'
+        f'{_newer_than_clause(since_days)}'
     )
 
 
-def _gmail_bill_query() -> str:
+def _gmail_bill_query(since_days=None) -> str:
     return (
         '('
-        'subject:(statement OR outstanding OR "amount due" OR "minimum due" OR invoice OR '
-        'debited OR "credit card bill" OR emi OR "bill payment") '
+        'subject:(statement OR outstanding OR "amount due" OR "minimum due" OR "total amount due" OR '
+        'invoice OR debited OR "credit card bill" OR emi OR "bill payment" OR "payment due") '
         'OR from:(hdfcbank.net OR hdfcbank.com OR icicibank.com OR axisbank.com OR axis.bank.in OR '
-        'onlinesbi.com OR kotak.com OR cred.club OR americanexpress.com OR dinersclub.com)'
+        'onlinesbi.com OR kotak.com OR yesbank.in OR indusind.com OR rblbank.com OR '
+        'idfcfirstbank.com OR amex.com OR americanexpress.com OR dinersclub.com OR sbicard.com OR '
+        'cred.club OR alerts.hdfcbank.net OR notification.axisbank.com)'
         ') '
         '-category:promotions -category:social -category:forums '
         '-subject:(newsletter OR "% off" OR "flash sale" OR coupon OR "deal of") '
-        'newer_than:2y'
+        f'{_newer_than_clause(since_days, default="1y")}'
     )
 
 
-def execute_expense_scanner(gmail_service):
+def execute_expense_scanner(gmail_service, since_days=None):
     """
     Full-body purchase/expense scanner.
     Targets purchases + bank/UPI/merchant senders; excludes Gmail Promotions.
     Output type: 'Transaction' → shown in Expenses tab.
     """
     emails_data = []
-    query = _gmail_expense_query()
+    query = _gmail_expense_query(since_days)
 
     try:
         sys.stderr.write("Expense Scanner: Fetching purchase emails...\n")
@@ -959,6 +1017,7 @@ def execute_expense_scanner(gmail_service):
                         'date': date_iso or date_raw,
                         'sender': sender,
                         'type': 'Transaction',
+                        'messageId': msg_id,
                         **flags,
                     })
             except Exception as e:
@@ -973,13 +1032,13 @@ def execute_expense_scanner(gmail_service):
     return emails_data
 
 
-def execute_investment_scanner(gmail_service):
+def execute_investment_scanner(gmail_service, since_days=None):
     """
     Dedicated Groww / Zerodha / broker / AMC pass.
     Includes Promotions-tab mail that the expense query excludes.
     """
     emails_data = []
-    query = _gmail_investment_query()
+    query = _gmail_investment_query(since_days)
     try:
         sys.stderr.write("Investment Scanner: Fetching broker/AMC emails...\n")
         sys.stderr.write(f"Investment Scanner query: {query}\n")
@@ -1043,9 +1102,10 @@ def execute_investment_scanner(gmail_service):
                     'brandName': brand,
                     'amount': amount,
                     'description': description,
-                    'date': str(date or '').strip(),
+                    'date': _parse_date_iso(str(date or '').strip()) or str(date or '').strip(),
                     'sender': sender,
                     'type': 'Transaction',
+                    'messageId': msg_id,
                     **flags,
                 })
             except Exception as e:
@@ -1057,13 +1117,13 @@ def execute_investment_scanner(gmail_service):
     return emails_data
 
 
-def execute_bill_scanner(gmail_service):
+def execute_bill_scanner(gmail_service, since_days=None):
     """
     Fast metadata bill scanner using financial scoring.
     Excludes promotions and bare attachment-only mail.
     """
     emails_data = []
-    query = _gmail_bill_query()
+    query = _gmail_bill_query(since_days)
 
     try:
         sys.stderr.write("Bill Scanner: Fetching bill candidate emails...\n")
@@ -1106,23 +1166,28 @@ def execute_bill_scanner(gmail_service):
                     continue
 
                 bill_type = classify_type_bill(subject, snippet)
+                due_date, minimum_due, total_due = parse_bill_fields(subject, snippet)
 
                 brand = re.sub(r'\s*<.*?>', '', sender).replace('"', '').replace("'", "").strip()
                 description = subject[:80].strip()
-                mail_date = str(date or '').strip()
+                mail_date = _parse_date_iso(str(date or '').strip()) or str(date or '').strip()
 
-                dedup_key = f"{brand}|{mail_date}|{amount}"
+                dedup_key = f"{msg['id']}|{brand}|{mail_date}|{amount}"
                 if dedup_key in seen_keys:
                     continue
                 seen_keys.add(dedup_key)
 
                 emails_data.append({
                     'brandName': brand,
-                    'amount': amount,
+                    'amount': total_due if total_due != 'N/A' else amount,
                     'description': description,
                     'date': mail_date,
                     'sender': sender,
-                    'type': bill_type
+                    'type': bill_type,
+                    'messageId': msg['id'],
+                    'dueDate': due_date or None,
+                    'minimumDue': minimum_due if minimum_due != 'N/A' else None,
+                    'totalDue': total_due if total_due != 'N/A' else amount,
                 })
 
             except Exception as e:
@@ -1137,7 +1202,15 @@ def execute_bill_scanner(gmail_service):
     return emails_data
 
 
-def execute_financial_scanner(gmail_service):
+def _financial_merge_key(item):
+    mid = item.get('messageId')
+    if mid:
+        return f"msg:{mid}"
+    date = _parse_date_iso(item.get('date')) or str(item.get('date') or '')[:10]
+    return f"{item.get('brandName')}|{date}|{item.get('amount')}|{item.get('type', '')}"
+
+
+def execute_financial_scanner(gmail_service, since_days=None):
     """
     Orchestrator: expenses + investments + bills, then merge/dedupe.
     - Expenses / investments → type='Transaction' → Expenses + Planning Investment
@@ -1145,15 +1218,14 @@ def execute_financial_scanner(gmail_service):
     """
     sys.stderr.write("=== Starting Dual-Mode Financial Scanner ===\n")
 
-    expense_data = execute_expense_scanner(gmail_service)
-    investment_data = execute_investment_scanner(gmail_service)
-    bill_data = execute_bill_scanner(gmail_service)
+    expense_data = execute_expense_scanner(gmail_service, since_days)
+    investment_data = execute_investment_scanner(gmail_service, since_days)
+    bill_data = execute_bill_scanner(gmail_service, since_days)
 
-    # Merge with deduplication by brand+date+amount
     seen = set()
     combined = []
     for item in expense_data + investment_data + bill_data:
-        key = f"{item['brandName']}|{item['date']}|{item['amount']}"
+        key = _financial_merge_key(item)
         if key not in seen:
             seen.add(key)
             combined.append(item)
@@ -1602,7 +1674,15 @@ def main():
         return
 
     try:
-        transactions = execute_financial_scanner(gmail_service)
+        since_days = fallback_data.get('sinceDays')
+        if since_days is not None:
+            try:
+                since_days = int(since_days)
+            except (TypeError, ValueError):
+                since_days = None
+        if fallback_data.get('incremental') and since_days is None:
+            since_days = 90
+        transactions = execute_financial_scanner(gmail_service, since_days=since_days)
     except Exception as e:
         err_msg = str(e)
         if "refresh" in err_msg.lower() or "invalid_grant" in err_msg.lower() or "credentials" in err_msg.lower() or "401" in err_msg:
