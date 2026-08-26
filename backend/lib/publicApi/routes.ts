@@ -2,6 +2,7 @@ import type { Express, Request, Response } from 'express'
 import { readLedgerCache, runGmailScanner, writeLedgerCache } from '../ledger/scannerRunner.js'
 import { consumeLedgerResync, getLedgerResyncQuota } from '../ledger/resyncQuota.js'
 import { blogToApi, getBlogBySlug, listBlogs } from '../cms/blogStore.js'
+import { careerToApi, listCareers } from '../cms/careersStore.js'
 import { sendAppPasswordResetEmail } from '../auth/passwordReset.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
@@ -69,6 +70,15 @@ export function registerPublicApiRoutes(app: Express) {
       ok(res, blogToApi(blog))
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to load blog')
+    }
+  })
+
+  app.get('/api/v1/cms/jobs', async (_req, res) => {
+    try {
+      const roles = await listCareers({ includeDrafts: false })
+      ok(res, roles.map(careerToApi))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load jobs')
     }
   })
 
@@ -159,7 +169,7 @@ export function registerPublicApiRoutes(app: Express) {
             ...(result.score as any),
             metrics: (result.score as any)?.metrics as Record<string, unknown>,
           })
-          scoreOut = refined
+          // Persist mutates refined to the smoothed score shown on home.
           await persistScoreToWaitlist({
             email: recipient,
             profile: result.profile as { name?: string } | undefined,
@@ -167,6 +177,7 @@ export function registerPublicApiRoutes(app: Express) {
             notify: true,
             refine: false,
           })
+          scoreOut = refined
         } catch (err) {
           console.error('[ledger] persist score failed:', err)
         }
@@ -213,7 +224,7 @@ export function registerPublicApiRoutes(app: Express) {
     ok(res, { id: String(req.params.id), ...(req.body || {}) })
   })
 
-  // Admin CMS stubs — never expose waitlist/team/audit without admin session.
+  // Admin CMS stubs. never expose waitlist/team/audit without admin session.
   // Real admin data lives on /api/admin/* with X-Admin-Session.
   app.get('/api/v1/admin/cards', (_req, res) => fail(res, 401, 'Unauthorized'))
   app.get('/api/v1/admin/blogs', (_req, res) => fail(res, 401, 'Unauthorized'))

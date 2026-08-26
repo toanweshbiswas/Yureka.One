@@ -11,7 +11,7 @@ interface ScrambleInProps {
   text: string;
   delay: number;
   triggered: boolean;
-  /** When false (default), reveal once and hold — looping scramble reads as broken text. */
+  /** When false (default), reveal once and hold. looping scramble reads as broken text. */
   loop?: boolean;
 }
 
@@ -46,7 +46,7 @@ export default function ScrambleIn({ text, delay, triggered, loop = false }: Scr
     let pauseTimeout: ReturnType<typeof setTimeout> | undefined;
     let lastTick = 0;
     let reveal = 0;
-    const TICK_MS = 42; // ~24fps — calm on ProMotion / 120Hz
+    const TICK_MS = 42; // ~24fps. calm on ProMotion / 120Hz
 
     const paint = (revealCount: number) => {
       let out = '';

@@ -62,7 +62,7 @@ async function goldbackFetchOnce<T>(
     return {
       data: null,
       status: 503,
-      error: aborted ? 'Goldback API timed out — retrying…' : 'Goldback API unreachable',
+      error: aborted ? 'Goldback API timed out. retrying…' : 'Goldback API unreachable',
       timestamp: new Date().toISOString(),
     }
   } finally {
@@ -81,12 +81,12 @@ async function goldbackFetch<T>(
   if (first.status === 503) {
     await new Promise((r) => setTimeout(r, 800))
     const second = await goldbackFetchOnce<T>(path, userId, rest, Math.max(timeoutMs, 35_000))
-    if (second.error === 'Goldback API timed out — retrying…') {
+    if (second.error === 'Goldback API timed out. retrying…') {
       return { ...second, error: 'Goldback API timed out' }
     }
     return second
   }
-  if (first.error === 'Goldback API timed out — retrying…') {
+  if (first.error === 'Goldback API timed out. retrying…') {
     return { ...first, error: 'Goldback API timed out' }
   }
   return first
@@ -96,7 +96,7 @@ export function formatPaise(paise: number): string {
   return `₹${(paise / 100).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`
 }
 
-/** Stable earn key — one credit per user+offer (prevents Date.now() double credits). */
+/** Stable earn key. one credit per user+offer (prevents Date.now() double credits). */
 export function goldbackEarnKey(userId: string, offerId: string) {
   return `earn:${userId}:${offerId}`
 }

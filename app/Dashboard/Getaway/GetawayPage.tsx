@@ -176,7 +176,7 @@ const GetawayPage: React.FC = () => {
         return
       }
       if (res.data.paymentsUnavailable || !res.data.keyId || !res.data.razorpayOrderId) {
-        setError('Joined — payments are temporarily unavailable. Ask your promoter to collect cash.')
+        setError('Joined. payments are temporarily unavailable. Ask your promoter to collect cash.')
         await loadGroup(view.code)
         return
       }
@@ -292,7 +292,7 @@ const GetawayPage: React.FC = () => {
               Join your getaway
             </h1>
             <p className="mt-2 max-w-md text-sm text-white/45">
-              Curated trips — book full or on a plan when the trip allows it.
+              Curated trips. book full or on a plan when the trip allows it.
             </p>
           </div>
         </div>

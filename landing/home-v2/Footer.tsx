@@ -43,6 +43,7 @@ export default function Footer() {
             </p>
             <div className="mt-6 flex flex-wrap gap-x-4 gap-y-2 text-[13px] text-white/45">
               <a href="/about" className="hover:text-white">About</a>
+              <a href="/gift" className="hover:text-white">Gift cards</a>
               <a href="/faq" className="hover:text-white">FAQ</a>
               <a href="/contact" className="hover:text-white">Contact</a>
               <a href="/brands" className="hover:text-white">Brands</a>

@@ -2,7 +2,7 @@
   "name": "@yureka/shared",
   "private": true,
   "version": "0.0.0",
-  "description": "Cross-cutting React — auth, SEO, footer, errors",
+  "description": "Cross-cutting React. auth, SEO, footer, errors",
   "dependencies": {
     "@radix-ui/react-popover": "^1.1.23",
     "@supabase/supabase-js": "^2.111.0",

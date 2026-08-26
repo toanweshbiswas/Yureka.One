@@ -12,7 +12,7 @@ const pillars = [
   {
     num: '02',
     title: 'Radical Transparency',
-    body: 'We eliminate the complexity of "dead coins" and opaque reward tiers. We stand for a 1:1 value ratio — uncompromising, clear, and always in your favor.',
+    body: 'We eliminate the complexity of "dead coins" and opaque reward tiers. We stand for a 1:1 value ratio. uncompromising, clear, and always in your favor.',
   },
   {
     num: '03',
@@ -22,7 +22,7 @@ const pillars = [
   {
     num: '04',
     title: 'The Serious User Architecture',
-    body: 'Yureka is built for the power shopper — the individual who demands efficiency, tracks their trajectory, and recognizes that their digital footprint is their greatest financial asset.',
+    body: 'Yureka is built for the power shopper. the individual who demands efficiency, tracks their trajectory, and recognizes that their digital footprint is their greatest financial asset.',
   },
 ];
 
@@ -44,7 +44,7 @@ const Manifesto: React.FC = () => (
         </h1>
         <div className="font-overpass-mono text-white/60 text-base md:text-xl leading-relaxed max-w-2xl mx-auto space-y-6">
           <p>
-            The legacy financial system was designed for the passive consumer — fragmented, opaque, and built to keep your capital idle.
+            The legacy financial system was designed for the passive consumer. fragmented, opaque, and built to keep your capital idle.
           </p>
           <p className="text-white/80">We are here to rewrite the narrative.</p>
           <p>
@@ -94,7 +94,7 @@ const Manifesto: React.FC = () => (
             We have inverted this model.
           </p>
           <p>
-            With Yureka, your daily life is your greatest investment. You now earn as you spend — without the need for tedious roundups, unnecessary consumption, or additional financial friction.
+            With Yureka, your daily life is your greatest investment. You now earn as you spend. without the need for tedious roundups, unnecessary consumption, or additional financial friction.
           </p>
           <p>
             It is a frictionless wealth-building cycle designed for the power shopper. This is not just a feature; it is the{' '}

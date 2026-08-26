@@ -1,6 +1,6 @@
 # Yureka Chrome extension
 
-Coupons and Goldback for the store you are shopping on. The extension talks to the public Yureka marketplace API — it does not embed CueLinks tokens.
+Coupons and Goldback for the store you are shopping on. The extension talks to the public Yureka marketplace API. it does not embed CueLinks tokens.
 
 **Affiliate disclosure:** Some deal links are affiliate links (including CueLinks). If you click and buy, Yureka may earn a commission at no extra cost to you. Users must accept this in the popup (or tap **Enable deals** on the page bar) before affiliate links are shown.
 
@@ -30,4 +30,4 @@ chrome.storage.sync.set({ apiBase: 'http://localhost:3000' })
 
 ## Version
 
-`1.0.3` — affiliate disclosure + consent gate for Chrome Web Store Affiliate Ads policy.
+`1.0.3`. affiliate disclosure + consent gate for Chrome Web Store Affiliate Ads policy.

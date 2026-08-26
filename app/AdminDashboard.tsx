@@ -3,13 +3,14 @@ import { useSearchParams } from 'react-router-dom'
 import {
   LogIn, LogOut, Loader2, Search, CheckCircle, XCircle, PauseCircle,
   Clock, RefreshCw, Filter, ShieldCheck, Users, Coins, Plus, Trash2, KeyRound,
-  Activity, Gift, LayoutDashboard, BookOpen, Layers, Pencil, ArrowDownAZ,
+  Activity, Gift, LayoutDashboard, BookOpen, Layers, Pencil, ArrowDownAZ, Briefcase,
 } from 'lucide-react'
 import { normalizeEmail } from '@backend/lib/mail/emailAddress'
 import type { AdminOverview } from '@backend/lib/admin/overview'
 import { GiftOrdersTab, OverviewTab, UsersTab, ScoreBadge, ScoreSignals, UserScoreAnalysis } from './admin/ActivityViews'
 import { DeletionsTab } from './admin/DeletionsTab'
 import BlogsTab from './admin/BlogsTab'
+import CareersTab from './admin/CareersTab'
 import ClubHub, { isClubSubTab, type ClubSubTab } from './admin/ClubHub'
 import { compareWaitlistRows, type WaitlistSortKey } from './admin/listSort'
 import {
@@ -27,7 +28,7 @@ import {
 } from './admin/ui'
 
 type AdminRole = 'viewer' | 'admin' | 'superadmin'
-type Tab = 'overview' | 'waitlist' | 'users' | 'deletions' | 'gifts' | 'club' | 'ledger' | 'blogs' | 'admins'
+type Tab = 'overview' | 'waitlist' | 'users' | 'deletions' | 'gifts' | 'club' | 'ledger' | 'blogs' | 'careers' | 'admins'
 
 const ADMIN_TOKEN_KEY = 'yureka_admin_token'
 const ADMIN_ROLE_KEY = 'yureka_admin_role'
@@ -109,6 +110,7 @@ const AdminDashboard: React.FC = () => {
       t === 'club' ||
       t === 'ledger' ||
       t === 'blogs' ||
+      t === 'careers' ||
       t === 'admins'
     ) {
       setTab(t)
@@ -163,7 +165,7 @@ const AdminDashboard: React.FC = () => {
   }
 
   useEffect(() => {
-    // warm session / health — intentionally ignore payload (no stack details in UI)
+    // warm session / health. intentionally ignore payload (no stack details in UI)
     adminFetch('/api/admin/health', null).catch(() => {})
   }, [])
 
@@ -396,7 +398,7 @@ const AdminDashboard: React.FC = () => {
     const mail = res.data.accountEmail
     const base = created
       ? `Account created for ${email}. They can sign in with this email and password.`
-      : `Account for ${email} already existed — password was updated and waitlist access is approved.`
+      : `Account for ${email} already existed. password was updated and waitlist access is approved.`
     if (mail && !mail.sent) {
       setUserInviteError(`${base} Email was not sent: ${mail.error || mail.skipped || 'unknown error'}`)
     } else {
@@ -714,6 +716,7 @@ const AdminDashboard: React.FC = () => {
     { id: 'gifts', label: 'Gift cards', icon: Gift },
     { id: 'club', label: 'Club', icon: Layers },
     { id: 'blogs', label: 'Blog', icon: BookOpen },
+    { id: 'careers', label: 'Careers', icon: Briefcase },
     { id: 'ledger', label: 'Goldback', icon: Coins },
     { id: 'admins', label: 'Admins', icon: ShieldCheck, hide: !isSuper },
   ]
@@ -721,7 +724,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Monitor', ids: ['overview'] },
     { label: 'People', ids: ['waitlist', 'users', 'deletions'] },
     { label: 'Commerce', ids: ['gifts', 'club', 'ledger'] },
-    { label: 'Site', ids: ['blogs'] },
+    { label: 'Site', ids: ['blogs', 'careers'] },
     { label: 'Access', ids: ['admins'] },
   ]
   const visibleTabs = tabs.filter((t) => !t.hide)
@@ -1008,7 +1011,7 @@ const AdminDashboard: React.FC = () => {
                       {(e.fullName || e.email || '?')[0].toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold truncate">{e.fullName || '—'}</p>
+                      <p className="font-bold truncate">{e.fullName || '·'}</p>
                       <p className="text-white/40 text-xs mt-0.5 truncate">{e.email}</p>
                       {e.createdAt ? (
                         <p className="text-white/25 text-[10px] mt-0.5 tabular-nums">
@@ -1053,6 +1056,7 @@ const AdminDashboard: React.FC = () => {
         )}
 
         {tab === 'blogs' && <BlogsTab token={token} canWrite={canWrite} />}
+        {tab === 'careers' && <CareersTab token={token} canWrite={canWrite} />}
 
         {tab === 'club' && (
           <ClubHub
@@ -1145,7 +1149,7 @@ const AdminDashboard: React.FC = () => {
                 {!sortedAccounts.length && (
                   <div className="col-span-full">
                     <EmptyState>
-                      {ledgerSearch.trim() ? 'No accounts match that search' : 'No balances yet — members earn from offers'}
+                      {ledgerSearch.trim() ? 'No accounts match that search' : 'No balances yet. members earn from offers'}
                     </EmptyState>
                   </div>
                 )}
@@ -1359,7 +1363,7 @@ const AdminDashboard: React.FC = () => {
                     <div className="min-w-0">
                       <p className="font-bold truncate">{a.email}</p>
                       <p className="text-white/30 text-xs">
-                        {a.fullName || '—'}
+                        {a.fullName || '·'}
                         {a.invitePending ? ' · waiting to set password' : a.hasPassword ? ' · password set' : ''}
                       </p>
                     </div>
@@ -1367,7 +1371,7 @@ const AdminDashboard: React.FC = () => {
                   <span className="text-[9px] uppercase tracking-[0.2em] font-black text-clay border border-clay/30 bg-clay/10 px-2.5 py-1 rounded-lg shrink-0">{a.role}</span>
                 </div>
               ))}
-              {!admins.length && <EmptyState>No admins yet — invite someone above</EmptyState>}
+              {!admins.length && <EmptyState>No admins yet. invite someone above</EmptyState>}
             </div>
           </section>
         )}

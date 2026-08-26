@@ -106,7 +106,7 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
 
   useEffect(() => {
     if (isStandalone()) return
-    // Marketing landing host intentionally skips — product app / localhost only
+    // Marketing landing host intentionally skips. product app / localhost only
     if (role === 'landing') return
 
     registerInstallServiceWorker()
@@ -122,7 +122,7 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
     }
     window.addEventListener('beforeinstallprompt', onBip)
 
-    // Soft prompt on mobile app shell — BIP often never fires without engagement heuristics
+    // Soft prompt on mobile app shell. BIP often never fires without engagement heuristics
     const t = window.setTimeout(() => {
       if (mode !== 'banner') return
       if (wasShownThisSession() && !isIosDevice()) return
@@ -230,7 +230,7 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
                 <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-bold text-white tracking-tight">Add Yureka to Home Screen</p>
                   <p className="mt-1 text-[12px] leading-relaxed text-white/50">
-                    Open it like an app — full screen, one tap away.
+                    Open it like an app. full screen, one tap away.
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <button
@@ -315,7 +315,7 @@ function InstallSheet({
                   Add to Home Screen
                 </h2>
                 <p className="mt-1 text-[13px] text-white/45 leading-relaxed">
-                  Keep Yureka one tap away — full screen, like an app.
+                  Keep Yureka one tap away. full screen, like an app.
                 </p>
               </div>
               <button
@@ -348,7 +348,7 @@ function InstallSheet({
                     Scroll and choose <strong className="text-white/80">Add to Home Screen</strong>
                   </Step>
                   <Step n={3}>
-                    Tap <strong className="text-white/80">Add</strong> — Yureka appears on your Home Screen
+                    Tap <strong className="text-white/80">Add</strong>. Yureka appears on your Home Screen
                   </Step>
                 </ol>
               ) : (
@@ -361,7 +361,7 @@ function InstallSheet({
                     <strong className="text-white/80">Add to Home screen</strong>
                   </Step>
                   <Step n={3}>
-                    Confirm — Yureka opens full screen from your Home Screen
+                    Confirm. Yureka opens full screen from your Home Screen
                   </Step>
                 </ol>
               )}

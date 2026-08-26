@@ -19,5 +19,5 @@ export function prettyGender(value?: string | null): string {
   if (g === 'male' || g === 'masculine') return 'Male'
   if (g === 'female' || g === 'feminine') return 'Female'
   if (g === 'other' || g === 'undisclosed') return 'Other'
-  return g ? g[0].toUpperCase() + g.slice(1) : '—'
+  return g ? g[0].toUpperCase() + g.slice(1) : '·'
 }

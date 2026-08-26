@@ -4,13 +4,13 @@
 
 /* ── "Yureka One" homepage (ported design) ──
    The sitewide heading rules below force Cirka, uppercase, and brand-green
-   on every h1-h6 via `!important` — necessary for the rest of the site's
+   on every h1-h6 via `!important`. necessary for the rest of the site's
    type system, but it would stomp this page's own Space Mono / white
    headings. Scoped to `.yureka-one-home` (wraps the whole route) and beats
    the global rules with a higher-specificity `!important` of its own.
    FAQSection's heading is the one h2 in this design with its own direct
    (non-white) color, so it gets its own more-specific override below.
-   NOTE: Only headings inherit Space Mono here — body text (p, span, etc)
+   NOTE: Only headings inherit Space Mono here. body text (p, span, etc)
    deliberately keeps Almarai for readability on mobile. */
 .yureka-one-home h1,
 .yureka-one-home h2,
@@ -35,7 +35,7 @@
    Follows the homepage's cinematic heading treatment (white, mixed-case,
    Space Mono) instead of the sitewide green-uppercase content-page rules,
    so its designed white headings and gradient accents read correctly.
-   Only headings get Space Mono — body text stays Almarai for mobile readability. */
+   Only headings get Space Mono. body text stays Almarai for mobile readability. */
 .yureka-ai-page h1,
 .yureka-ai-page h2,
 .yureka-ai-page h3,
@@ -49,7 +49,7 @@
 
 /* ── Product app + admin ──
    Marketing pages need the a11y opacity/type bumps below. Product UI relies on
-   true white/opacity hierarchy and designed micro-labels — those globals flatten
+   true white/opacity hierarchy and designed micro-labels. those globals flatten
    contrast and crush badges/CTAs. Opt out via `.yureka-product` on the shell. */
 .yureka-product h1,
 .yureka-product h2,
@@ -86,7 +86,7 @@
 .yureka-product .text-\[11px\] { font-size: 11px !important; letter-spacing: inherit !important; }
 .yureka-product .text-xs { font-size: 0.75rem !important; }
 
-/* Product shell — notch / home-indicator safe areas */
+/* Product shell. notch / home-indicator safe areas */
 .safe-area-x {
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
@@ -135,13 +135,13 @@
 .yureka-ai-page [style*="opacity"] { opacity: 1 !important; }
 .yureka-ai-page [style*="transform"] { transform: none !important; }
 
-/* ── Mobile heading size overrides — prevent oversized text on small screens ── */
+/* ── Mobile heading size overrides. prevent oversized text on small screens ── */
 @media (max-width: 480px) {
   h1 { font-size: clamp(22px, 8vw, 40px) !important; }
   h2 { font-size: clamp(18px, 6vw, 28px) !important; }
   h3 { font-size: clamp(15px, 5vw, 22px) !important; }
 
-  /* Homepage headings are designed with their own clamps — don't crush them. */
+  /* Homepage headings are designed with their own clamps. don't crush them. */
   .yureka-one-home h1,
   .yureka-one-home h2,
   .yureka-one-home h3 {
@@ -158,7 +158,7 @@
   to { transform: translateX(0); }
 }
 
-/* ── Cirka (heading) — loaded via cdnfonts CDN ── */
+/* ── Cirka (heading). loaded via cdnfonts CDN ── */
 @font-face {
   font-family: 'Cirka';
   src: url('https://www.cdnfonts.com/s/14461/PPCirca-Regular.woff') format('woff');
@@ -197,7 +197,7 @@
         scroll-behavior: smooth;
         background-color: #0a0a0a;
         -webkit-tap-highlight-color: transparent;
-        /* clip (not hidden) — overflow-x:hidden on body breaks position:sticky
+        /* clip (not hidden). overflow-x:hidden on body breaks position:sticky
            and turns the pinned hero into hundreds of vh of blank black scroll. */
         overflow-x: clip;
       }
@@ -216,13 +216,13 @@
         text-rendering: optimizeSpeed; /* Performance: Faster text rendering */
       }
 
-      /* Heading modular scale and hierarchy — Space Mono is the primary heading
+      /* Heading modular scale and hierarchy. Space Mono is the primary heading
          font sitewide; Playfair Display italic is the heading accent (below). */
       h1, h2, h3, h4, h5, h6, .font-heading {
         font-family: 'Space Mono', monospace !important;
       }
 
-      /* Heading accent — Playfair Display italic (the .font-blackletter token
+      /* Heading accent. Playfair Display italic (the .font-blackletter token
          and any emphasized text nested inside a heading). */
       .font-blackletter,
       h1 em, h2 em, h3 em, h4 em, h5 em, h6 em,
@@ -252,17 +252,17 @@
         text-transform: uppercase;
       }
 
-      /* All heading fonts — brand green */
+      /* All heading fonts. brand green */
       h1, h2, h3, h4, h5, h6, .font-heading {
         color: #00933b !important;
       }
 
-      /* Global Heading Sizes — tightened for premium density */
+      /* Global Heading Sizes. tightened for premium density */
       h1 { font-size: clamp(28px, 5vw, 54px); }
       h2 { font-size: clamp(22px, 4vw, 36px); }
       h3 { font-size: clamp(18px, 3vw, 26px); }
 
-      /* .font-serif is the one subheading/context font sitewide — Almarai, not a serif */
+      /* .font-serif is the one subheading/context font sitewide. Almarai, not a serif */
       .font-serif {
         font-family: 'Almarai', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
       }

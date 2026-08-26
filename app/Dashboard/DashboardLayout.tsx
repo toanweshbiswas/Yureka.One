@@ -98,7 +98,7 @@ const SIDEBAR_PREF_KEY = 'yureka-sidebar-open'
 
 function readSidebarOpenPref(): boolean {
     if (typeof window === 'undefined') return true
-    // Mobile drawer always starts closed — avoids flash of open overlay on reload.
+    // Mobile drawer always starts closed. avoids flash of open overlay on reload.
     if (window.innerWidth < 768) return false
     try {
         const raw = localStorage.getItem(SIDEBAR_PREF_KEY)
@@ -239,7 +239,7 @@ const DashboardLayout: React.FC = () => {
         } catch { /* ignore */ }
     }, [mountedTabs]);
 
-    // Warm Offers only on desktop after idle — dual-mount of Offers+Gifts was
+    // Warm Offers only on desktop after idle. dual-mount of Offers+Gifts was
     // spiking memory/CPU on mobile and felt like crashes + slow first load.
     useEffect(() => {
         if (typeof window !== 'undefined' && window.innerWidth < 768) return
@@ -280,7 +280,7 @@ const DashboardLayout: React.FC = () => {
     })();
     const pwaBrowse = canUseInAppBrowse();
     const isExplore = /^\/dashboard\/explore(\/|$)/.test(location.pathname);
-    // Any /browse?url= session uses the fullscreen store chrome — not only installed PWAs.
+    // Any /browse?url= session uses the fullscreen store chrome. not only installed PWAs.
     // That keeps Super Browse inside Yureka instead of Universal-Linking into merchant apps.
     const browseHasUrl =
         location.pathname.startsWith('/dashboard/browse') &&
@@ -547,7 +547,7 @@ const DashboardLayout: React.FC = () => {
                         isEmbeddedBrowse
                             ? 'flex min-h-0 flex-1 flex-col'
                             : activeTab === 'home'
-                              ? // Mobile home hides sticky chrome — content must clear the status bar itself.
+                              ? // Mobile home hides sticky chrome. content must clear the status bar itself.
                                 'max-w-6xl mx-auto px-4 pb-4 sm:px-5 sm:pb-5 md:p-10 pt-[max(1rem,calc(env(safe-area-inset-top,0px)+0.75rem))] md:pt-10'
                               : 'p-4 sm:p-5 md:p-10 max-w-6xl mx-auto'
                     }
@@ -608,7 +608,7 @@ const DashboardLayout: React.FC = () => {
                             <Route path="explore/:sceneId" element={<ExploreScenePage />} />
                             <Route path="browse" element={<SuperBrowsePage />} />
                             <Route path="yureka-ai" element={<YurekaAIPage />} />
-                            {/* Waitlist paused — restore WaitlistPage when VITE_WAITLIST_REQUIRED=true */}
+                            {/* Waitlist paused. restore WaitlistPage when VITE_WAITLIST_REQUIRED=true */}
                             <Route path="join-waitlist" element={<Navigate to="/dashboard/home" replace />} />
                             <Route path="extension" element={<ExtensionPage />} />
                             <Route path="*" element={renderEmpty()} />
@@ -625,7 +625,7 @@ const DashboardLayout: React.FC = () => {
                 </div>
             </main>
 
-            {/* Mobile tab bar — iOS-style: equal cells, system type, glass, safe area */}
+            {/* Mobile tab bar. iOS-style: equal cells, system type, glass, safe area */}
             {!isEmbeddedBrowse && (
             <nav
                 className="md:hidden fixed inset-x-0 bottom-0 z-40"

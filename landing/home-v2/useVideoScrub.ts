@@ -2,11 +2,12 @@ import { useEffect, type RefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 
 /**
- * Scroll-linked video scrubbing.
+ * Scroll-linked video scrubbing (direct manipulation).
  *
- * Direct manipulation (1:1 with scroll). Seeks are capped (~24fps) so ProMotion
- * displays don't spam decoder seeks. A seek-timeout prevents the loop from
- * freezing forever if `seeked` never fires.
+ * Apple fluid interfaces: track 1:1 with scroll, never spring media time,
+ * always animate from the live presentation value. Seeks are capped (~24fps)
+ * so ProMotion displays don't spam the decoder. A pending-target queue means
+ * a stuck `seeked` never freezes the scrub permanently.
  */
 export function useVideoScrub(opts: {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -30,8 +31,27 @@ export function useVideoScrub(opts: {
     let seekStartedAt = 0;
     let lastApplied = -1;
     let lastTick = 0;
-    const SEEK_TIMEOUT_MS = 180;
-    const TICK_MS = 1000 / 24;
+    let pending: number | null = null;
+    const SEEK_TIMEOUT_MS = 220;
+    const TICK_MS = 1000 / 30;
+
+    const applySeek = (time: number) => {
+      const clamped = Math.max(0, Math.min(video.duration - 0.04, time));
+      if (Math.abs(lastApplied - clamped) < minDeltaSec) {
+        pending = null;
+        return;
+      }
+      try {
+        if (!video.paused) video.pause();
+        seeking = true;
+        seekStartedAt = performance.now();
+        video.currentTime = clamped;
+        lastApplied = clamped;
+        pending = null;
+      } catch {
+        seeking = false;
+      }
+    };
 
     const onSeeking = () => {
       seeking = true;
@@ -39,12 +59,25 @@ export function useVideoScrub(opts: {
     };
     const onSeeked = () => {
       seeking = false;
+      if (pending != null) {
+        const next = pending;
+        pending = null;
+        applySeek(next);
+      }
     };
 
     video.addEventListener('seeking', onSeeking);
     video.addEventListener('seeked', onSeeked);
 
-    // Ensure metadata is available for duration-based scrubbing.
+    // Keep scrubbed videos paused. play()+seek fights iOS/Safari.
+    try {
+      video.pause();
+      video.muted = true;
+      video.playsInline = true;
+    } catch {
+      /* ignore */
+    }
+
     if (video.readyState < 1) {
       try {
         video.load();
@@ -58,24 +91,26 @@ export function useVideoScrub(opts: {
 
       if (document.hidden || !activeRef.current) return;
       if (seeking && now - seekStartedAt > SEEK_TIMEOUT_MS) {
-        seeking = false; // unblock a stuck seek
+        seeking = false;
+        if (pending != null) {
+          const next = pending;
+          pending = null;
+          applySeek(next);
+          return;
+        }
       }
-      if (seeking || !video.duration) return;
+      if (!video.duration || !Number.isFinite(video.duration)) return;
       if (now - lastTick < TICK_MS) return;
       lastTick = now;
 
       const target = mapTime(scrollProgress.get(), video.duration);
       if (target == null || Number.isNaN(target)) return;
 
-      const clamped = Math.max(0, Math.min(video.duration - 0.05, target));
-      if (Math.abs(lastApplied - clamped) < minDeltaSec) return;
-
-      try {
-        video.currentTime = clamped;
-        lastApplied = clamped;
-      } catch {
-        /* ignore seek-before-ready */
+      if (seeking) {
+        pending = target;
+        return;
       }
+      applySeek(target);
     };
 
     raf = requestAnimationFrame(tick);

@@ -223,7 +223,7 @@ const AccountSettings: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-lg space-y-5">
-      {/* Identity — one surface, no duplicate gender/photo tiles */}
+      {/* Identity. one surface, no duplicate gender/photo tiles */}
       <motion.section
         initial={enter}
         animate={settle}
@@ -267,7 +267,7 @@ const AccountSettings: React.FC = () => {
         </div>
       </motion.section>
 
-      {/* Editable fields only — email stays in hero */}
+      {/* Editable fields only. email stays in hero */}
       <motion.section
         initial={enter}
         animate={settle}

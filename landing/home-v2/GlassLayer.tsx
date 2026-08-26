@@ -1,4 +1,4 @@
-// A transparent "glass-morphed" overlay for media placeholders — a diagonal
+// A transparent "glass-morphed" overlay for media placeholders. a diagonal
 // light-catching sheen, a soft top highlight, and an inset hairline ring.
 // Drop it in as the LAST child of any `relative overflow-hidden rounded-*`
 // container that holds a video or image, so every media card across the site

@@ -44,7 +44,7 @@ function matchesAdminQuery(q: string, ...parts: Array<string | null | undefined 
 
 type PlanDraftRow = {
   label: string
-  /** Whole percent 1–100 for the form */
+  /** Whole percent 1 to 100 for the form */
   percentPct: string
   /** Empty = due at booking */
   daysBeforeStart: string
@@ -457,7 +457,7 @@ const WwPortal: React.FC = () => {
     if (!userId || registration.status === 'cancelled') return
     const paidNote =
       registration.amountPaidInr > 0
-        ? ` Paid ₹${Math.round(registration.amountPaidInr).toLocaleString('en-IN')} stays on record — refund offline if needed.`
+        ? ` Paid ₹${Math.round(registration.amountPaidInr).toLocaleString('en-IN')} stays on record. refund offline if needed.`
         : ''
     if (
       !window.confirm(
@@ -491,7 +491,7 @@ const WwPortal: React.FC = () => {
   }) => {
     if (!userId || registration.status === 'cancelled') return
     if (registration.amountPaidInr > 0) {
-      setError('This booking has payments — use Cancel instead of Delete')
+      setError('This booking has payments. use Cancel instead of Delete')
       return
     }
     if (
@@ -998,7 +998,7 @@ const WwPortal: React.FC = () => {
     setInviteInfo(
       res.data?.emailed
         ? `Invited ${res.data.member.email} as ${res.data.member.role}. Email sent.`
-        : `Invited ${res.data?.member.email} as ${res.data?.member.role}. (Email may not have sent — they can still sign in at /ww/login with this email.)`,
+        : `Invited ${res.data?.member.email} as ${res.data?.member.role}. (Email may not have sent. they can still sign in at /ww/login with this email.)`,
     )
     setTab('members')
     await refreshAdmin()
@@ -1215,7 +1215,7 @@ const WwPortal: React.FC = () => {
                       <td className={wwTd}>{row.paid}</td>
                       <td className={wwTd}>₹{Math.round(row.revenueInr).toLocaleString('en-IN')}</td>
                       <td className={`${wwTd} font-mono text-[12px] text-white/50`}>
-                        {row.promoterCodes?.length ? row.promoterCodes.join(', ') : '—'}
+                        {row.promoterCodes?.length ? row.promoterCodes.join(', ') : '·'}
                       </td>
                     </tr>
                   ))}
@@ -1258,7 +1258,7 @@ const WwPortal: React.FC = () => {
                           <div className="text-[12px] text-white/40">{row.email}</div>
                         ) : null}
                       </td>
-                      <td className={`${wwTd} font-mono text-[12px]`}>{row.code || '—'}</td>
+                      <td className={`${wwTd} font-mono text-[12px]`}>{row.code || '·'}</td>
                       <td className={wwTd}>{row.clicks ?? 0}</td>
                       <td className={wwTd}>{row.registrations}</td>
                       <td className={wwTd}>
@@ -1307,7 +1307,7 @@ const WwPortal: React.FC = () => {
               <div>
                 <h2 className="text-[17px] font-semibold tracking-[-0.02em]">New trip</h2>
                 <p className="mt-1 text-[13px] text-white/40">
-                  Starts as a draft — publish when the listing is ready.
+                  Starts as a draft. publish when the listing is ready.
                 </p>
               </div>
 
@@ -2129,7 +2129,7 @@ const WwPortal: React.FC = () => {
               </button>
               <p className="text-xs text-white/40">
                 First owner: set <span className="font-mono">WANDERWORLD_BOOTSTRAP_EMAIL</span> to your email
-                (required — auto-bootstrap is disabled if unset), or invite from Club admin → WanderWorld.
+                (required. auto-bootstrap is disabled if unset), or invite from Club admin → WanderWorld.
               </p>
             </form>
             <div>
@@ -2334,7 +2334,7 @@ const WwPortal: React.FC = () => {
               </p>
               {!profileForm.displayName?.trim() && (
                 <p className="rounded-[1.15rem] border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3 text-[13px] text-amber-100/90">
-                  Profile incomplete — add your display name to finish setup.
+                  Profile incomplete. add your display name to finish setup.
                 </p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
@@ -2386,7 +2386,7 @@ const WwPortal: React.FC = () => {
                     ))}
                   </ul>
                   <p className="mt-2 text-[12px] text-white/40">
-                    Share the trip links below — admin sets your custom referral IDs.
+                    Share the trip links below. admin sets your custom referral IDs.
                   </p>
                 </div>
               ) : (
@@ -2431,7 +2431,7 @@ const WwPortal: React.FC = () => {
             <div className={`${wwSurfacePad} space-y-3`}>
               <h2 className="text-[17px] font-semibold tracking-[-0.02em]">Take group booking</h2>
               <p className="text-sm text-white/45">
-                Creates a discounted multi-seat booking under your referral. You get a share link — each
+                Creates a discounted multi-seat booking under your referral. You get a share link. each
                 traveler joins and pays their own seat online (or collect cash per share below).
               </p>
               {lastGroupJoinUrl ? (
@@ -2544,7 +2544,7 @@ const WwPortal: React.FC = () => {
                         ) : null}
                         <span className="text-white/35">
                           {' '}
-                          · min {t.groupMinSize || 2}–{t.groupMaxSize || 20}
+                          · min {t.groupMinSize || 2} to {t.groupMaxSize || 20}
                         </span>
                       </p>
                     )
@@ -2610,7 +2610,7 @@ const WwPortal: React.FC = () => {
                 ))}
                 {!(promoter.shareLinks || []).length && (
                   <p className="text-sm text-white/40">
-                    No referral links yet — ask admin to allocate a trip, or refresh.
+                    No referral links yet. ask admin to allocate a trip, or refresh.
                   </p>
                 )}
               </div>
@@ -2707,7 +2707,7 @@ const WwPortal: React.FC = () => {
                           </div>
                         ) : null}
                       </td>
-                      <td className="px-4 py-3">{trip?.title || '—'}</td>
+                      <td className="px-4 py-3">{trip?.title || '·'}</td>
                       <td className="px-4 py-3">
                         <div>{installment.label}</div>
                         <div className="text-[10px] uppercase tracking-wider text-white/35">#{installment.sequence}</div>
@@ -2734,7 +2734,7 @@ const WwPortal: React.FC = () => {
                             Collect cash
                           </button>
                         ) : (
-                          <span className="text-xs text-white/35">—</span>
+                          <span className="text-xs text-white/35">·</span>
                         )}
                       </td>
                     </tr>

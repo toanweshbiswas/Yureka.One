@@ -77,7 +77,7 @@ export function buildAnalysis(txs: PlanningTransaction[], now = new Date()): Pla
       month,
       amountInr: Math.round(amountInr * 100) / 100,
     })),
-    // Lifestyle / shopping only — brokers belong under topInvestments
+    // Lifestyle / shopping only. brokers belong under topInvestments
     topMerchants: toList(spendMerchants, 6),
     topInvestments: toList(investMerchants, 6),
   }

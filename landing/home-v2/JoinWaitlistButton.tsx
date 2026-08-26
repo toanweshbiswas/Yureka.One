@@ -6,7 +6,7 @@ import { useSupabase } from '@shared/SupabaseProvider';
 import { appUrl, goExternal, isSplitHostsEnabled } from '@shared/hosts';
 import { WAITLIST_REQUIRED } from '@shared/waitlistGate';
 
-// Site-wide membership CTA — open onboard by default; waitlist only when gated.
+// Site-wide membership CTA. open onboard by default; waitlist only when gated.
 export default function JoinWaitlistButton({ className = '' }: { className?: string }) {
   const navigate = useNavigate();
   const { currentUserStatus, user } = useSupabase();

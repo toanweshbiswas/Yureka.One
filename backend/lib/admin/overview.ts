@@ -245,10 +245,10 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
     .sort((a, b) => b.count - a.count)
 
   const buckets = [
-    { key: '0-40', label: '0–40', min: 0, max: 40 },
-    { key: '41-60', label: '41–60', min: 41, max: 60 },
-    { key: '61-80', label: '61–80', min: 61, max: 80 },
-    { key: '81-100', label: '81–100', min: 81, max: 100 },
+    { key: '0-40', label: '0 to 40', min: 0, max: 40 },
+    { key: '41-60', label: '41 to 60', min: 41, max: 60 },
+    { key: '61-80', label: '61 to 80', min: 61, max: 80 },
+    { key: '81-100', label: '81 to 100', min: 81, max: 100 },
   ]
   const scoreBuckets: AdminNamedCount[] = buckets.map((b) => ({
     key: b.key,

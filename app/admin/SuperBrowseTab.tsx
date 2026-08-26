@@ -195,7 +195,7 @@ export default function SuperBrowseTab({ token, canWrite }: { token: string | nu
     <section className="space-y-6">
       <PageHeader
         title="Super Browse"
-        subtitle="Brands shown in Super Browse and Explore — name, website, logo, and display order."
+        subtitle="Brands shown in Super Browse and Explore. name, website, logo, and display order."
       />
       {canWrite && (
         <form onSubmit={save} className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 grid md:grid-cols-2 gap-3">
@@ -226,7 +226,7 @@ export default function SuperBrowseTab({ token, canWrite }: { token: string | nu
           </label>
           <ImageUrlField
             className="md:col-span-2"
-            label="Brand logo (optional — favicon used if empty)"
+            label="Brand logo (optional. favicon used if empty)"
             value={form.logoUrl}
             onChange={(logoUrl) => setForm({ ...form, logoUrl })}
             token={token}

@@ -94,7 +94,7 @@ export function collapseRepetitiveTransactions<T extends Record<string, unknown>
       .trim()
       .slice(0, 40)
 
-    // Soft key: same merchant + amount + day (+ inbox) — drops confirm/allotment twins
+    // Soft key: same merchant + amount + day (+ inbox). drops confirm/allotment twins
     const soft = `${brand}|${amount}|${day}|${inbox}`
     if (brand && amount && day && seen.has(soft)) continue
     if (brand && amount && day) seen.add(soft)

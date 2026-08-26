@@ -26,14 +26,14 @@ const YurekaInfoSection: React.FC = () => {
         </div>
 
         <p className="font-overpass-mono text-white/70 text-2xl md:text-3xl leading-relaxed w-full">
-          Yureka One transforms how you handle personal finance. We provide a reward-earning, AI-driven framework that optimizes your existing credit card + daily spends, ensuring you never leave money on the table.
+          Yureka One transforms how you handle personal finance. We provide a reward-earning, AI-driven framework that optimizes your everyday spends, ensuring you never leave money on the table.
         </p>
       </div>
 
       {/* Row 2: 4-col card grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
-        {/* Card 1 — spans 2 cols, background video */}
+        {/* Card 1. spans 2 cols, background video */}
         <div className="lg:col-span-2 relative rounded-2xl overflow-hidden bg-black min-h-80">
           <LazyVideo
             src="/assets/rewards.mp4"
@@ -41,7 +41,7 @@ const YurekaInfoSection: React.FC = () => {
           />
         </div>
 
-        {/* Card 2 — dark */}
+        {/* Card 2. dark */}
         <div className="bg-surface border border-white/[0.07] rounded-2xl p-7 min-h-80 flex flex-col">
           <h3
             className="text-2xl font-bold leading-snug min-h-[11rem] mb-4"
@@ -52,11 +52,11 @@ const YurekaInfoSection: React.FC = () => {
             <span className="font-sans text-white"> Brands</span>
           </h3>
           <p className="font-overpass-mono text-white/60 text-base">
-            We've partnered with brands that you use daily, be it ordering groceries from quick commerce or booking a flight ticket or a cab to your favorite movie — we have got everything covered.
+            We've partnered with brands that you use daily, be it ordering groceries from quick commerce or booking a flight ticket or a cab to your favorite movie. we have got everything covered.
           </p>
         </div>
 
-        {/* Card 3 — dark */}
+        {/* Card 3. dark */}
         <div className="bg-surface border border-white/[0.07] rounded-2xl p-7 min-h-80 flex flex-col">
           <h3
             className="font-cirka text-white text-2xl font-bold leading-snug min-h-[11rem] mb-4"
@@ -74,20 +74,20 @@ const YurekaInfoSection: React.FC = () => {
       {/* Row 3: Duplicated 4-col card grid (reversed order) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-24 md:mt-32">
 
-        {/* Card 1 — dark (left side) */}
+        {/* Card 1. dark (left side) */}
         <div className="bg-surface border border-white/[0.07] rounded-2xl p-7 min-h-80 flex flex-col">
           <h3
             className="font-cirka text-white text-2xl font-bold leading-snug min-h-[11rem] mb-4"
             style={{ letterSpacing: '-0.02em' }}
           >
-            Redeem your Yureka Points &amp; Credit Card points on our platform
+            Redeem your Yureka Points &amp; Goldback on our platform
           </h3>
           <p className="font-overpass-mono text-white/60 text-base">
-            We support Point Stacking — 24 Hrs / 7 Days a Week / 365 Days a Year.
+            We support Point Stacking. 24 Hrs / 7 Days a Week / 365 Days a Year.
           </p>
         </div>
 
-        {/* Card 2 — dark (middle-left) */}
+        {/* Card 2. dark (middle-left) */}
         <div className="bg-surface border border-white/[0.07] rounded-2xl p-7 min-h-80 flex flex-col">
           <h3
             className="font-cirka text-white text-2xl font-bold leading-snug min-h-[11rem] mb-4"
@@ -96,11 +96,11 @@ const YurekaInfoSection: React.FC = () => {
             Spending = Wealth &amp; Earning Compounding
           </h3>
           <p className="font-overpass-mono text-white/60 text-base">
-            The magic — your savings and wealth compound with every new transaction that you do, every new day, every passing second.
+            The magic. your savings and wealth compound with every new transaction that you do, every new day, every passing second.
           </p>
         </div>
 
-        {/* Card 3 — spans 2 cols, building image (right side) */}
+        {/* Card 3. spans 2 cols, building image (right side) */}
         <div className="lg:col-span-2 relative rounded-2xl overflow-hidden bg-black min-h-80">
           <img
             src="/assets/yureka-building.png"

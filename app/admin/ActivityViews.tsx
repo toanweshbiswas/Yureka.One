@@ -20,7 +20,7 @@ function formatInr(n: number) {
 }
 
 function timeAgo(iso: string | null) {
-  if (!iso) return '—'
+  if (!iso) return '·'
   const ms = Date.now() - new Date(iso).getTime()
   if (!Number.isFinite(ms) || ms < 0) return 'just now'
   const m = Math.floor(ms / 60000)
@@ -47,7 +47,7 @@ export function UserScoreAnalysis({
 }) {
   if (!metrics) {
     return (
-      <p className="text-[11px] text-white/30 mt-2">No Gmail score analysis yet — resync after inbox scan.</p>
+      <p className="text-[11px] text-white/30 mt-2">No Gmail score analysis yet. resync after inbox scan.</p>
     )
   }
   const n = (k: string) => {
@@ -65,15 +65,15 @@ export function UserScoreAnalysis({
     n('failed_orders') > 0
 
   const kpis = [
-    { label: 'Avg monthly', value: avgMonthly > 0 ? formatInr(Math.round(avgMonthly)) : '—' },
-    { label: 'Spend (6m)', value: spendTotal > 0 ? formatInr(Math.round(spendTotal)) : '—' },
-    { label: 'Orders (6m)', value: n('orders_6m') ? String(n('orders_6m')) : '—' },
-    { label: 'Prepaid', value: n('prepaid_orders') ? String(n('prepaid_orders')) : '—' },
-    { label: 'COD', value: n('cod_orders') ? String(n('cod_orders')) : '—' },
-    { label: 'Returned', value: n('returned_orders') ? String(n('returned_orders')) : '—' },
-    { label: 'Refunded', value: n('refunded_orders') ? String(n('refunded_orders')) : '—' },
-    { label: 'Rejected pay', value: n('rejected_payments') ? String(n('rejected_payments')) : '—' },
-    { label: 'Failed orders', value: n('failed_orders') ? String(n('failed_orders')) : '—' },
+    { label: 'Avg monthly', value: avgMonthly > 0 ? formatInr(Math.round(avgMonthly)) : '·' },
+    { label: 'Spend (6m)', value: spendTotal > 0 ? formatInr(Math.round(spendTotal)) : '·' },
+    { label: 'Orders (6m)', value: n('orders_6m') ? String(n('orders_6m')) : '·' },
+    { label: 'Prepaid', value: n('prepaid_orders') ? String(n('prepaid_orders')) : '·' },
+    { label: 'COD', value: n('cod_orders') ? String(n('cod_orders')) : '·' },
+    { label: 'Returned', value: n('returned_orders') ? String(n('returned_orders')) : '·' },
+    { label: 'Refunded', value: n('refunded_orders') ? String(n('refunded_orders')) : '·' },
+    { label: 'Rejected pay', value: n('rejected_payments') ? String(n('rejected_payments')) : '·' },
+    { label: 'Failed orders', value: n('failed_orders') ? String(n('failed_orders')) : '·' },
   ]
 
   return (
@@ -196,16 +196,16 @@ export function OverviewTab({
 }) {
   const kpis = data?.kpis
   const cards = [
-    { label: 'Waitlist', value: kpis ? String(kpis.waitlistTotal) : '—' },
-    { label: 'Accepted', value: kpis ? String(kpis.accepted) : '—' },
-    { label: 'Active (7d)', value: kpis ? String(kpis.activeUsers7d) : '—' },
-    { label: 'Saved app', value: kpis ? String(kpis.pwaInstalled ?? 0) : '—' },
-    { label: 'Scored', value: kpis ? String(kpis.scored) : '—' },
-    { label: 'Avg score', value: kpis?.avgScore != null ? String(kpis.avgScore) : '—' },
-    { label: 'Goldback out', value: kpis ? formatPaise(kpis.goldbackOutstandingPaise) : '—' },
-    { label: 'Goldback earned', value: kpis ? formatPaise(kpis.goldbackEarnedPaise) : '—' },
-    { label: 'Gift GMV', value: kpis ? formatInr(kpis.giftPaidInr) : '—' },
-    { label: 'Offer clicks', value: kpis ? String(kpis.offerClicks) : '—' },
+    { label: 'Waitlist', value: kpis ? String(kpis.waitlistTotal) : '·' },
+    { label: 'Accepted', value: kpis ? String(kpis.accepted) : '·' },
+    { label: 'Active (7d)', value: kpis ? String(kpis.activeUsers7d) : '·' },
+    { label: 'Saved app', value: kpis ? String(kpis.pwaInstalled ?? 0) : '·' },
+    { label: 'Scored', value: kpis ? String(kpis.scored) : '·' },
+    { label: 'Avg score', value: kpis?.avgScore != null ? String(kpis.avgScore) : '·' },
+    { label: 'Goldback out', value: kpis ? formatPaise(kpis.goldbackOutstandingPaise) : '·' },
+    { label: 'Goldback earned', value: kpis ? formatPaise(kpis.goldbackEarnedPaise) : '·' },
+    { label: 'Gift GMV', value: kpis ? formatInr(kpis.giftPaidInr) : '·' },
+    { label: 'Offer clicks', value: kpis ? String(kpis.offerClicks) : '·' },
   ]
 
   return (
@@ -278,7 +278,7 @@ export function OverviewTab({
           />
         </ChartCard>
 
-        <ChartCard title="Yureka Score distribution" caption="Source: waitlist yurekaScore · 20 = ₹25–30k/mo avg, +5 per ₹5k, 100 = over ₹100k">
+        <ChartCard title="Yureka Score distribution" caption="Source: waitlist yurekaScore · 20 = ₹25 to 30k/mo avg, +5 per ₹5k, 100 = over ₹100k">
           <D3BarChart
             data={(data?.scoreBuckets || []).map((d) => ({ label: d.label, value: d.count }))}
             valueLabel="Members"
@@ -435,7 +435,7 @@ export function UsersTab({
 
   const saveUser = async () => {
     if (!canWrite || !edit.waitlistId) {
-      setSaveMsg('No waitlist row linked — create via Waitlist first.')
+      setSaveMsg('No waitlist row linked. create via Waitlist first.')
       return
     }
     setSaving(true)
@@ -501,7 +501,7 @@ export function UsersTab({
     const targetEmail = (activity?.email || '').trim()
     const target = targetId || targetEmail
     if (!target) {
-      setSaveMsg('Cannot delete — waitlist row not loaded yet. Expand the user again, then retry.')
+      setSaveMsg('Cannot delete. waitlist row not loaded yet. Expand the user again, then retry.')
       return
     }
     const label = targetEmail || target
@@ -653,7 +653,7 @@ export function UsersTab({
                       <p className="text-[11px] text-white/35 truncate">{u.email || u.key}</p>
                     </td>
                     <td className="px-4 py-3 text-[12px] tabular-nums text-white/70 whitespace-nowrap">
-                      {u.mobileNumber || '—'}
+                      {u.mobileNumber || '·'}
                     </td>
                     <td className="px-4 py-3 text-[11px] uppercase tracking-widest">
                       <span
@@ -667,7 +667,7 @@ export function UsersTab({
                                 : 'text-white/50'
                         }
                       >
-                        {(u.status || '—').replace('_', ' ')}
+                        {(u.status || '·').replace('_', ' ')}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -676,7 +676,7 @@ export function UsersTab({
                           Saved{u.pwaPlatform ? ` · ${u.pwaPlatform}` : ''}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-white/25">—</span>
+                        <span className="text-[11px] text-white/25">·</span>
                       )}
                     </td>
                     <td className="px-4 py-3">
@@ -744,7 +744,7 @@ export function UsersTab({
                                     </div>
                                     <div className="text-right shrink-0">
                                       <p className="tabular-nums font-semibold">{formatInr(Math.round(t.amountInr))}</p>
-                                      <p className="text-[10px] text-white/30">{t.at ? timeAgo(t.at) : '—'}</p>
+                                      <p className="text-[10px] text-white/30">{t.at ? timeAgo(t.at) : '·'}</p>
                                     </div>
                                   </div>
                                 ))}
@@ -769,7 +769,7 @@ export function UsersTab({
                               </div>
                               <div className="grid sm:grid-cols-2 gap-2">
                                 <input className={fieldClass} type="number" placeholder="Goldback paise" value={edit.goldbackPaise} onChange={(e) => setEdit({ ...edit, goldbackPaise: e.target.value })} onClick={(e) => e.stopPropagation()} />
-                                <input className={fieldClass} type="number" placeholder="Points balance override" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: e.target.value })} onClick={(e) => e.stopPropagation()} title="Balance override — earn rates are under Club → Reward points" />
+                                <input className={fieldClass} type="number" placeholder="Points balance override" value={edit.rewardPoints} onChange={(e) => setEdit({ ...edit, rewardPoints: e.target.value })} onClick={(e) => e.stopPropagation()} title="Balance override. earn rates are under Club → Reward points" />
                               </div>
                             </div>
                             <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
@@ -821,15 +821,15 @@ export function GiftOrdersTab({ data, loading }: { data: AdminOverview | null; l
       <div className="grid sm:grid-cols-3 gap-3">
         <Surface className="px-4 py-4">
           <p className="text-[12px] font-medium text-white/40">Orders</p>
-          <p className="text-[22px] font-semibold mt-2 tracking-[-0.02em]">{data?.kpis.giftOrders ?? '—'}</p>
+          <p className="text-[22px] font-semibold mt-2 tracking-[-0.02em]">{data?.kpis.giftOrders ?? '·'}</p>
         </Surface>
         <Surface className="px-4 py-4">
           <p className="text-[12px] font-medium text-white/40">Issued</p>
-          <p className="text-[22px] font-semibold mt-2 tracking-[-0.02em]">{data?.kpis.giftSuccess ?? '—'}</p>
+          <p className="text-[22px] font-semibold mt-2 tracking-[-0.02em]">{data?.kpis.giftSuccess ?? '·'}</p>
         </Surface>
         <Surface className="px-4 py-4">
           <p className="text-[12px] font-medium text-white/40">Paid GMV</p>
-          <p className="text-[22px] font-semibold mt-2 tracking-[-0.02em]">{data ? formatInr(data.kpis.giftPaidInr) : '—'}</p>
+          <p className="text-[22px] font-semibold mt-2 tracking-[-0.02em]">{data ? formatInr(data.kpis.giftPaidInr) : '·'}</p>
         </Surface>
       </div>
       <ChartCard title="Orders by status" caption="Source: gift-card orders · count">

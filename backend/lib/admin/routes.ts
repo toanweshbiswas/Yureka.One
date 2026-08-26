@@ -45,6 +45,7 @@ import {
   adminAdjustGoldback,
 } from '../goldback/store.js'
 import { blogToApi, deleteBlog, getBlogById, listBlogs, upsertBlog } from '../cms/blogStore.js'
+import { careerToApi, deleteCareer, listCareers, upsertCareer } from '../cms/careersStore.js'
 import { slugFromTitle } from '../cms/blogHtml.js'
 import { notifyUsersNewBlog } from '../cms/notifyBlog.js'
 import { uploadBlogImage } from '../cms/blogMedia.js'
@@ -639,6 +640,70 @@ export function registerAdminRoutes(app: Express) {
     }
   })
 
+  // ─── Careers ───
+  app.get('/api/admin/careers', requireAdmin, async (_req, res) => {
+    try {
+      const roles = await listCareers({ includeDrafts: true })
+      ok(res, roles.map(careerToApi))
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load careers')
+    }
+  })
+
+  app.post('/api/admin/careers', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const title = String(req.body?.title || '').trim()
+      if (!title) return fail(res, 400, 'title required')
+      const role = await upsertCareer({
+        id: req.body?.id,
+        refId: req.body?.refId,
+        title,
+        department: req.body?.department ?? req.body?.dept,
+        location: req.body?.location,
+        type: req.body?.type,
+        description: req.body?.description,
+        applyEmail: req.body?.applyEmail,
+        status: req.body?.status === 'published' ? 'published' : 'draft',
+        sortOrder: req.body?.sortOrder,
+      })
+      ok(res, careerToApi(role), req.body?.id ? 200 : 201)
+    } catch (e: any) {
+      fail(res, 400, e?.message || 'Failed to save career role')
+    }
+  })
+
+  app.patch('/api/admin/careers/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const title = String(req.body?.title || '').trim()
+      if (!title) return fail(res, 400, 'title required')
+      const role = await upsertCareer({
+        id: String(req.params.id || ''),
+        refId: req.body?.refId,
+        title,
+        department: req.body?.department ?? req.body?.dept,
+        location: req.body?.location,
+        type: req.body?.type,
+        description: req.body?.description,
+        applyEmail: req.body?.applyEmail,
+        status: req.body?.status === 'published' ? 'published' : 'draft',
+        sortOrder: req.body?.sortOrder,
+      })
+      ok(res, careerToApi(role))
+    } catch (e: any) {
+      fail(res, 400, e?.message || 'Failed to update career role')
+    }
+  })
+
+  app.delete('/api/admin/careers/:id', requireAdmin, requireRole('admin', 'superadmin'), async (req, res) => {
+    try {
+      const okDeleted = await deleteCareer(String(req.params.id || ''))
+      if (!okDeleted) return fail(res, 404, 'Role not found')
+      ok(res, { deleted: true })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to delete career role')
+    }
+  })
+
   // ─── Users CRUD + drill-down ───
   app.get('/api/admin/users/:key/activity', requireAdmin, async (req, res) => {
     try {
@@ -825,7 +890,7 @@ export function registerAdminRoutes(app: Express) {
       const singleEmail = String(req.body?.email || '').trim().toLowerCase()
       let recipients: { userId: string; email?: string | null }[] = []
 
-      // Prefer explicit single-user send — never silently fan out when email is set.
+      // Prefer explicit single-user send. never silently fan out when email is set.
       if (mode === 'one' || singleEmail) {
         if (!singleEmail || !singleEmail.includes('@')) {
           return fail(res, 400, 'email required for one-user notification')

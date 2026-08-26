@@ -90,7 +90,7 @@ export interface PlanningAnalysis {
   byDay: { date: string; amountInr: number }[]
   byMonth: { month: string; amountInr: number }[]
   topMerchants: { name: string; amountInr: number }[]
-  /** Broker / SIP / MF only — kept separate so Top merchants is lifestyle spend */
+  /** Broker / SIP / MF only. kept separate so Top merchants is lifestyle spend */
   topInvestments?: { name: string; amountInr: number }[]
 }
 

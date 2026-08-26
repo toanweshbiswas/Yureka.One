@@ -35,7 +35,7 @@ By using the extension and enabling deals, you acknowledge this affiliate disclo
 - Single purpose: surface shopping deals, coupons, and gift-card savings for the current site.
 - Affiliate monetization is disclosed in the listing, popup consent screen, popup footer, and on-page bar.
 
-## Privacy practices — permission justifications
+## Privacy practices. permission justifications
 
 ### Storage
 

@@ -139,7 +139,7 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
     <section className="space-y-6">
       <PageHeader
         title="Push notifications"
-        subtitle="In-app inbox only. One-user sends stay private — broadcasts copy the same message to every recipient."
+        subtitle="In-app inbox only. One-user sends stay private. broadcasts copy the same message to every recipient."
       />
       {canWrite && (
         <form onSubmit={send} className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 space-y-3">

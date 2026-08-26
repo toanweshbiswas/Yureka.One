@@ -5,7 +5,7 @@ import { getAuthAccessToken } from '@shared/auth'
 // Empty string → relative URLs, which Netlify/Express proxy to the backend.
 const RAW_BASE = import.meta.env.VITE_API_BASE_URL ?? ''
 
-// Guard: a deployed (non-local) site must never call a localhost/private API —
+// Guard: a deployed (non-local) site must never call a localhost/private API . 
 // browsers block that as a "Private Network Access" request and pop up a
 // "wants to access other apps and services on this device" permission prompt.
 // If a localhost base URL was baked into a production build, ignore it here and
@@ -41,8 +41,8 @@ async function apiFetch<T>(
   try {
     res = await fetch(`${BASE_URL}${path}`, { ...init, headers, signal: controller.signal })
   } catch {
-    // ECONNREFUSED / timeout / no network — must be >= 400 so isApiError() triggers fallback
-    return errorResponse<T>(503, 'Network error — backend unreachable')
+    // ECONNREFUSED / timeout / no network. must be >= 400 so isApiError() triggers fallback
+    return errorResponse<T>(503, 'Network error. backend unreachable')
   } finally {
     clearTimeout(timer)
   }
@@ -61,7 +61,7 @@ async function apiFetch<T>(
     const snippet = text.replace(/\s+/g, ' ').trim().slice(0, 120)
     const hint =
       res.status === 504 || res.status === 502
-        ? 'API timed out — please try again in a moment'
+        ? 'API timed out. please try again in a moment'
         : snippet
           ? `Invalid response from server (${res.status}): ${snippet}`
           : `Invalid response from server (${res.status})`

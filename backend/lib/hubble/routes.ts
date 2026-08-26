@@ -518,7 +518,7 @@ export function registerGiftcardRoutes(app: Express) {
     }
   })
 
-  /** Public order status for guest (landing) checkout — token is the capability. */
+  /** Public order status for guest (landing) checkout. token is the capability. */
   app.get('/api/giftcards/guest/orders/:token', async (req, res) => {
     try {
       const token = String(req.params.token || '').trim()
@@ -589,7 +589,7 @@ export function registerGiftcardRoutes(app: Express) {
     }
   })
 
-  /** Direct wallet issue — only when GIFTCARD_DIRECT_ISSUE=true (no Razorpay). */
+  /** Direct wallet issue. only when GIFTCARD_DIRECT_ISSUE=true (no Razorpay). */
   app.post('/api/giftcards/orders', async (req, res) => {
     if (!hubbleConfigured()) {
       return fail(res, 503, 'Gift cards are temporarily unavailable')

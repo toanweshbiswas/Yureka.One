@@ -950,11 +950,13 @@ def execute_expense_scanner(gmail_service):
 
                 if amount != "N/A":
                     flags = classify_order_signals(subject, sender, description, unified_corpus)
+                    date_raw = str(date or '').strip()
+                    date_iso = _parse_date_iso(date_raw)
                     emails_data.append({
                         'brandName': brand,
                         'amount': amount,
                         'description': description,
-                        'date': str(date or '').strip(),
+                        'date': date_iso or date_raw,
                         'sender': sender,
                         'type': 'Transaction',
                         **flags,
@@ -1368,12 +1370,19 @@ def compute_yureka_score(transactions):
     window = []
     bills = []
     skipped_investments = 0
+    undated_included = 0
+    skipped_no_amount = 0
+    skipped_fx = 0
     for t in transactions:
         if _is_investment_for_score(t):
             skipped_investments += 1
             continue
         value, currency = _parse_amount_value(t.get('amount'))
         if value is None:
+            skipped_no_amount += 1
+            continue
+        if currency and currency != 'INR':
+            skipped_fx += 1
             continue
         date_iso = _parse_date_iso(t.get('date'))
         if t.get('cod') or t.get('prepaid') or t.get('paymentMode'):
@@ -1406,13 +1415,21 @@ def compute_yureka_score(transactions):
         row = {
             'Brand': t.get('brandName', ''),
             'Value': value,
-            'Currency': currency,
+            'Currency': currency or 'INR',
             'DateISO': date_iso,
             **flags,
         }
         tx_type = str(t.get('type') or '').strip().lower()
-        if tx_type == 'transaction':
-            if currency == 'INR' and _in_last_months(date_iso, 6):
+        # Purchase / UPI / merchant mail (type Transaction). Bills stay out of spend.
+        is_purchase = tx_type in ('', 'transaction', 'purchase', 'order', 'expense')
+        if is_purchase:
+            in_window = _in_last_months(date_iso, 6) if date_iso else False
+            # Undated rows were previously dropped entirely — that under-counted spend
+            # when Gmail headers failed to parse. Include them so Yu Points reflects
+            # the same transactions members see in Expenses.
+            if in_window or not date_iso:
+                if not date_iso:
+                    undated_included += 1
                 window.append(row)
         else:
             bills.append(row)
@@ -1480,6 +1497,9 @@ def compute_yureka_score(transactions):
             "payment_methods": dict(methods),
             "deduped_input": True,
             "excluded_investments": skipped_investments,
+            "undated_included": undated_included,
+            "skipped_no_amount": skipped_no_amount,
+            "skipped_fx": skipped_fx,
         }
     }
 

@@ -2,7 +2,7 @@
   "name": "@yureka/landing",
   "private": true,
   "version": "0.0.0",
-  "description": "Marketing site UI — home, blogs, brands, legal",
+  "description": "Marketing site UI. home, blogs, brands, legal",
   "dependencies": {
     "framer-motion": "^12.40.0",
     "lucide-react": "^0.563.0",

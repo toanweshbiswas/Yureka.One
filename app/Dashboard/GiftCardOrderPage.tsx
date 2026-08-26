@@ -265,7 +265,7 @@ const GiftCardOrderPage: React.FC = () => {
         )}
 
         {terminal && order.status === 'SUCCESS' && !order.vouchers.length && (
-          <p className="text-sm text-white/45">Order succeeded but no voucher payload yet — refresh shortly.</p>
+          <p className="text-sm text-white/45">Order succeeded but no voucher payload yet. refresh shortly.</p>
         )}
 
         <p className="text-[11px] text-white/25 break-all">Ref {order.referenceId}</p>

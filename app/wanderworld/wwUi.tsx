@@ -1,7 +1,7 @@
 import React from 'react'
 import { motion, useReducedMotion, type HTMLMotionProps } from 'motion/react'
 
-/** Critically damped — Apple default for reposition / UI chrome */
+/** Critically damped. Apple default for reposition / UI chrome */
 export const wwSpring = { type: 'spring' as const, bounce: 0, duration: 0.4 }
 /** Snappier chrome (tabs, chips) */
 export const wwSpringFast = { type: 'spring' as const, bounce: 0, duration: 0.28 }

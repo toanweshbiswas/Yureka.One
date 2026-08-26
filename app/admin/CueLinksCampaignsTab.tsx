@@ -87,7 +87,7 @@ async function adminFetch<T>(path: string, token: string | null, init?: RequestI
 }
 
 function formatRate(value: number | null, payoutType: string | null | undefined, currency = 'INR') {
-  if (value == null) return '—'
+  if (value == null) return '·'
   const pt = (payoutType || '').toLowerCase()
   if (pt.includes('%') || pt.includes('percent') || pt.includes('sale(%)')) {
     return `${value}%`
@@ -228,7 +228,7 @@ export default function CueLinksCampaignsTab({
     setPassThrough(res.data)
     setShareDraft(String(res.data.memberSharePercent))
     setNotesDraft(res.data.notes || '')
-    setShareNotice('Member share saved (policy only — earn wiring comes later)')
+    setShareNotice('Member share saved (policy only. earn wiring comes later)')
   }
 
   const saveOverride = async (campaignId: number) => {
@@ -309,7 +309,7 @@ export default function CueLinksCampaignsTab({
             onChange={(e) => setShareDraft(e.target.value)}
           />
           <p className="mt-1 text-[12px] text-white/40">
-            Stored for future earn wiring — does not credit members yet.
+            Stored for future earn wiring. does not credit members yet.
           </p>
         </div>
         <div>
@@ -397,9 +397,9 @@ export default function CueLinksCampaignsTab({
         ) : rows.length === 0 ? (
           <EmptyState>
             {filter === 'new_existing'
-              ? 'No campaigns with new/existing rates — try “All campaigns” or refresh the catalog.'
+              ? 'No campaigns with new/existing rates. try “All campaigns” or refresh the catalog.'
               : filter === 'cpc'
-                ? 'No pay-per-click campaigns match — try “All campaigns” or clear search.'
+                ? 'No pay-per-click campaigns match. try “All campaigns” or clear search.'
                 : 'No campaigns match this filter'}
           </EmptyState>
         ) : (
@@ -446,7 +446,7 @@ export default function CueLinksCampaignsTab({
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-white/70">{row.payoutType || '—'}</td>
+                        <td className="px-4 py-3 text-white/70">{row.payoutType || '·'}</td>
                         <td className="px-4 py-3 tabular-nums text-white/80">
                           {formatRate(row.payout, row.payoutType, row.payoutCurrency)}
                         </td>

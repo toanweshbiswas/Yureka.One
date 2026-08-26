@@ -1,4 +1,4 @@
-// Framework-agnostic SEO registry — imported by both the browser bundle
+// Framework-agnostic SEO registry. imported by both the browser bundle
 // (components/SEO.tsx, page components) and the Node production server
 // (server.ts) so the server-rendered <head> and the client-side overrides
 // always agree on the same title/description/image per route.
@@ -20,7 +20,7 @@ export interface PageMeta {
   robots?: string;
 }
 
-/** Appends the brand suffix unless the title already references it — kept as a
+/** Appends the brand suffix unless the title already references it. kept as a
  *  shared function so the server-injected <title> and the client-side SEO.tsx
  *  mutation always produce byte-identical output (no hydration flicker). */
 export function formatTitle(title: string): string {
@@ -29,10 +29,10 @@ export function formatTitle(title: string): string {
 
 export const staticPageMeta: Record<string, PageMeta> = {
   '/': {
-    title: "Yureka.One | India's AI Wealth OS — Spend, Earn Gold",
+    title: "Yureka.One | India's AI Wealth OS. Spend, Earn Gold",
     description:
       "Turn everyday spending into 24K digital gold. Yureka's AI concierge orders for you, pays Goldback up to 16% ROI, and builds your credit profile.",
-    ogTitle: "Yureka.One — Spend like always. Build wealth by default.",
+    ogTitle: "Yureka.One. Spend like always. Build wealth by default.",
     ogDescription:
       "India's first AI-native Wealth OS: an AI that shops for you, pays you in digital gold, and turns your transactions into a credit profile.",
     keywords: [
@@ -49,6 +49,17 @@ export const staticPageMeta: Record<string, PageMeta> = {
       'credit card reward partners india', 'brand cashback offers india', 'pay with rewards india',
     ],
   },
+  '/gift': {
+    title: 'Send Gift Cards | No Sign-up Required | Yureka.One',
+    description:
+      'Buy and send brand gift cards securely without a Yureka account. Pick a brand, pay, and we email the voucher to your recipient.',
+    keywords: [
+      'send gift card india',
+      'buy gift card online india',
+      'yureka gift cards',
+      'gift card without signup',
+    ],
+  },
   '/blog': {
     title: 'Goldback, AI shopping, and credit guides | Yureka.One',
     description:
@@ -62,7 +73,7 @@ export const staticPageMeta: Record<string, PageMeta> = {
   '/privacy-policy': {
     title: 'Privacy Policy | Yureka.One',
     description:
-      'How Yureka.One collects, uses, and protects your personal and financial data — covering transaction intelligence, DPDP consent, data retention, and your rights as a user.',
+      'How Yureka.One collects, uses, and protects your personal and financial data. covering transaction intelligence, DPDP consent, data retention, and your rights as a user.',
     keywords: ['yureka privacy policy', 'fintech data privacy india', 'DPDP consent digital gold app'],
     robots: 'index, follow',
   },
@@ -75,20 +86,26 @@ export const staticPageMeta: Record<string, PageMeta> = {
   '/security-protocol': {
     title: 'Security Protocol | Yureka.One Infrastructure',
     description:
-      "Detailed technical documentation of Yureka's security architecture — AES-256 encryption, Account Aggregator consent framework, and zero-knowledge transaction analysis.",
+      "Detailed technical documentation of Yureka's security architecture. AES-256 encryption, Account Aggregator consent framework, and zero-knowledge transaction analysis.",
     keywords: ['yureka security', 'fintech data security india', 'account aggregator security'],
   },
   '/community-guidelines': {
     title: 'Community Guidelines | Yureka.One',
     description:
-      "The standards that keep Yureka's community of power shoppers trustworthy — covering accurate data sharing, respectful conduct, and prohibited behavior.",
+      "The standards that keep Yureka's community of power shoppers trustworthy. covering accurate data sharing, respectful conduct, and prohibited behavior.",
     keywords: ['yureka community guidelines', 'yureka code of conduct'],
   },
   '/about': {
-    title: 'About Yureka.One — Founded by Anwesh Biswas',
+    title: 'About Yureka.One. Founded by Anwesh Biswas & Mainak Saha',
     description:
-      "Yureka.One is a Bengaluru fintech founded in 2026 by Anwesh Biswas. We build India's AI Wealth OS: Goldback, AI ordering, and alternative credit.",
-    keywords: ['about yureka one', 'anwesh biswas yureka', 'yureka founder', 'wealth os india startup'],
+      "Yureka.One is a Bengaluru fintech founded in 2026 by Anwesh Biswas and Mainak Saha. We build India's AI Wealth OS: Goldback, AI ordering, and alternative credit.",
+    keywords: [
+      'about yureka one',
+      'anwesh biswas yureka',
+      'mainak saha yureka',
+      'yureka founder',
+      'wealth os india startup',
+    ],
   },
   '/contact': {
     title: 'Contact Yureka.One | support@yureka.one',
@@ -97,7 +114,7 @@ export const staticPageMeta: Record<string, PageMeta> = {
     keywords: ['yureka contact', 'yureka support email', 'support@yureka.one'],
   },
   '/faq': {
-    title: 'Yureka.One FAQ — Goldback, AI ordering, credit',
+    title: 'Yureka.One FAQ. Goldback, AI ordering, credit',
     description:
       'What is Yureka Goldback? Can AI order food in India? How do you build credit without a card? Direct answers on pricing, data, and how to join.',
     keywords: ['yureka faq', 'what is goldback', 'yureka vs cred', 'wealth os meaning'],
@@ -109,7 +126,7 @@ export const staticPageMeta: Record<string, PageMeta> = {
     keywords: ['yureka manifesto', 'wealth operating system india', 'power shopper philosophy'],
   },
   '/jobs': {
-    title: "Careers | Join Yureka.One — India's Wealth OS",
+    title: "Careers | Join Yureka.One. India's Wealth OS",
     description:
       "Help build India's first AI-native Wealth Operating System. Explore open roles at Yureka.One across engineering, AI, design, and growth.",
     keywords: ['yureka careers', 'fintech jobs india 2026', 'wealth OS startup hiring'],
@@ -124,9 +141,9 @@ export const staticPageMeta: Record<string, PageMeta> = {
     ],
   },
   '/join-waitlist': {
-    title: 'Join Yureka — Earn Gold on Every Order | Yureka.One',
+    title: 'Join Yureka. Earn Gold on Every Order | Yureka.One',
     description:
-      "Get early access to Yureka.One — India's AI Wealth OS. Earn Yureka Goldback on every transaction, order via AI concierge, and build credit automatically. Invite-gated access.",
+      "Get early access to Yureka.One. India's AI Wealth OS. Earn Yureka Goldback on every transaction, order via AI concierge, and build credit automatically. Invite-gated access.",
     keywords: [
       'yureka waitlist', 'join yureka one', 'early access AI wealth app india',
       'earn gold on spending app india',
@@ -182,8 +199,8 @@ export const staticPageMeta: Record<string, PageMeta> = {
   '/goldback': {
     title: 'Yureka Goldback: Cashback That Becomes 24K Digital Gold',
     description:
-      "Why settle for expiring points? Yureka converts rewards on every order into yield-generating 24K digital gold — up to 16% effective ROI. Unified, liquid, automatic.",
-    ogTitle: 'Yureka Goldback — Cashback That Becomes Gold',
+      "Why settle for expiring points? Yureka converts rewards on every order into yield-generating 24K digital gold. up to 16% effective ROI. Unified, liquid, automatic.",
+    ogTitle: 'Yureka Goldback. Cashback That Becomes Gold',
     ogDescription:
       'Every transaction earns Yureka Goldback: 24K digital gold that appreciates instead of expiring. Up to 16% effective returns on your everyday spending.',
     keywords: [
@@ -215,9 +232,9 @@ export const staticPageMeta: Record<string, PageMeta> = {
     ],
   },
   '/pricing': {
-    title: 'Yureka Premium — ₹99/mo, 100% Reimbursed in Gold',
+    title: 'Yureka Premium. ₹99/mo, 100% Reimbursed in Gold',
     description:
-      "Yureka Premium costs ₹99/month or ₹1,199/year — and every rupee comes back to you as 24K digital gold. Membership that pays for itself, literally.",
+      "Yureka Premium costs ₹99/month or ₹1,199/year. and every rupee comes back to you as 24K digital gold. Membership that pays for itself, literally.",
     keywords: [
       'yureka premium pricing', 'subscription reimbursed as gold', 'fintech subscription india',
       'wealth app subscription india',

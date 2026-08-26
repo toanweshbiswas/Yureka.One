@@ -33,7 +33,7 @@ function relativeTime(iso?: string): string {
   return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-/** Shared inbox bell — Home + dashboard chrome. */
+/** Shared inbox bell. Home + dashboard chrome. */
 const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { user } = useSupabase()
   const navigate = useNavigate()

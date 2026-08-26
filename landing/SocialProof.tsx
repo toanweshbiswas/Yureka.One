@@ -9,7 +9,7 @@ const tweets = [
     handle: '@anu_raag_',
     avatar: 'https://i.pravatar.cc/150?u=anu',
     verified: true,
-    content: (<p>@yureka.one is killing it with AI matching. Found me a card with 5% cashback on Swiggy - literally ₹12K saved this year!</p>),
+    content: (<p>@yureka.one is killing it with AI matching. Found me a card with 5% cashback on Swiggy, literally ₹12K saved this year!</p>),
     date: 'Feb 23, 2025',
   },
   {

@@ -1,27 +1,27 @@
 /**
- * ScrollytellingVideo – v2 (optimised)
+ * ScrollytellingVideo  to  v2 (optimised)
  * ─────────────────────────────────────────────────────────────────────────────
  * Root-cause fixes vs v1:
  *
- *  1. SEEKED-EVENT DRAW — drawImage() is now called exclusively inside the
+ *  1. SEEKED-EVENT DRAW. drawImage() is now called exclusively inside the
  *     browser's `seeked` event, so the frame is guaranteed to be decoded before
  *     we paint it.  v1 drew immediately after setting currentTime which always
  *     painted the *previous* frame → visible stutter / wrong frames.
  *
- *  2. SEEK GUARD — `isSeekingRef` prevents overlapping seeks from piling up.
+ *  2. SEEK GUARD. `isSeekingRef` prevents overlapping seeks from piling up.
  *     The loop re-triggers once the current seek resolves.
  *
- *  3. FAST CANVAS CONTEXT — `{ alpha: false }` tells the compositor the canvas
+ *  3. FAST CANVAS CONTEXT. `{ alpha: false }` tells the compositor the canvas
  *     is fully opaque, enabling ~30 % faster 2-D drawing.
  *
- *  4. PROXIMITY-GATED PRELOAD — video.load() only fires when the section is
+ *  4. PROXIMITY-GATED PRELOAD. video.load() only fires when the section is
  *     within 800 px of the viewport, so off-screen videos don't compete for
  *     bandwidth during initial page load.
  *
- *  5. MIN-SEEK DELTA — skips seeks smaller than one frame at 30 fps (≈0.033 s)
+ *  5. MIN-SEEK DELTA. skips seeks smaller than one frame at 30 fps (≈0.033 s)
  *     to avoid wasting CPU on imperceptible changes.
  *
- *  6. CLEAN CLEANUP — all listeners use { once: true } or are removed
+ *  6. CLEAN CLEANUP. all listeners use { once: true } or are removed
  *     explicitly; RAF is always cancelled on unmount.
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
@@ -48,7 +48,7 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 /** Minimum time delta to bother seeking (≈1 frame @30 fps) */
 const MIN_SEEK_DELTA = 1 / 30;
 
-/** Lerp easing coefficient — lower = smoother follow, higher = snappier */
+/** Lerp easing coefficient. lower = smoother follow, higher = snappier */
 const LERP_FACTOR = 0.1;
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -123,7 +123,7 @@ const ScrollytellingVideo: React.FC<ScrollytellingVideoProps> = ({
 
     isSeekingRef.current = true;
 
-    // Draw ONLY inside `seeked` – this is when the frame is guaranteed ready
+    // Draw ONLY inside `seeked`  to  this is when the frame is guaranteed ready
     video.addEventListener('seeked', () => {
       isSeekingRef.current = false;
       drawFrame();
@@ -147,7 +147,7 @@ const ScrollytellingVideo: React.FC<ScrollytellingVideoProps> = ({
         seekTo(currentTimeRef.current);
         rafIdRef.current = requestAnimationFrame(tick);
       } else {
-        // Converged – one final seek then idle
+        // Converged  to  one final seek then idle
         currentTimeRef.current = targetTimeRef.current;
         seekTo(targetTimeRef.current);
         rafIdRef.current = null;
@@ -283,13 +283,13 @@ const ScrollytellingVideo: React.FC<ScrollytellingVideoProps> = ({
       style={{ height: `${effectiveMultiplier * 100}vh` }}
       className={`relative w-full bg-black ${className}`}
     >
-      {/* Sticky pane – stays pinned while the outer div scrolls */}
+      {/* Sticky pane  to  stays pinned while the outer div scrolls */}
       <div className="sticky top-0 h-screen w-full flex items-center justify-center py-2 px-6 sm:px-12 md:px-20 overflow-hidden">
 
         {/* Island container */}
         <div className="relative w-full max-w-[1600px] rounded-3xl overflow-hidden shadow-[0_40px_120px_rgba(0,0,0,0.8)] bg-black border border-white/[0.06] aspect-video">
 
-          {/* Visible canvas – GPU-composited, opaque */}
+          {/* Visible canvas  to  GPU-composited, opaque */}
           <canvas
             ref={canvasRef}
             className="w-full h-full block"
@@ -297,7 +297,7 @@ const ScrollytellingVideo: React.FC<ScrollytellingVideoProps> = ({
             aria-label="Scrollytelling video"
           />
 
-          {/* Hidden video – used only for frame decode, never rendered */}
+          {/* Hidden video  to  used only for frame decode, never rendered */}
           <video
             ref={videoRef}
             muted

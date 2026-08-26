@@ -25,7 +25,7 @@ const FaqPage: React.FC = () => (
           Frequently asked questions
         </h1>
         <p className="text-white/60 mb-14 leading-relaxed">
-          Direct answers about Goldback, Yureka AI, credit without a card, and pricing. Still stuck?{' '}
+          Direct answers about Goldback, Yureka AI, and pricing. Still stuck?{' '}
           <Link to="/contact" className="text-clay hover:underline">Email us</Link>.
         </p>
 

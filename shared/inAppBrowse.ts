@@ -9,7 +9,7 @@ function isPrivateHost(host: string): boolean {
   return false
 }
 
-/** Only http(s) destinations — never javascript:/data: open-redirects. */
+/** Only http(s) destinations. never javascript:/data: open-redirects. */
 export function sanitizeBrowseUrl(raw: string | null | undefined): string | null {
   if (!raw) return null
   try {
@@ -75,7 +75,7 @@ export function stampAffiliateSubId(raw: string, userId: string): string {
   }
 }
 
-/** CueLinks / affiliate redirect — safe to auto-follow (not a merchant Universal Link). */
+/** CueLinks / affiliate redirect. safe to auto-follow (not a merchant Universal Link). */
 export function isAffiliateRedirectUrl(raw: string | null | undefined): boolean {
   const safe = sanitizeBrowseUrl(raw)
   if (!safe) return false
@@ -127,7 +127,7 @@ function stripAppDeepPath(u: URL) {
   }
 }
 
-/** Prefer mobile-web entry points — still may open the native app on some iOS builds. */
+/** Prefer mobile-web entry points. still may open the native app on some iOS builds. */
 export function mobileWebBrowseUrl(raw: string | null | undefined): string | null {
   const safe = sanitizeBrowseUrl(raw)
   if (!safe) return null
@@ -295,6 +295,6 @@ export function explorePath(sceneId: string, brand?: string) {
 export function embedFrameSrc(raw: string | null | undefined): string | null {
   const url = sanitizeBrowseUrl(raw)
   if (!url || isAffiliateRedirectUrl(url) || needsFirstPartyCookies(url)) return null
-  // Always return the merchant URL — callers detect X-Frame blocks and fall back in-shell.
+  // Always return the merchant URL. callers detect X-Frame blocks and fall back in-shell.
   return mobileWebBrowseUrl(url) || url
 }

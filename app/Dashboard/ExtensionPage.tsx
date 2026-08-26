@@ -47,7 +47,7 @@ const ExtensionPage: React.FC = () => {
           Yureka for Chrome
         </h1>
         <p className="mt-3 max-w-md text-[14.5px] leading-relaxed text-white/45">
-          Live coupons and Goldback on Amazon, Flipkart, Myntra, and more — without leaving checkout.
+          Live coupons and Goldback on Amazon, Flipkart, Myntra, and more. without leaving checkout.
           Some deal links are affiliate links; Yureka may earn a commission at no extra cost to you.
         </p>
       </motion.div>
@@ -67,7 +67,7 @@ const ExtensionPage: React.FC = () => {
           <div className="min-w-0">
             <p className="text-[15px] font-semibold tracking-[-0.02em] text-white">Load unpacked</p>
             <p className="mt-1 text-[13px] leading-relaxed text-white/42">
-              Works in Chrome and Edge today. Chrome Web Store listing comes next — this path is the real install.
+              Works in Chrome and Edge today. Chrome Web Store listing comes next. this path is the real install.
             </p>
           </div>
         </div>
@@ -123,7 +123,7 @@ const ExtensionPage: React.FC = () => {
       </motion.div>
 
       <p className="mt-6 text-[12.5px] leading-relaxed text-white/35">
-        Privacy: the extension only sends the store hostname to match offers — not your cart contents.
+        Privacy: the extension only sends the store hostname to match offers. not your cart contents.
       </p>
     </div>
   )

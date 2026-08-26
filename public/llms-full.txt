@@ -1,4 +1,4 @@
-# Yureka One — Complete Technical & Product Specification
+# Yureka One. Complete Technical & Product Specification
 
 > Yureka One is an AI-native consumer Wealth Operating System (Wealth OS) designed for affluent Indian shoppers. It automates receipt capture, calculates shopper creditworthiness, optimizes checkouts, and yields 24K digital gold rewards.
 

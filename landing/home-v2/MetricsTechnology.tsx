@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { motion, useMotionTemplate, useScroll, useSpring, useTransform } from 'framer-motion';
 import ScrambleIn from './ScrambleIn';
 import { useInView } from './useInView';
 import JoinWaitlistButton from './JoinWaitlistButton';
 import { usePrefersCinematic } from './usePrefersCinematic';
 import ScrollScrubVideo from './ScrollScrubVideo';
+import { useVideoScrub } from './useVideoScrub';
 
 const METRICS_VIDEO_URL = '/cta_fold.mp4';
 const TECH_VIDEO_URL = '/vault4.mp4';
@@ -35,9 +36,9 @@ const FEATURES = [
   },
 ];
 
-const METRICS_SCRUB_VH = 100;
-const SLIDE_VH = 100;
-const TECH_SCRUB_VH = 100;
+const METRICS_SCRUB_VH = 110;
+const SLIDE_VH = 90;
+const TECH_SCRUB_VH = 110;
 const TOTAL_EXTRA_VH = METRICS_SCRUB_VH + SLIDE_VH + TECH_SCRUB_VH;
 
 const METRICS_SCRUB_END = METRICS_SCRUB_VH / TOTAL_EXTRA_VH;
@@ -60,7 +61,7 @@ function GlassVideoCard({ children }: { children: ReactNode }) {
   );
 }
 
-/** Mobile: stacked scroll-driven sections — no horizontal pin scrub. */
+/** Mobile: stacked scroll-driven sections. no horizontal pin scrub. */
 function MetricsTechnologyMobile() {
   const { ref: statsRef, inView: statsInView } = useInView<HTMLDivElement>('0px');
 
@@ -73,7 +74,7 @@ function MetricsTechnologyMobile() {
       </section>
 
       <div className="px-4">
-        <ScrollScrubVideo src={METRICS_VIDEO_URL} trackVh={145} />
+        <ScrollScrubVideo src={METRICS_VIDEO_URL} trackVh={130} />
       </div>
 
       <section className="mx-auto mt-6 flex w-full max-w-lg flex-col px-5">
@@ -109,7 +110,7 @@ function MetricsTechnologyMobile() {
       </section>
 
       <div className="mt-8 px-4">
-        <ScrollScrubVideo src={TECH_VIDEO_URL} poster={TECH_POSTER} trackVh={145} />
+        <ScrollScrubVideo src={TECH_VIDEO_URL} poster={TECH_POSTER} trackVh={130} />
       </div>
 
       <section className="mx-auto mt-8 flex w-full max-w-lg flex-col px-5">
@@ -142,13 +143,8 @@ function MetricsTechnologyDesktop() {
       ([entry]) => {
         sectionActiveRef.current = entry.isIntersecting;
         if (entry.isIntersecting) setVideosEnabled(true);
-        // Pause both when the whole section leaves view
-        if (!entry.isIntersecting) {
-          metricsVideoRef.current?.pause();
-          techVideoRef.current?.pause();
-        }
       },
-      { rootMargin: '200px' },
+      { rootMargin: '280px' },
     );
     observer.observe(el);
     return () => observer.disconnect();
@@ -158,7 +154,7 @@ function MetricsTechnologyDesktop() {
     target: wrapperRef,
     offset: ['start start', 'end end'],
   });
-  // Calmer critically damped slide (Apple default UI — no frantic lag/overspeed)
+  // Critically damped slide chrome only. media time stays raw (useVideoScrub).
   const smoothProgress = useSpring(scrollYProgress, {
     stiffness: 170,
     damping: 32,
@@ -168,54 +164,32 @@ function MetricsTechnologyDesktop() {
   const rowX = useTransform(smoothProgress, [METRICS_SCRUB_END, SLIDE_END], [0, -100]);
   const rowTransform = useMotionTemplate`translateX(${rowX}vw)`;
 
-  // Play/pause the visible panel from scroll progress — no autoplay attribute.
-  useEffect(() => {
-    if (!videosEnabled) return;
+  const mapMetricsTime = useCallback((progress: number, duration: number) => {
+    const scrub = Math.max(0, Math.min(1, progress / METRICS_SCRUB_END));
+    return scrub * Math.max(0.05, duration - 0.05);
+  }, []);
 
-    const syncPlayback = (progress: number) => {
-      if (document.hidden || !sectionActiveRef.current) {
-        metricsVideoRef.current?.pause();
-        techVideoRef.current?.pause();
-        return;
-      }
-      const clamped = Math.max(0, Math.min(1, progress));
-      const onMetrics = clamped < SLIDE_END;
-      const onTech = clamped >= METRICS_SCRUB_END;
+  const mapTechTime = useCallback((progress: number, duration: number) => {
+    if (progress < SLIDE_END) return 0;
+    const scrub = Math.max(0, Math.min(1, (progress - SLIDE_END) / (1 - SLIDE_END)));
+    return scrub * Math.max(0.05, duration - 0.05);
+  }, []);
 
-      const metrics = metricsVideoRef.current;
-      const tech = techVideoRef.current;
+  useVideoScrub({
+    videoRef: metricsVideoRef,
+    scrollProgress: scrollYProgress,
+    mapTime: mapMetricsTime,
+    activeRef: sectionActiveRef,
+    enabled: videosEnabled,
+  });
 
-      if (metrics) {
-        if (onMetrics) {
-          if (metrics.paused) {
-            const p = metrics.play();
-            if (p) p.catch(() => {});
-          }
-        } else if (!metrics.paused) {
-          metrics.pause();
-        }
-      }
-      if (tech) {
-        if (onTech) {
-          if (tech.paused) {
-            const p = tech.play();
-            if (p) p.catch(() => {});
-          }
-        } else if (!tech.paused) {
-          tech.pause();
-        }
-      }
-    };
-
-    syncPlayback(scrollYProgress.get());
-    const unsub = scrollYProgress.on('change', syncPlayback);
-    const onVisibility = () => syncPlayback(scrollYProgress.get());
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => {
-      unsub();
-      document.removeEventListener('visibilitychange', onVisibility);
-    };
-  }, [scrollYProgress, videosEnabled]);
+  useVideoScrub({
+    videoRef: techVideoRef,
+    scrollProgress: scrollYProgress,
+    mapTime: mapTechTime,
+    activeRef: sectionActiveRef,
+    enabled: videosEnabled,
+  });
 
   return (
     <div
@@ -235,9 +209,9 @@ function MetricsTechnologyDesktop() {
                       ref={metricsVideoRef}
                       src={METRICS_VIDEO_URL}
                       muted
-                      loop
                       playsInline
                       preload="auto"
+                      disablePictureInPicture
                       className="h-full w-full object-cover opacity-100"
                     />
                   )}
@@ -288,9 +262,9 @@ function MetricsTechnologyDesktop() {
                       src={TECH_VIDEO_URL}
                       poster={TECH_POSTER}
                       muted
-                      loop
                       playsInline
                       preload="auto"
+                      disablePictureInPicture
                       className="h-full w-full object-cover opacity-100"
                     />
                   )}

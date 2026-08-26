@@ -47,7 +47,7 @@ export interface WwMember {
 }
 
 export interface WwPlanInstallmentTemplate {
-  /** Fraction of trip price, 0–1 */
+  /** Fraction of trip price, 0 to 1 */
   percent: number
   /** Days before trip start (0 = on start day); booking deposit uses null / pay now */
   daysBeforeStart?: number | null

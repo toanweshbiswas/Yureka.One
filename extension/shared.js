@@ -62,7 +62,7 @@ function offerCount(data) {
   return market + gold
 }
 
-/** Chrome Web Store / Affiliate Ads policy — consent before affiliate links. */
+/** Chrome Web Store / Affiliate Ads policy. consent before affiliate links. */
 const AFFILIATE_CONSENT_KEY = 'yurekaAffiliateConsent'
 
 function getAffiliateConsent() {

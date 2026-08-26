@@ -1,7 +1,7 @@
 // Server-only: string-replaces the static placeholder tags in the built
 // index.html with the resolved per-route meta, so crawlers that don't execute
 // JavaScript (most AEO/GEO bots, social link-preview scrapers) see correct,
-// unique tags for every URL — not just the generic homepage defaults.
+// unique tags for every URL. not just the generic homepage defaults.
 
 import { DEFAULT_OG_IMAGE, SITE_URL, type PageMeta } from './pageMeta';
 import { crawlerContentHtml } from './crawlerContent';

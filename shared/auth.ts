@@ -25,7 +25,7 @@ function shouldDetectSessionInUrl() {
   // report the link as expired).
   if (typeof window !== 'undefined' && isPasswordRecoveryCallback()) return false
   const role = resolveSiteRole()
-  // Only exchange OAuth `?code=` on the app (or combined local) host — never on
+  // Only exchange OAuth `?code=` on the app (or combined local) host. never on
   // the marketing site, or PKCE verifier / session land on the wrong origin.
   return role === 'app' || role === 'brand' || role === 'wanderworld' || role === 'all'
 }
@@ -67,7 +67,7 @@ export function normalizeWaitlistStatus(
   return null
 }
 
-/** Canonical OAuth return URL — must be listed in Supabase Auth redirect allowlist. */
+/** Canonical OAuth return URL. must be listed in Supabase Auth redirect allowlist. */
 export function authCallbackUrl(nextPath = '/dashboard') {
   const next = nextPath.startsWith('/') ? nextPath : `/${nextPath}`
   return `${appOrigin()}/login?next=${encodeURIComponent(next)}`
@@ -111,7 +111,7 @@ export function wanderworldAuthCallbackUrl(nextPath?: string) {
   const home = role === 'wanderworld' ? '/' : '/ww'
   const next = (nextPath || home).startsWith('/') ? nextPath || home : `/${nextPath || home}`
 
-  // Local combined SPA — stay on this origin under /ww.
+  // Local combined SPA. stay on this origin under /ww.
   if (typeof window !== 'undefined' && !isSplitHostsEnabled()) {
     return `${window.location.origin}/ww/login?next=${encodeURIComponent(next)}&portal=ww`
   }
@@ -218,7 +218,7 @@ export async function resetPasswordForEmail(email: string, redirectTo?: string):
       return { error: body?.error || 'Could not send reset email' }
     }
   } catch {
-    /* network / local without API — fall back */
+    /* network / local without API. fall back */
   }
 
   const sb = getSupabaseBrowser()
@@ -345,7 +345,7 @@ async function establishRecoverySessionOnce(): Promise<{ session: Session | null
     | 'magiclink'
     | 'signup'
 
-  // token_hash works across browsers (no PKCE verifier) — prefer it.
+  // token_hash works across browsers (no PKCE verifier). prefer it.
   if (tokenHash) {
     const verified = await sb.auth.verifyOtp({
       token_hash: tokenHash,

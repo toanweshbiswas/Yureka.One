@@ -1,7 +1,7 @@
 // Server-only: given a request pathname, resolves which PageMeta + JSON-LD
 // schemas to inject. Static routes are a pure lookup; dynamic routes
 // (/blog/:slug) do a best-effort, short-timeout lookup so crawlers see the
-// real title — falling back to generic (or 404 for a confirmed miss).
+// real title. falling back to generic (or 404 for a confirmed miss).
 
 import { DEFAULT_DESCRIPTION, formatTitle, SITE_URL, staticPageMeta, type PageMeta } from './pageMeta';
 import {
@@ -14,7 +14,7 @@ import {
 } from './structuredData';
 import { faqQuestions } from '../faq';
 import { brandCategoryFromSlug, brands, brandsCategorySeo, categorySlug } from '../../../landing/brandsData';
-import { CAREER_ROLES } from '../../../landing/careersData';
+import { listCareers } from '../cms/careersStore';
 import { getBlogBySlug } from '../cms/blogStore';
 
 export const REDIRECTS: Record<string, string> = {
@@ -61,7 +61,7 @@ function withTimeout<T>(promise: PromiseLike<T>, ms: number): Promise<{ timedOut
   });
 }
 
-function extraSchemas(path: string): object[] {
+function extraSchemas(path: string, jobs?: object[]): object[] {
   if (path === '/') {
     return [
       {
@@ -76,7 +76,7 @@ function extraSchemas(path: string): object[] {
     ];
   }
   if (path === '/faq') return [faqPageSchema(faqQuestions)];
-  if (path === '/jobs') return CAREER_ROLES.map((role) => jobPostingSchema(role));
+  if (path === '/jobs') return jobs || [];
   if (path === '/manifesto') {
     return [{
       '@context': 'https://schema.org',
@@ -151,6 +151,28 @@ export async function resolveRouteMeta(pathname: string): Promise<ResolvedRoute>
   }
 
   if (staticPageMeta[path]) {
+    if (path === '/jobs') {
+      const cached = getCached('jobs:schemas');
+      if (cached?.schemas) {
+        return { status: 200, meta: staticPageMeta[path], schemas: cached.schemas };
+      }
+      const { timedOut, value } = await withTimeout(listCareers({ includeDrafts: false }), 2000);
+      const schemas = timedOut || !value
+        ? []
+        : value.map((role) =>
+            jobPostingSchema({
+              title: role.title,
+              type: role.type,
+              location: role.location,
+              dept: role.department,
+              refId: role.refId,
+              description: role.description,
+            }),
+          );
+      const resolved = { status: 200 as const, meta: staticPageMeta[path], schemas };
+      setCached('jobs:schemas', resolved);
+      return resolved;
+    }
     return { status: 200, meta: staticPageMeta[path], schemas: extraSchemas(path) };
   }
 

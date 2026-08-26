@@ -16,7 +16,7 @@ export type SpendTransaction = {
 
 /**
  * Expenses / Bills read the PRIMARY Gmail ledger only.
- * Planning extras + investments stay on the Planning path — never merge here.
+ * Planning extras + investments stay on the Planning path. never merge here.
  */
 export function useExpenseLedger() {
   const { ledgerTransactions } = useSupabase()
@@ -34,7 +34,7 @@ export function useExpenseLedger() {
   return { transactions: lifestyle }
 }
 
-/** @deprecated Use useExpenseLedger — kept so old imports fail loudly in types if needed */
+/** @deprecated Use useExpenseLedger. kept so old imports fail loudly in types if needed */
 export function useMergedSpend() {
   return useExpenseLedger()
 }

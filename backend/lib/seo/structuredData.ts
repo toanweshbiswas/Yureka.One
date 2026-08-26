@@ -64,7 +64,7 @@ export function blogPostingSchema(blog: {
   };
 }
 
-/** Organization schema — emit on every page via index.html inline script. */
+/** Organization schema. emit on every page via index.html inline script. */
 export function organizationSchema() {
   return {
     '@context': 'https://schema.org',
@@ -75,7 +75,20 @@ export function organizationSchema() {
     logo: `${SITE_URL}/logos/yureka-logo.png`,
     email: 'support@yureka.one',
     foundingDate: '2026',
-    founder: { '@type': 'Person', name: 'Anwesh Biswas', url: `${SITE_URL}/about` },
+    founder: [
+      {
+        '@type': 'Person',
+        name: 'Anwesh Biswas',
+        url: 'https://www.linkedin.com/in/anweshbiswas/',
+        sameAs: 'https://www.linkedin.com/in/anweshbiswas/',
+      },
+      {
+        '@type': 'Person',
+        name: 'Mainak Saha',
+        url: 'https://www.linkedin.com/in/mainaksaha08/',
+        sameAs: 'https://www.linkedin.com/in/mainaksaha08/',
+      },
+    ],
     contactPoint: {
       '@type': 'ContactPoint',
       email: 'support@yureka.one',
@@ -98,7 +111,7 @@ export function organizationSchema() {
       'Model Context Protocol',
       'Alternative Credit Scoring',
       'Lending Service Provider',
-      'Credit Card Rewards Optimization',
+      'Rewards Optimization',
     ],
     hasOfferCatalog: {
       '@type': 'OfferCatalog',
@@ -110,7 +123,7 @@ export function organizationSchema() {
             '@type': 'Service',
             name: 'Yureka Goldback',
             description:
-              'A reward asset that converts every transaction into yield-generating 24K digital gold — up to 16% effective ROI — instead of expiring loyalty points.',
+              'A reward asset that converts every transaction into yield-generating 24K digital gold. up to 16% effective ROI. instead of expiring loyalty points.',
           },
         },
         {
@@ -136,7 +149,7 @@ export function organizationSchema() {
           itemOffered: {
             '@type': 'Product',
             name: 'Yureka Premium',
-            description: 'Subscription at ₹99/month or ₹1,199/year — 100% reimbursed as 24K digital gold.',
+            description: 'Subscription at ₹99/month or ₹1,199/year. 100% reimbursed as 24K digital gold.',
             offers: {
               '@type': 'Offer',
               price: '99',
@@ -165,7 +178,7 @@ export function softwareApplicationSchema() {
     operatingSystem: 'Web, iOS, Android',
     url: `${SITE_URL}/yureka-ai`,
     description:
-      "India's first AI shopping concierge integrated with Swiggy MCP — compares prices, places food and grocery orders, applies the best-reward payment, and converts earnings into Yureka Goldback (24K digital gold).",
+      "India's first AI shopping concierge integrated with Swiggy MCP. compares prices, places food and grocery orders, applies the best-reward payment, and converts earnings into Yureka Goldback (24K digital gold).",
     offers: {
       '@type': 'Offer',
       price: '0',
@@ -200,13 +213,13 @@ export function howToGoldbackSchema() {
         '@type': 'HowToStep',
         position: 2,
         name: 'Score',
-        text: 'Generate a Power Shopper Score from 0–100 for financial health, shopping optimisation, and reliability.',
+        text: 'Generate a Power Shopper Score from 0 to 100 for financial health, shopping optimisation, and reliability.',
       },
       {
         '@type': 'HowToStep',
         position: 3,
         name: 'Optimise',
-        text: 'Route the payment, apply the best reward path, and credit Yureka Goldback as 24K digital gold — up to 16% effective ROI.',
+        text: 'Route the payment, apply the best reward path, and credit Yureka Goldback as 24K digital gold. up to 16% effective ROI.',
       },
     ],
   }
@@ -217,13 +230,16 @@ export function jobPostingSchema(role: {
   type: string
   location: string
   dept: string
-  id: string
+  id?: string
+  refId?: string
+  description?: string
 }) {
+  const identifier = role.refId || role.id || ''
   return {
     '@context': 'https://schema.org',
     '@type': 'JobPosting',
     title: role.title,
-    identifier: role.id,
+    identifier: identifier,
     employmentType: 'FULL_TIME',
     hiringOrganization: {
       '@type': 'Organization',
@@ -239,7 +255,9 @@ export function jobPostingSchema(role: {
       },
     },
     industry: role.dept,
-    description: `Join Yureka.One in ${role.location} as ${role.title} (${role.type}).`,
+    description:
+      role.description?.trim() ||
+      `Join Yureka.One in ${role.location} as ${role.title} (${role.type}).`,
     url: `${SITE_URL}/jobs`,
   }
 }

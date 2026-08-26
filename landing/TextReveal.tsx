@@ -68,7 +68,7 @@ interface WordsPullUpMultiStyleProps {
   segments: Segment[];
   containerClassName?: string;
   /** 'inline' flows all segments' words together as one wrapped paragraph (mixed styling per word).
-   *  'block' (default) renders each segment as its own wrapped block — used for stacked lines. */
+   *  'block' (default) renders each segment as its own wrapped block. used for stacked lines. */
   mode?: 'block' | 'inline';
 }
 
@@ -264,7 +264,7 @@ const TextReveal: React.FC = () => {
                   className: 'font-normal text-[#E1E0CC]',
                 },
                 {
-                  text: 'Instead, we offer assured Goldback and high-yield returns that grow in your vault—providing 100% liquidity for global lifestyle experiences, travel, and premium consumption.',
+                  text: 'Instead, we offer assured Goldback and high-yield returns that grow in your vault. providing 100% liquidity for global lifestyle experiences, travel, and premium consumption.',
                   className: 'font-normal text-primary',
                 },
               ]}
@@ -328,9 +328,9 @@ const TextReveal: React.FC = () => {
                   </h3>
                   <ul className="space-y-3 mt-5">
                     {[
-                      'Credit Cards',
                       'UPI',
-                      'Debit Cards',
+                      'Bank account',
+                      'Wallets',
                       'BNPL',
                     ].map((item, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs sm:text-sm text-gray-400">
@@ -349,8 +349,8 @@ const TextReveal: React.FC = () => {
                 <div>
                   <img
                     className="w-full h-48 object-contain mb-2"
-                    src="/assets/feat-card-visa.png"
-                    alt="Smart Critiques"
+                    src="/assets/feat-card-gift.png"
+                    alt="Assured returns"
                   />
                   <h3 className="text-[#E1E0CC] font-medium text-lg mt-3 tracking-tight uppercase">
                     Assured Returns <span className="text-gray-500 font-normal">(02)</span>

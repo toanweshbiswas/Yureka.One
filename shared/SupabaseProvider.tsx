@@ -152,7 +152,7 @@ const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined
 
 /**
  * Admin CMS for the SPA is loaded via authenticated /api/admin/* after login
- * (see AdminDashboard). Never call unauthenticated /api/v1/admin/* here —
+ * (see AdminDashboard). Never call unauthenticated /api/v1/admin/* here . 
  * those routes return 401 and previously leaked waitlist PII on the login page.
  */
 async function loadAdminData(_setters: {
@@ -469,7 +469,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     void syncLedger(false);
   }, [session?.user?.email, syncLedger]);
 
-  // Real Supabase Auth — replaces demo stub
+  // Real Supabase Auth. replaces demo stub
   useEffect(() => {
     setAuthTokenGetter(() => sessionRef.current?.access_token ?? null);
 

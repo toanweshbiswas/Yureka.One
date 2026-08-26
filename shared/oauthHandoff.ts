@@ -1,7 +1,7 @@
 /**
  * OAuth / PKCE must finish on the same origin that started sign-in.
  * If Supabase Site URL still points at the marketing host (or a temporary
- * sslip host), the `?code=` lands there first — exchanging it there stores
+ * sslip host), the `?code=` lands there first. exchanging it there stores
  * the session on the wrong origin.
  *
  * WanderWorld ops tags redirects with `portal=ww` (and may land on
@@ -115,10 +115,10 @@ export function oauthHandoffUrl(
   const isWanderworld = hostname === 'wanderworld.yureka.one'
   const isLocal = hostname === 'localhost' || hostname === '127.0.0.1'
 
-  // Combined SPA / already on ops host — exchange here.
+  // Combined SPA / already on ops host. exchange here.
   if (isWanderworld || isLocal) return null
 
-  // App or marketing received a WW callback — bounce before PKCE exchange.
+  // App or marketing received a WW callback. bounce before PKCE exchange.
   if (wantsWw && !isBrand) {
     const nextParams = new URLSearchParams(params)
     nextParams.set('portal', 'ww')

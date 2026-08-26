@@ -125,7 +125,7 @@ const Stats: React.FC = () => {
                     <span className="text-[9px] lowercase font-normal italic opacity-30">AI-Verified</span>
                 </h4>
                 <p className="text-white/40 text-sm font-sans leading-relaxed max-w-xs transition-opacity group-hover:opacity-100">
-                    We match every one of those 1000+ spending profiles to the brands and cards that pay them back the most — upto 30% in cashback, goldback and reward points.
+                    We match every one of those 1000+ spending profiles to the brands and cards that pay them back the most. upto 30% in cashback, goldback and reward points.
                 </p>
                 <div className="absolute inset-0 bg-gradient-to-br from-clay/0 via-transparent to-clay/0 group-hover:from-clay/[0.05] transition-all duration-700 pointer-events-none" />
             </motion.div>

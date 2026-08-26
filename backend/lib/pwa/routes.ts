@@ -56,7 +56,7 @@ export function registerPwaRoutes(app: Express) {
         row = await findWaitlistById(ident.userId)
       }
       if (!row) {
-        // Member may be auth-only without waitlist yet — acknowledge without failing the client.
+        // Member may be auth-only without waitlist yet. acknowledge without failing the client.
         return ok(res, {
           recorded: false,
           reason: 'no_waitlist',

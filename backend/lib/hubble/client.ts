@@ -268,7 +268,7 @@ export async function getGiftCard(id: string): Promise<GiftCard | null> {
   return all.find((p) => p.id === id) || null
 }
 
-/** Place an order — Hubble debits the partner wallet and issues vouchers. */
+/** Place an order. Hubble debits the partner wallet and issues vouchers. */
 export async function placeHubbleOrder(input: PlaceOrderInput): Promise<HubbleOrderRaw> {
   return hubbleRequest<HubbleOrderRaw>('POST', '/v1/partners/orders', { body: input })
 }

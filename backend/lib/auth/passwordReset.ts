@@ -28,7 +28,7 @@ function resetRedirectBase(redirectTo?: string) {
 /**
  * Send a recovery email with `token_hash` so the link works in any browser.
  * Supabase's default PKCE `?code=` links require the same browser that requested
- * the reset — email clients / phone browsers burn those and show "expired".
+ * the reset. email clients / phone browsers burn those and show "expired".
  */
 export async function sendAppPasswordResetEmail(opts: {
   email: string

@@ -22,8 +22,8 @@ const FAQS = [
     a: "Yes. Yureka's AI can place orders across supported delivery and quick-commerce apps on your behalf, always routing through the highest-reward payment method.",
   },
   {
-    q: 'How can I build a credit score without a credit card or loan?',
-    a: "Yureka tracks your everyday spending patterns and reports responsible usage to help you build credit history, even if you've never held a credit card.",
+    q: 'How can I build a credit score without a loan history?',
+    a: "Yureka tracks your everyday spending patterns and reports responsible usage to help you build credit history from real transactions.",
   },
   {
     q: 'Is my data safe with Yureka?',

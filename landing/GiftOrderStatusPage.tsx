@@ -55,7 +55,7 @@ const GiftOrderStatusPage: React.FC = () => {
       <SEO title="Gift order · Yureka" description="Track your Yureka gift card order." />
       <Navbar />
       <main className="mx-auto max-w-xl px-6 pb-20 pt-28">
-        <Link to="/#gifting" className="text-sm text-white/45 hover:text-white">
+        <Link to="/gift" className="text-sm text-white/45 hover:text-white">
           ← Back to gifting
         </Link>
 
@@ -105,7 +105,15 @@ const GiftOrderStatusPage: React.FC = () => {
                 <div>
                   <p className="font-semibold">Order failed</p>
                   <p className="mt-1 text-red-200/80">
-                    {order.failureReason || 'Please try again from the gifting section.'}
+                    {order.failureReason || (
+                      <>
+                        Please try again from the{' '}
+                        <Link to="/gift" className="underline">
+                          gifting page
+                        </Link>
+                        .
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -116,7 +124,7 @@ const GiftOrderStatusPage: React.FC = () => {
                 <div className="flex items-center gap-2 text-sm font-semibold text-[#5fae52]">
                   <CheckCircle2 size={18} />
                   {order.isGift
-                    ? 'Codes emailed to recipient — also saved here'
+                    ? 'Codes emailed to recipient. also saved here'
                     : 'Vouchers ready'}
                 </div>
                 {order.vouchers.map((v, i) => (

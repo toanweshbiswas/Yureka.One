@@ -23,7 +23,7 @@ function heuristicInsights(
     riskFlags.push('Pace is above your monthly budget')
     tips.push('Trim the top overspend lifestyle category by 10% for the rest of the month')
   } else if (lifestyleSpend > 0) {
-    tips.push('Keep daily lifestyle pace steady — you are on track for this month')
+    tips.push('Keep daily lifestyle pace steady. you are on track for this month')
   } else {
     tips.push('Add a few expenses or resync Gmail to unlock a full plan')
   }
@@ -37,12 +37,12 @@ function heuristicInsights(
   }
 
   const top = analysis.topMerchants[0]
-  if (top) tips.push(`${top.name} is your top lifestyle merchant — check gift-card or Goldback`)
+  if (top) tips.push(`${top.name} is your top lifestyle merchant. check gift-card or Goldback`)
 
   const topInvest = analysis.topInvestments?.[0]
   if (investment && investment.actualInr > 0 && topInvest) {
     tips.push(
-      `Invested ₹${Math.round(investment.actualInr).toLocaleString('en-IN')} via ${topInvest.name} — tracked separately from spend`,
+      `Invested ₹${Math.round(investment.actualInr).toLocaleString('en-IN')} via ${topInvest.name}. tracked separately from spend`,
     )
   }
 
@@ -59,7 +59,7 @@ function heuristicInsights(
   }
 }
 
-/** Planning insights stay local — no OpenAI on month loads / reloads. */
+/** Planning insights stay local. no OpenAI on month loads / reloads. */
 export async function buildPlanningInsights(opts: {
   forecast: PlanningForecast
   categories: CategorySpend[]

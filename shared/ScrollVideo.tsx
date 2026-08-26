@@ -138,7 +138,7 @@ const ScrollVideo: React.FC<Props> = ({
           loop
           playsInline
           preload={eager ? 'auto' : 'metadata'}
-          // Intentionally no autoPlay — playback is scroll/intersection driven
+          // Intentionally no autoPlay. playback is scroll/intersection driven
           onLoadedData={() => setReady(true)}
           onError={() => setReady(true)}
           className={`absolute inset-0 h-full w-full transition-opacity duration-500 motion-reduce:transition-none ${

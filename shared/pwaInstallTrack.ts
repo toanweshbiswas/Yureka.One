@@ -77,7 +77,7 @@ async function postPresence(opts: {
 
 /**
  * Report installed-PWA presence for the signed-in member.
- * Safe to call often — throttles routine heartbeats; always sends on first install signal.
+ * Safe to call often. throttles routine heartbeats; always sends on first install signal.
  */
 export async function trackPwaPresence(opts: {
   userId?: string | null

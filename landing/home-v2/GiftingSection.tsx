@@ -241,7 +241,7 @@ export default function GiftingSection() {
           style={{ fontFamily: 'Inter, sans-serif' }}
           className="mt-3 max-w-2xl text-[14px] leading-relaxed text-white/50 sm:text-[16px]"
         >
-          Pick a brand, pay securely, and we email the voucher codes to your person — no Yureka
+          Pick a brand, pay securely, and we email the voucher codes to your person. no Yureka
           account required.
         </p>
 
@@ -407,7 +407,7 @@ export default function GiftingSection() {
                     onChange={(e) => setGiftMessage(e.target.value.slice(0, 280))}
                     rows={3}
                     className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white"
-                    placeholder="Happy birthday — enjoy this on me"
+                    placeholder="Happy birthday. enjoy this on me"
                   />
                 </div>
 

@@ -10,7 +10,6 @@ import Loader from '@landing/home-v2/Loader';
 import Navbar from '@landing/home-v2/Navbar';
 import ScrollDownCue from '@landing/home-v2/ScrollDownCue';
 import BrandsSection from '@landing/home-v2/BrandsSection';
-import GiftingSection from '@landing/home-v2/GiftingSection';
 import MetricsTechnology from '@landing/home-v2/MetricsTechnology';
 import Architecture from '@landing/home-v2/Architecture';
 import FAQSection from '@landing/home-v2/FAQSection';
@@ -22,7 +21,7 @@ import { usePrefersCinematic } from '@landing/home-v2/usePrefersCinematic';
  * Homepage composition:
  * Loader → Navbar → hero (touch stacked / desktop cinematic) → sections → footer.
  *
- * Touch never mounts the 500vh+ pin-scrub cinematic — that path is pointer-only.
+ * Touch never mounts the 500vh+ pin-scrub cinematic. that path is pointer-only.
  */
 
 const MainPage: React.FC = () => {
@@ -40,7 +39,7 @@ const MainPage: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
 
-    // Gate entrance on font readiness — short min delay so first paint feels
+    // Gate entrance on font readiness. short min delay so first paint feels
     // instant (Apple: kill latency). Cap wait so a hung font CDN can't stall.
     const fontsReady =
       typeof document !== 'undefined' && 'fonts' in document
@@ -74,7 +73,6 @@ const MainPage: React.FC = () => {
           <HeroMobile entranceComplete={entranceComplete} />
         )}
         <BrandsSection />
-        <GiftingSection />
         <MetricsTechnology />
         <Architecture />
         <FAQSection />

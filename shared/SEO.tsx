@@ -9,7 +9,7 @@ interface SEOProps {
   canonical?: string;
   robots?: string;
   keywords?: string[];
-  /** A single JSON-LD object, or several — multiple objects are combined into
+  /** A single JSON-LD object, or several. multiple objects are combined into
    *  one @graph script so a page can emit e.g. BreadcrumbList + FinancialProduct. */
   schema?: object | object[];
 }

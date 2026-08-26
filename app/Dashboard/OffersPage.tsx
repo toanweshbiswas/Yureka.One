@@ -330,7 +330,7 @@ const OffersPage: React.FC = () => {
       knownOpenUrl,
       title,
       returnTo: offersReturnTo,
-      // Stay on Offers — never swap into /dashboard/browse.
+      // Stay on Offers. never swap into /dashboard/browse.
       forceExternal: true,
       // CueLinks needs window.open of the tracked URL when present.
       preferWeb: opts?.preferWeb ?? !knownOpenUrl,
@@ -340,7 +340,7 @@ const OffersPage: React.FC = () => {
   const handleGoldback = async (offer: GoldbackOffer) => {
     setBusyId(offer.id)
     setToast(null)
-    // Open under the tap gesture first — awaiting the click API made iOS close the tab.
+    // Open under the tap gesture first. awaiting the click API made iOS close the tab.
     openBrandOrOffer(offer.url, offer.merchant || offer.title, null, { preferWeb: true })
     void goldbackApi.click(userId, offer.id).finally(() => setBusyId(null))
   }

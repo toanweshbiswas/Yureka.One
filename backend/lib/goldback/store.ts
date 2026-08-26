@@ -221,7 +221,7 @@ function markOfferSeedLocked() {
   writeFileStore(snap)
 }
 
-/** Seed empty Supabase offers table from SEED_OFFERS — keeps IDs in the same backend as balance. */
+/** Seed empty Supabase offers table from SEED_OFFERS. keeps IDs in the same backend as balance. */
 async function ensureSupabaseOffers(sb: SupabaseClient): Promise<GoldbackOffer[]> {
   const { data, error } = await sb.from('offers').select('*').eq('active', true).order('created_at', { ascending: false })
   if (error) {
@@ -429,7 +429,7 @@ export async function recordClick(userId: string, offerId: string) {
       const { error } = await sb.from('offer_clicks').insert({ user_id: userId, offer_id: offerId })
       if (!error) return { ok: true as const }
       console.warn('[goldback] click insert failed:', error.message)
-      // Non-fatal — click tracking shouldn't block shopping
+      // Non-fatal. click tracking shouldn't block shopping
       return { ok: true as const }
     }
   }
@@ -448,7 +448,7 @@ export async function creditEarn(
   const offer = offers.find((o) => o.id === offerId)
   if (!offer) throw new Error('Offer not found')
 
-  // Normalize client keys — one earn per user+offer
+  // Normalize client keys. one earn per user+offer
   const stableKey = idempotencyKey.startsWith('earn:')
     ? `earn:${userId}:${offerId}`
     : idempotencyKey
@@ -458,7 +458,7 @@ export async function creditEarn(
     // Confirm offer exists in Supabase (avoid file-id FK failures)
     const { data: sbOffer } = await sb.from('offers').select('id').eq('id', offerId).maybeSingle()
     if (!sbOffer) {
-      // Offer came from a previous file-seed response while Supabase was empty —
+      // Offer came from a previous file-seed response while Supabase was empty . 
       // re-seed and try matching by merchant+title, else file fallback for this offer only.
       try {
         await ensureSupabaseOffers(sb)
@@ -469,7 +469,7 @@ export async function creditEarn(
       if (again) {
         return creditEarn(userId, again.id, `earn:${userId}:${again.id}`)
       }
-      console.warn('[goldback] offer not in supabase — crediting via file store for', offerId)
+      console.warn('[goldback] offer not in supabase. crediting via file store for', offerId)
       return creditInFile(userId, offer, stableKey)
     }
 
@@ -523,7 +523,7 @@ export async function creditEarn(
       updated_at: new Date().toISOString(),
     })
     if (upsertErr) {
-      // Roll back the lied success path — delete orphan ledger row when possible
+      // Roll back the lied success path. delete orphan ledger row when possible
       await sb.from('goldback_ledger').delete().eq('id', inserted.id)
       throw new Error(`Failed to update Goldback balance: ${upsertErr.message}`)
     }
@@ -638,7 +638,7 @@ export async function deleteOffer(id: string): Promise<boolean> {
   if (sb) {
     const clicks = await sb.from('offer_clicks').delete().eq('offer_id', offerId)
     if (noteSchemaError(clicks.error)) {
-      // table missing — file store below
+      // table missing. file store below
     } else {
       await sb.from('goldback_ledger').update({ offer_id: null }).eq('offer_id', offerId)
       const { data, error } = await sb.from('offers').delete().eq('id', offerId).select('id')

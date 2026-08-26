@@ -106,7 +106,7 @@ export function EmptyState({ children }: { children: React.ReactNode }) {
   return <p className="text-center text-[15px] text-white/35 py-16">{children}</p>
 }
 
-/** Upload to Supabase (via admin blogs/upload) or paste a URL — used across Club forms. */
+/** Upload to Supabase (via admin blogs/upload) or paste a URL. used across Club forms. */
 export function ImageUrlField({
   label = 'Image',
   value,

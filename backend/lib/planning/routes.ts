@@ -186,7 +186,7 @@ async function buildOverview(
   const forecast = buildForecast(merged, budgets, now)
   const analysis = buildAnalysis(merged, now)
 
-  // Heuristic only on overview — month flips / reloads must not burn OpenAI tokens.
+  // Heuristic only on overview. month flips / reloads must not burn OpenAI tokens.
   // AI refine stays on inbox score scan (gated + tiny max_tokens), not every planning GET.
   const remainingDays = Math.max(1, forecast.daysInMonth - forecast.daysElapsed)
   const expected = Math.round(forecast.projectedMonthEndInr)
@@ -203,7 +203,7 @@ async function buildOverview(
   const tips: string[] = []
   if (lifestyle > 0) tips.push('Keep daily lifestyle pace steady')
   else tips.push('Add expenses or resync Gmail to unlock a full plan')
-  if (top) tips.push(`${top.name} is top lifestyle merchant — gift card / Goldback if useful`)
+  if (top) tips.push(`${top.name} is top lifestyle merchant. gift card / Goldback if useful`)
   if (investment && investment.actualInr > 0 && topInvest) {
     tips.push(
       `₹${Math.round(investment.actualInr).toLocaleString('en-IN')} via ${topInvest.name} tracked as investment`,

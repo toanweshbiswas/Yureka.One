@@ -25,8 +25,8 @@ Client Supabase anon key is expected public; **service role must never** be in `
 ## 2. Gmail / scanner
 
 ### Healthy behavior
-- `POST /api/v1/ledger/scan` — authenticated; email must match JWT.
-- Waitlist `POST /api/scan-email` — score bound to **Gmail profile email**, not spoofed body email.
+- `POST /api/v1/ledger/scan`. authenticated; email must match JWT.
+- Waitlist `POST /api/scan-email`. score bound to **Gmail profile email**, not spoofed body email.
 - Resync quota: 5 / 15 days (`resyncQuota`).
 
 ### Incidents
@@ -34,11 +34,11 @@ Client Supabase anon key is expected public; **service role must never** be in `
 | Symptom | Check |
 |---------|--------|
 | Mass AUTH_EXPIRED | Google OAuth consent / token revoke; client ID on correct hosts |
-| 403 access_denied for new users | OAuth app still in testing — add test users or complete verification |
+| 403 access_denied for new users | OAuth app still in testing. add test users or complete verification |
 | Scanner timeouts | API host Python venv; `ensure-python-deps`; memory on Render |
 | Wrong merchants / CRED as expense | Scanner filters + marketing filter; redeploy API |
 
-### SOP — rotate Google OAuth
+### SOP. rotate Google OAuth
 1. Create credentials in Google Cloud; update env on API + Vite build.
 2. Update authorized redirect URIs for `app.yureka.one`.
 3. Redeploy API + frontend; smoke: waitlist Gmail + dashboard Expenses connect.
@@ -60,15 +60,15 @@ Client Supabase anon key is expected public; **service role must never** be in `
 - Member: `/api/giftcards/*`
 - Webhooks: `/api/hubble/webhooks/*`, `/api/razorpay/webhooks` (HMAC / signature verify)
 
-### SOP — failed voucher after paid
+### SOP. failed voucher after paid
 1. Confirm Razorpay payment captured.
 2. Check Hubble order id on our order row.
-3. Replay/poll only with documented admin/tools — never invent voucher codes.
+3. Replay/poll only with documented admin/tools. never invent voucher codes.
 4. If webhook missed: verify endpoint URL + secrets on vendor dashboards match production.
 
-### SOP — rotate keys
+### SOP. rotate keys
 1. Dual-run old/new if vendor allows; else maintenance window.
-2. Update env; redeploy API; place ₹1–min test order on staging if available.
+2. Update env; redeploy API; place ₹1 to min test order on staging if available.
 
 ---
 
@@ -76,7 +76,7 @@ Client Supabase anon key is expected public; **service role must never** be in `
 
 - Public list OK; **`POST /api/marketplace/refresh`** requires **admin session**.
 - Campaigns (brand payouts): **`GET /api/marketplace/campaigns`** (also `/api/cuelinks/campaigns`)
-  - `filter=all|cpc|ppc|new_existing` — CPC = pay-per-click; `new_existing` = rows with New/Existing User rates
+  - `filter=all|cpc|ppc|new_existing`. CPC = pay-per-click; `new_existing` = rows with New/Existing User rates
   - Each item includes `isPayPerClick`, `newUserCommission`, `existingUserCommission`, full `payoutCategories`
 - Rate / cost: do not script refresh from untrusted clients.
 - Media proxy allowlists CueLinks CDN hosts only.

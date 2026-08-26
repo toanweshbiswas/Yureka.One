@@ -2,7 +2,7 @@
  * Converts Java API responses (camelCase, JSONB as JSON strings) to the
  * existing component-facing types (snake_case, parsed arrays).
  * This lets all consumers of SupabaseProvider and direct-fetch components
- * continue using the same field names throughout Phase 2–4 of the migration.
+ * continue using the same field names throughout Phase 2 to 4 of the migration.
  */
 
 import type {

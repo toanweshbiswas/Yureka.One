@@ -5,7 +5,7 @@ export const CATALOG_EVENT = 'yureka:catalog'
 type RevisionPayload = { revision: number; updatedAt: string }
 
 const STORAGE_KEY = 'yureka:catalog-revision'
-// Was 8s — too chatty on mobile (cache bust + refetch storms). Admin edits are rare.
+// Was 8s. too chatty on mobile (cache bust + refetch storms). Admin edits are rare.
 const POLL_MS = 60_000
 
 let started = false

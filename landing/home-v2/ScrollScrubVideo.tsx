@@ -4,8 +4,8 @@ import GlassLayer from './GlassLayer';
 import { useVideoScrub } from './useVideoScrub';
 
 /**
- * Mobile/touch counterpart to the desktop pin-scrub videos.
- * Scroll drives `currentTime` 1:1 (paused + seek) — more reliable on iOS
+ * Mobile/touch counterpart to desktop pin-scrub videos.
+ * Scroll drives `currentTime` 1:1 (paused + seek). more reliable on iOS
  * than muted autoplay, which is often blocked in Low Power Mode.
  */
 
@@ -17,7 +17,14 @@ function unlockInlineVideo(video: HTMLVideoElement | null) {
   video.playsInline = true;
   video.setAttribute('playsinline', '');
   video.setAttribute('webkit-playsinline', '');
-  if (mediaUnlocked && !video.paused) return;
+  if (mediaUnlocked) {
+    try {
+      video.pause();
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
   const p = video.play();
   if (p) {
     p.then(() => {
@@ -32,7 +39,7 @@ export default function ScrollScrubVideo({
   poster,
   fit = 'cover',
   className = '',
-  trackVh = 155,
+  trackVh = 140,
   startTime = 0,
   eager = false,
   showScrollCue = false,
@@ -41,7 +48,7 @@ export default function ScrollScrubVideo({
   poster?: string;
   fit?: 'cover' | 'contain';
   className?: string;
-  /** Scroll distance while the card stays pinned (desktop-style scrub). */
+  /** Scroll distance while the card stays pinned. */
   trackVh?: number;
   startTime?: number;
   eager?: boolean;
@@ -76,7 +83,7 @@ export default function ScrollScrubVideo({
         activeRef.current = entry.isIntersecting;
         if (entry.isIntersecting) setNear(true);
       },
-      { rootMargin: '480px 0px', threshold: 0 },
+      { rootMargin: '320px 0px', threshold: 0 },
     );
     io.observe(el);
     return () => io.disconnect();
@@ -89,6 +96,11 @@ export default function ScrollScrubVideo({
     video.playsInline = true;
     video.setAttribute('playsinline', '');
     video.setAttribute('webkit-playsinline', '');
+    try {
+      video.pause();
+    } catch {
+      /* ignore */
+    }
   }, [near, src]);
 
   useEffect(() => {
@@ -97,26 +109,39 @@ export default function ScrollScrubVideo({
     if (!video) return;
 
     const mark = () => setHasFrame(true);
-    video.addEventListener('loadeddata', mark);
+    const seed = () => {
+      try {
+        if (video.duration && Math.abs(video.currentTime - startTime) > 0.12) {
+          video.currentTime = Math.min(startTime, Math.max(0, video.duration - 0.05));
+        }
+      } catch {
+        /* ignore */
+      }
+      mark();
+    };
+
+    video.addEventListener('loadeddata', seed);
+    video.addEventListener('loadedmetadata', seed);
     video.addEventListener('seeked', mark);
     video.addEventListener('canplay', mark);
 
     const unlock = () => unlockInlineVideo(video);
     unlock();
-    window.addEventListener('touchstart', unlock, { passive: true });
-    window.addEventListener('scroll', unlock, { passive: true });
+    window.addEventListener('touchstart', unlock, { passive: true, once: true });
+    window.addEventListener('pointerdown', unlock, { passive: true, once: true });
 
-    const failSafe = window.setTimeout(mark, 1800);
+    const failSafe = window.setTimeout(mark, 1600);
 
     return () => {
-      video.removeEventListener('loadeddata', mark);
+      video.removeEventListener('loadeddata', seed);
+      video.removeEventListener('loadedmetadata', seed);
       video.removeEventListener('seeked', mark);
       video.removeEventListener('canplay', mark);
       window.removeEventListener('touchstart', unlock);
-      window.removeEventListener('scroll', unlock);
+      window.removeEventListener('pointerdown', unlock);
       window.clearTimeout(failSafe);
     };
-  }, [near, src]);
+  }, [near, src, startTime]);
 
   useVideoScrub({
     videoRef,
@@ -129,7 +154,7 @@ export default function ScrollScrubVideo({
   const card = (
     <div
       className={`relative w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a] ${className}`}
-      style={{ aspectRatio: '16 / 10', maxHeight: 'min(62dvh, 440px)' }}
+      style={{ aspectRatio: '16 / 10', maxHeight: 'min(58dvh, 420px)' }}
     >
       {!hasFrame && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -150,6 +175,7 @@ export default function ScrollScrubVideo({
           muted
           playsInline
           preload="auto"
+          disablePictureInPicture
           className={`absolute inset-0 h-full w-full ${
             fit === 'cover' ? 'object-cover' : 'object-contain'
           } ${hasFrame ? 'opacity-100' : 'opacity-80'}`}
@@ -170,7 +196,7 @@ export default function ScrollScrubVideo({
         className="sticky flex w-full items-center justify-center px-0"
         style={{
           top: 'calc(4.75rem + env(safe-area-inset-top, 0px))',
-          height: 'calc(100dvh - 5.25rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+          height: 'calc(100dvh - 5.5rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
         }}
       >
         <motion.div

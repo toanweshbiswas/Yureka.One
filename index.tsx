@@ -7,7 +7,7 @@ import { initializeFirebaseAnalytics } from '@shared/firebase';
 
 const handoff = oauthHandoffUrl();
 if (handoff) {
-  // Hard navigation — do not mount Supabase on this origin (would burn the PKCE verifier).
+  // Hard navigation. do not mount Supabase on this origin (would burn the PKCE verifier).
   window.location.replace(handoff);
 } else {
   const rootElement = document.getElementById('root');

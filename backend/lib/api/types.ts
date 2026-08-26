@@ -22,7 +22,7 @@ export const isValidationError = (
 ): res is ApiError & { details: Record<string, string[]> } =>
   res.status === 400 && !!res.details
 
-// ─── Entities (camelCase — matches Java schema) ───────────────────────────────
+// ─── Entities (camelCase. matches Java schema) ───────────────────────────────
 
 export interface Card {
   id?: string
@@ -43,7 +43,7 @@ export interface Card {
   introOffer?: string
   tags?: string[]
   eliteRating?: number
-  /** JSON string — parse with JSON.parse() to get { heading, subheading }[] */
+  /** JSON string. parse with JSON.parse() to get { heading, subheading }[] */
   benefitItems?: string
   verdict?: string
   slug?: string
@@ -58,21 +58,21 @@ export interface Card {
   productDetails?: string[]
   pros?: string[]
   cons?: string[]
-  /** JSON string — parse to get { title, content }[] */
+  /** JSON string. parse to get { title, content }[] */
   detailedFeatures?: string
   cashbackDetails?: string[]
-  /** JSON string — parse to get { category, value }[] */
+  /** JSON string. parse to get { category, value }[] */
   redemptionTable?: string
   exclusions?: string[]
-  /** JSON string — parse to get { criteria, salaried, self_employed }[] */
+  /** JSON string. parse to get { criteria, salaried, self_employed }[] */
   eligibilityCriteria?: string
   comparisonCards?: string[]
   latestNews?: string[]
   finalReviewImage?: string
   finalVerdictText?: string
-  /** JSON string — parse to get { title, value }[] */
+  /** JSON string. parse to get { title, value }[] */
   gridBenefits?: string
-  /** JSON string — parse to get { title, value }[] */
+  /** JSON string. parse to get { title, value }[] */
   gridFees?: string
   createdAt?: string
   updatedAt?: string
@@ -132,7 +132,7 @@ export interface Waitlist {
   category?: string
   company?: string
   creditCardsCount?: number
-  /** JSON string — parse to get { bank, card }[] */
+  /** JSON string. parse to get { bank, card }[] */
   creditCardsDetails?: string
   mostUsedFor?: string
   monthlySpend?: string
@@ -210,7 +210,7 @@ export interface PlatformTrash {
   id?: string
   entityType: 'blog' | 'card' | 'review' | 'notification' | 'user' | 'waitlist'
   originalId?: string
-  /** JSON string — parse to get the original row */
+  /** JSON string. parse to get the original row */
   payload?: string
   deletedBy?: string
   deletedAt?: string
@@ -222,7 +222,7 @@ export interface AuditLog {
   entity?: string
   entityId?: string
   performedBy?: string
-  /** JSON string — parse to get detail object */
+  /** JSON string. parse to get detail object */
   details?: string
   createdAt?: string
 }
@@ -256,7 +256,7 @@ export interface LedgerResponse {
   }>
 }
 
-// ─── Waitlist join — data is nested one level deeper ─────────────────────────
+// ─── Waitlist join. data is nested one level deeper ─────────────────────────
 
 export interface WaitlistJoinResult {
   data: Waitlist

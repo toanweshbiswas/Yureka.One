@@ -2,7 +2,7 @@
   "name": "@yureka/app",
   "private": true,
   "version": "0.0.0",
-  "description": "Product UI — dashboard, waitlist, admin",
+  "description": "Product UI. dashboard, waitlist, admin",
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
     "d3": "^7.9.0",

@@ -6,7 +6,7 @@ const LAYERS = [
   {
     label: 'Layer 1',
     value: 'Capture',
-    copy: 'Continuously ingests credit card data, reward matrices, and shopping cart context via secure APIs and the RewardX extension.',
+    copy: 'Continuously ingests spend signals, reward matrices, and shopping cart context via secure APIs and the RewardX extension.',
   },
   {
     label: 'Layer 2',

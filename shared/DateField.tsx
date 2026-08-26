@@ -38,7 +38,7 @@ function withinBounds(day: Date, minDate?: Date, maxDate?: Date) {
 }
 
 /**
- * Dark date control — shadcn Calendar + Popover.
+ * Dark date control. shadcn Calendar + Popover.
  * Month/year dropdowns + direct typed entry. Value stays YYYY-MM-DD.
  */
 export const DateField: React.FC<DateFieldProps> = ({

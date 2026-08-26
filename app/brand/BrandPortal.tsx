@@ -234,7 +234,7 @@ const BrandPortal: React.FC = () => {
             {canEdit && (
               <form onSubmit={saveOffer} className="rounded-[1.75rem] border border-white/5 bg-white/[0.02] p-5 grid sm:grid-cols-2 gap-3">
                 <p className="sm:col-span-2 text-sm font-bold flex items-center gap-2">
-                  <Plus size={16} /> {editing ? 'Edit offer' : 'New offer — live immediately'}
+                  <Plus size={16} /> {editing ? 'Edit offer' : 'New offer. live immediately'}
                 </p>
                 <input required placeholder="Title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2.5 text-sm" />
                 <input required placeholder="https://…" value={form.url} onChange={(e) => setForm({ ...form, url: e.target.value })} className="rounded-xl bg-white/[0.04] border border-white/10 px-3 py-2.5 text-sm" />

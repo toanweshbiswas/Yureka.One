@@ -1,13 +1,68 @@
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import JoinWaitlistButton from './JoinWaitlistButton';
 import ScrambleIn from './ScrambleIn';
 import GlassLayer from './GlassLayer';
 import ScrollScrubVideo from './ScrollScrubVideo';
+import { PhoneBubbleMockup } from './YurekaMockups';
 
-// Touch / narrow: same story as HeroCinematic — scroll scrubs video time 1:1.
+// Touch / narrow: vault scrub → copy → one rewards scrub → cinematic in-view play.
+// Avoid stacking many sticky scrub tracks (that was the mobile scroll failure).
 const VAULT_VIDEO_URL = '/vault.mp4';
 const CINEMATIC_VIDEO_URL = '/rewards-desktop-final.mp4';
 const REWARDS_VIDEO_URL = '/rewards.mp4';
+
+function InViewLoopVideo({
+  src,
+  poster,
+  fit = 'cover',
+}: {
+  src: string;
+  poster?: string;
+  fit?: 'cover' | 'contain';
+}) {
+  const ref = useRef<HTMLVideoElement>(null);
+  const [near, setNear] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const on = entry.isIntersecting && entry.intersectionRatio > 0.35;
+        setNear(on);
+        if (on) {
+          const p = el.play();
+          if (p) p.catch(() => {});
+        } else {
+          el.pause();
+        }
+      },
+      { threshold: [0, 0.35, 0.6] },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  return (
+    <div
+      className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-[#0a0a0a]"
+      style={{ aspectRatio: '16 / 10', maxHeight: 'min(58dvh, 420px)' }}
+    >
+      <video
+        ref={ref}
+        src={src}
+        poster={poster}
+        muted
+        loop
+        playsInline
+        preload={near ? 'auto' : 'metadata'}
+        className={`absolute inset-0 h-full w-full ${fit === 'cover' ? 'object-cover' : 'object-contain'}`}
+      />
+      <GlassLayer />
+    </div>
+  );
+}
 
 export default function HeroMobile({ entranceComplete = true }: { entranceComplete?: boolean }) {
   return (
@@ -18,12 +73,12 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
           poster="/vault-poster.jpg"
           eager
           startTime={2}
-          trackVh={170}
+          trackVh={145}
           showScrollCue
         />
       </section>
 
-      <div className="px-5 pb-16 pt-4">
+      <div className="px-5 pb-12 pt-4">
         <section className="relative">
           <div className="flex flex-col gap-5">
             <h1 className="text-[clamp(44px,12vw,72px)] font-light leading-[0.95] tracking-[-0.03em] text-white">
@@ -64,15 +119,21 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
           <p className="mt-5 text-[15px] leading-relaxed text-white/90">
             Yureka offers you 360° Rewards and Saving ecosystem where you get more than 700+ brands
             to shop from. Every time you get assured digital gold and reward points. No Extra
-            Investment, Earn when you Spend. No Aesterisk, Available round the clock 365 days.
+            Investment, Earn when you Spend. No Asterisk, Available round the clock 365 days.
             <br />
             We are bringing MAGIC to REALITY
           </p>
         </section>
+
+        <section className="mt-8">
+          <div className="h-56 w-full">
+            <PhoneBubbleMockup />
+          </div>
+        </section>
       </div>
 
       <section className="px-4">
-        <ScrollScrubVideo src={REWARDS_VIDEO_URL} trackVh={165} />
+        <ScrollScrubVideo src={REWARDS_VIDEO_URL} trackVh={135} />
       </section>
 
       <div className="px-5">
@@ -138,20 +199,22 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
         <JoinWaitlistButton className="mt-8 mb-6" />
       </div>
 
-      <section className="px-4">
-        <ScrollScrubVideo src={REWARDS_VIDEO_URL} fit="contain" trackVh={150} />
-      </section>
-
-      <section className="mt-8 px-4 pb-4">
-        <ScrollScrubVideo src={CINEMATIC_VIDEO_URL} trackVh={150} />
-        <p className="mt-6 px-2 text-center font-sans text-[16px] leading-[1.5] tracking-[-0.01em] text-white/90">
+      <section className="mt-4 px-4 pb-10">
+        <InViewLoopVideo src={CINEMATIC_VIDEO_URL} />
+        <motion.p
+          className="mt-6 px-2 text-center font-sans text-[16px] leading-[1.5] tracking-[-0.01em] text-white/90"
+          initial={{ opacity: 0, y: 12 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.4 }}
+          transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+        >
           Experience the future of financial intelligence with Yureka, the premier AI-native Wealth
           Operating System built for India&apos;s digital economy. Yureka functions as a neural-AI
           interface that bridges the gap between daily consumer behavior and automated wealth
           accumulation. Whether you are seeking to maximize returns through gold-backed investments
           or build a high-fidelity alternative credit profile, Yureka filters out digital noise to
           deliver precision financial insights.
-        </p>
+        </motion.p>
       </section>
     </div>
   );

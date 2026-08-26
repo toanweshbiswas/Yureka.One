@@ -1,5 +1,5 @@
 /**
- * First-party brand marks — prefer these over tiny favicons so Explore tiles stay sharp.
+ * First-party brand marks. prefer these over tiny favicons so Explore tiles stay sharp.
  * Paths are under /public and work same-origin on every host.
  */
 const LOCAL_BY_HOST: Record<string, string> = {

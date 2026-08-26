@@ -36,7 +36,7 @@ const LoginPage: React.FC = () => {
   const modeParam = searchParams.get('mode')
   const isSignup = location.pathname.endsWith('/signup') || modeParam === 'signup'
   const isForgot = modeParam === 'forgot'
-  // Running inside the Yureka native app's WebView — hide decorative web chrome.
+  // Running inside the Yureka native app's WebView. hide decorative web chrome.
   const isEmbedded =
     searchParams.get('embedded') === '1' ||
     (typeof window !== 'undefined' && window.navigator.userAgent.includes('YurekaApp'))
@@ -173,7 +173,7 @@ const LoginPage: React.FC = () => {
       setInfo('Check your inbox to confirm this email, then sign in to open your dashboard.')
       return
     }
-    // Session exists — resolve waitlist/status before the effect navigates so
+    // Session exists. resolve waitlist/status before the effect navigates so
     // ProtectedRoute never sees a transient "none" and bounces back to login.
     try {
       await refreshUserStatus()
@@ -413,7 +413,7 @@ const LoginPage: React.FC = () => {
           <Link to="/dashboard" className="hover:text-clay transition-colors">
             Open dashboard
           </Link>
-          {/* Waitlist paused — re-enable with VITE_WAITLIST_REQUIRED=true
+          {/* Waitlist paused. re-enable with VITE_WAITLIST_REQUIRED=true
           <Link to="/join-waitlist" className="hover:text-clay transition-colors">
             Join the waitlist
           </Link>

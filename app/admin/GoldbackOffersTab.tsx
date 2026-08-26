@@ -210,7 +210,7 @@ export default function GoldbackOffersTab({
     <div className="space-y-6">
       <SectionHeading
         title="Goldback commission structure"
-        subtitle="Fixed earn amount per offer (paise). Members receive this Goldback after a verified conversion — not a % of sale."
+        subtitle="Fixed earn amount per offer (paise). Members receive this Goldback after a verified conversion. not a % of sale."
       />
 
       {canWrite && (

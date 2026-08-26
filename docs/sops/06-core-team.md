@@ -42,7 +42,7 @@ Hosts: `yureka.one` · `app.yureka.one` · `admin.yureka.one` · `brand.yureka.o
 | Ledger / scan-email | Bind to verified or Gmail-derived email |
 | Goldback earn | Deny client self-serve unless `ALLOW_CLIENT_GOLDBACK_EARN` |
 | CORS | Allowlist; no `CORS_ALLOW_ANY` in prod |
-| Waitlist public lookup | `{ exists }` only — no status |
+| Waitlist public lookup | `{ exists }` only. no status |
 | Marketplace refresh | Admin session required |
 
 Before merging auth-related PRs: run through `/review-security` mindset on new routes.
@@ -83,7 +83,7 @@ Before merging auth-related PRs: run through `/review-security` mindset on new r
 | Notifications | `platform_notifications` |
 | Brands | Brand store |
 
-Prefer service-role server writes; client uses anon + RLS where applicable — **Express is the control plane** for sensitive ops.
+Prefer service-role server writes; client uses anon + RLS where applicable. **Express is the control plane** for sensitive ops.
 
 ---
 
@@ -101,7 +101,7 @@ Prefer service-role server writes; client uses anon + RLS where applicable — *
 
 ## 8. Local safety
 
-- `NODE_ENV=development` may allow header user id — never point local `.env` service role at prod without care.
+- `NODE_ENV=development` may allow header user id. never point local `.env` service role at prod without care.
 - Don’t run destructive SQL on prod from laptop without a change ticket.
 - Dummy waitlist data is fine locally; scrub before screenshots for external shares.
 

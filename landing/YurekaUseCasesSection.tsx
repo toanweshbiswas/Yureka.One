@@ -7,7 +7,7 @@ const YurekaUseCasesSection: React.FC = () => {
     <section className="bg-[#0a0a0a] px-6 py-24 w-full border-t border-white/10">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
 
-        {/* Left column — text */}
+        {/* Left column. text */}
         <div className="md:pr-12 md:pt-2">
           <p className="font-overpass-mono text-white/60 text-sm mb-2 font-medium tracking-widest uppercase">
             Yureka One in Practice
@@ -24,7 +24,7 @@ const YurekaUseCasesSection: React.FC = () => {
           </p>
         </div>
 
-        {/* Right column — video card */}
+        {/* Right column. video card */}
         <div className="relative rounded-3xl overflow-hidden min-h-[560px] bg-black">
           <LazyVideo
             src="/assets/bankrewards.mp4"

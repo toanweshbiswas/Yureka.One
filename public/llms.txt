@@ -5,10 +5,10 @@
 ---
 
 ## The Core Concept
-* **Intelligent Wealth-Stack**: Built on the insight that affluent spenders shop regularly but collect fragmented, low-value reward points. Yureka consolidates and maximizes returns on all spend.
+* **Intelligent Wealth-Stack**: Built on the insight that affluent spenders shop regularly but collect fragmented, low-value reward pointsYureka consolidates and maximizes returns on all spend.
 * **The 3-Step Automation Loop**:
   1. **Capture**: Consented parsing of shopping receipts and transaction signals (Gmail notifications, UPI messages).
-  2. **Score**: Generation of a dynamic `Power Shopper Score` (0–100) indicating financial health, shopping optimization level, and reliability.
+  2. **Score**: Generation of a dynamic `Power Shopper Score` (0 to 100) indicating financial health, shopping optimization level, and reliability.
   3. **Optimise**: Automatic routing of transactions, applying coupon codes, and rewarding shoppers with Digital Goldback (up to 16% effective ROI).
 * **Delivery & Surfaces**: Access Yureka via its Chrome extension, Telegram mini-app, native iOS/Android mobile apps, and direct in-app quick commerce interfaces.
 
@@ -29,7 +29,7 @@
 * Thin-file users and younger power shoppers build a robust credit profile without a credit card.
 * Yureka aggregates transaction history to build an RBI-compliant alternative credit score shared securely with Lending Service Providers (LSPs).
 
-### 4. Yureka Business (B2B Checkout & Ad Tech)
+### 4Yureka Business (B2B Checkout & Ad Tech)
 * **Smart Checkout**: Minimizes Return-To-Origin (RTO) rates and Cash on Delivery (COD) failures for e-commerce merchants.
 * **Intent-Based Ad Tech**: Enables partner brands to run high-intent campaigns powered by Yureka AI shopping agents.
 

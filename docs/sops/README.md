@@ -20,5 +20,5 @@ Operational playbooks for Yureka One. Hosts:
 
 **Rules of engagement**
 - Never share another member’s PII (email, phone, spend, score) outside approved channels.
-- Admin actions require `admin.yureka.one` session — do not use production DB as a shortcut unless Core Team.
+- Admin actions require `admin.yureka.one` session. do not use production DB as a shortcut unless Core Team.
 - Prefer Resend / `support@yureka.one` for outbound member email.

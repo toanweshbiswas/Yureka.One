@@ -123,7 +123,7 @@ export function registerGoldbackRoutes(app: Express) {
         return fail(
           res,
           403,
-          'Goldback earns are applied after verified conversion — self-serve earn is disabled'
+          'Goldback earns are applied after verified conversion. self-serve earn is disabled'
         )
       }
 

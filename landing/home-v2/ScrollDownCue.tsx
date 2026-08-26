@@ -2,7 +2,7 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 
 /**
- * Home-only scroll cue — a green mouse/pill with a bouncing dot + "Keep Scrolling"
+ * Home-only scroll cue. a green mouse/pill with a bouncing dot + "Keep Scrolling"
  * label, pinned to the bottom-right (within the rightmost fifth of the screen).
  * Visible throughout the page, but fades out once the footer scrolls into view.
  * Clicking it scrolls down a screen.

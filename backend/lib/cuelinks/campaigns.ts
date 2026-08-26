@@ -203,7 +203,7 @@ async function fetchAllPages(perPage: number, maxPages: number): Promise<Cache> 
     if (mapped.id) byId.set(mapped.id, mapped)
   }
 
-  // Sequential pages — CueLinks rate-limits aggressive parallel bursts.
+  // Sequential pages. CueLinks rate-limits aggressive parallel bursts.
   for (let page = 2; page <= maxPages; page++) {
     const { campaigns } = await fetchPage(page, perPage)
     if (!campaigns.length) break

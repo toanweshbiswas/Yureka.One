@@ -12,7 +12,7 @@ interface LazyVideoProps {
 
 /**
  * Scroll-driven background video (kept as LazyVideo for existing imports).
- * Defers load until near viewport; plays only while in view — no autoplay attr.
+ * Defers load until near viewport; plays only while in view. no autoplay attr.
  */
 const LazyVideo: React.FC<LazyVideoProps> = ({
   src,

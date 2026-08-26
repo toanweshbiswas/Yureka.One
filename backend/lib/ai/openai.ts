@@ -1,5 +1,5 @@
 /**
- * Thin OpenAI chat helper. Tight defaults — short prompts, hard max_tokens,
+ * Thin OpenAI chat helper. Tight defaults. short prompts, hard max_tokens,
  * and easy kill-switch so we never burn budget on routine UI traffic.
  *
  * Env:
@@ -23,7 +23,7 @@ function apiKey(): string {
   ).trim()
 }
 
-/** Master switch — off means product uses heuristics only. */
+/** Master switch. off means product uses heuristics only. */
 export function openaiEnabled(): boolean {
   const flag = String(process.env.OPENAI_ENABLED || '1').trim().toLowerCase()
   if (flag === '0' || flag === 'false' || flag === 'off' || flag === 'no') return false
@@ -52,7 +52,7 @@ export async function openaiChatJson<T>(opts: {
   model?: string
   temperature?: number
   timeoutMs?: number
-  /** Completion budget. Keep low — we only need small JSON. */
+  /** Completion budget. Keep low. we only need small JSON. */
   maxTokens?: number
   /** Soft cap on user payload size (chars). */
   maxUserChars?: number

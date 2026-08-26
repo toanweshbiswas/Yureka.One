@@ -98,7 +98,7 @@ function disableSupabaseSchema(reason: unknown) {
 
 function tripSupabaseCircuit(reason: unknown) {
   supabaseFailStreak += 1
-  // Don't open the circuit on a single cold-start timeout — join/auth would
+  // Don't open the circuit on a single cold-start timeout. join/auth would
   // silently fall back to the empty local file store.
   if (supabaseFailStreak < 2) {
     console.warn(
@@ -147,7 +147,7 @@ function seedStore(): AdminFileStore {
         yurekaScore: 72,
         scoreDecision: 'accept',
         scoreMetrics: null,
-        monthlySpend: '₹40k–60k',
+        monthlySpend: '₹40k to 60k',
         topCategory: 'shopping',
         notes: null,
         createdAt: now,

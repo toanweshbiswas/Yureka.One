@@ -118,7 +118,7 @@ export function registerWaitlistRoutes(app: Express) {
         email,
         fullName: name || null,
         mobileNumber: mobile,
-        // Never demote accepted / rejected / on_hold — preserve existing terminal status.
+        // Never demote accepted / rejected / on_hold. preserve existing terminal status.
         status: existing?.status && existing.status !== 'pending' ? existing.status : 'pending',
         yurekaScore:
           body.yureka_score != null && Number.isFinite(Number(body.yureka_score))
@@ -156,7 +156,7 @@ export function registerWaitlistRoutes(app: Express) {
   })
 
   /**
-   * Public resume helper: existence only — never returns status/PII.
+   * Public resume helper: existence only. never returns status/PII.
    * Status is revealed only via authenticated /auth/status or /waitlist/entry.
    */
   app.get('/api/v1/waitlist/lookup-status', async (req: Request, res: Response) => {
@@ -168,7 +168,7 @@ export function registerWaitlistRoutes(app: Express) {
       const email = String(req.query.email || '').trim().toLowerCase()
       if (!email || !email.includes('@')) return fail(res, 400, 'email is required')
       const row = await findWaitlistByEmail(email)
-      // Uniform shape — no status field (prevents accepted/pending oracle).
+      // Uniform shape. no status field (prevents accepted/pending oracle).
       ok(res, { exists: Boolean(row) })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to lookup waitlist status')
@@ -259,7 +259,7 @@ export function registerWaitlistRoutes(app: Express) {
         return fail(res, 403, 'Forbidden')
       }
 
-      // Block privilege / status fields — those are admin-only.
+      // Block privilege / status fields. those are admin-only.
       const raw = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>
       const patch: Record<string, unknown> = {}
       const dob = raw.dateOfBirth ?? raw.date_of_birth

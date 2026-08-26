@@ -78,7 +78,7 @@ const ParagraphReveal: React.FC<ParagraphRevealProps> = ({
     <p ref={containerRef} className={`flex flex-wrap justify-center text-center ${className}`}>
       {words.map((word, i) => {
         // Strip punctuation for matching
-        const cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()—]/g, '').toLowerCase();
+        const cleanWord = word.replace(/[.,\/#!$%\^&\*;:{}=\-_`~(). ]/g, '').toLowerCase();
         const isHighlight = highlightWords.includes(cleanWord);
 
         return (
@@ -103,10 +103,10 @@ const ParagraphReveal: React.FC<ParagraphRevealProps> = ({
 const HowItWorksStepper: React.FC = () => {
   return (
     <div className="w-full bg-black text-white font-sans flex flex-col items-center">
-      {/* SECTION 2: HERO — scrollytelling video island */}
+      {/* SECTION 2: HERO. scrollytelling video island */}
       <ScrollytellingVideo src="/assets/vault.mp4" />
 
-      {/* SECTION 2B: HERO CONTENT — extracted from above video */}
+      {/* SECTION 2B: HERO CONTENT. extracted from above video */}
       <section className="bg-black w-full py-24 px-6 flex flex-col items-center text-center">
         <div className="max-w-4xl mx-auto w-full flex flex-col items-center">
           {/* Avatar Row */}
@@ -189,7 +189,7 @@ const HowItWorksStepper: React.FC = () => {
               {
                 title: 'Use Yureka for everyday SPENDS',
                 desc: 'Using Yureka for everyday spends for atleast 6 Months would get you a 3D/4N Vacation, all for FREE.',
-                asset: '/assets/card-visa.png',
+                asset: '/assets/feat-card-gift.png',
               },
               {
                 title: 'We pay 3% of the bill for your daily essentials',
@@ -228,7 +228,7 @@ const HowItWorksStepper: React.FC = () => {
         </div>
       </section>
 
-      {/* SECTION 5B: SCROLLYTELLING VIDEO — rewards-desktop-final.mp4 */}
+      {/* SECTION 5B: SCROLLYTELLING VIDEO. rewards-desktop-final.mp4 */}
       <ScrollytellingVideo src="/assets/rewards-desktop-final.mp4" scrollMultiplier={3} />
 
       {/* SECTION 4: MISSION */}
@@ -249,20 +249,20 @@ const HowItWorksStepper: React.FC = () => {
           {/* Scroll-driven Opacity Paragraphs */}
           <div className="space-y-16">
             <ParagraphReveal
-              text="We're building a space where intent meets ROI — where your daily routine finds purpose, your savings find scale, and every swipe becomes a wealth-building event."
+              text="We're building a space where intent meets ROI. where your daily routine finds purpose, your savings find scale, and every swipe becomes a wealth-building event."
               highlightWords={['intent', 'meets', 'roi']}
               className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-medium tracking-tight text-center"
             />
 
             <ParagraphReveal
-              text="A platform where lifestyle, logic, and liquidity flow together — with zero fluff, total transparency, and deeper meaning for everyone involved."
+              text="A platform where lifestyle, logic, and liquidity flow together. with zero fluff, total transparency, and deeper meaning for everyone involved."
               className="text-xl sm:text-2xl lg:text-3xl font-medium text-center"
             />
           </div>
         </div>
       </section>
 
-      {/* SECTION 6: VIDEO ISLAND — scrollytelling vault 4.mp4 */}
+      {/* SECTION 6: VIDEO ISLAND. scrollytelling vault 4.mp4 */}
       <ScrollytellingVideo src="/assets/vault 4.mp4" scrollMultiplier={3} />
     </div>
   );

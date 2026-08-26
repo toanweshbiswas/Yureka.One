@@ -11,14 +11,14 @@ import {
 // Simulated chat messages that auto-play
 const DEMO_CHAT: { role: 'user' | 'ai'; text: string; delay: number }[] = [
   { role: 'user', text: 'Which card should I use for my Swiggy order?', delay: 0 },
-  { role: 'ai', text: 'Based on your spending profile, use your **HDFC Infinia** for Swiggy — you earn 5x reward points (≈ 3.3% return). That beats your other cards by ₹18 on this ₹600 order.', delay: 900 },
+  { role: 'ai', text: 'Based on your spending profile, route this Swiggy order through Yureka. you earn Goldback on the spend and keep the best merchant deal. That beats a typical cashback wallet by ~₹18 on this ₹600 order.', delay: 900 },
   { role: 'user', text: "I have 42,000 reward points on Axis Magnus, best use?", delay: 2000 },
-  { role: 'ai', text: 'Your 42,000 Axis Edge Reward Points are worth ₹10,500 at 25p/point for cash — but if you transfer to Singapore Airlines KrisFlyer (1:1 ratio), they\'re worth ₹18,900 in business class redemptions. I\'d transfer.', delay: 1200 },
+  { role: 'ai', text: 'Your 42,000 Axis Edge Reward Points are worth ₹10,500 at 25p/point for cash. but if you transfer to Singapore Airlines KrisFlyer (1:1 ratio), they\'re worth ₹18,900 in business class redemptions. I\'d transfer.', delay: 1200 },
   { role: 'user', text: 'Can you save me more on my Amazon shopping?', delay: 1800 },
   { role: 'ai', text: 'Yes! Buy a ₹2,000 Amazon gift card via **RewardX** for ₹1,820 (9% off), then pay with your ICICI Amazon card for 5% cashback. Total effective discount: **14%** on this order.', delay: 1000 },
 ];
 
-// On-brand two-tone system: emerald-green (clay) as primary, gold as the accent —
+// On-brand two-tone system: emerald-green (clay) as primary, gold as the accent . 
 // mirroring the homepage's green + gold palette. Legacy color keys are remapped
 // so existing markup doesn't need touching.
 const CLAY_TONE = { bg: 'bg-clay/10', text: 'text-clay', glow: 'shadow-clay/20', border: 'border-clay/20' };
@@ -36,7 +36,7 @@ const CAPABILITIES = [
   {
     icon: CreditCard,
     title: 'Smart Card Picker',
-    desc: 'Tell Yureka AI your lifestyle and it builds you a mathematically optimal credit card portfolio — no bias, pure yield.',
+    desc: 'Tell Yureka AI your lifestyle and it builds a mathematically optimal rewards plan. no bias, pure yield.',
     stat: '₹24,000/yr avg gain',
     color: 'clay',
   },
@@ -58,13 +58,13 @@ const CAPABILITIES = [
     icon: ShoppingBag,
     title: 'RewardX Shopping',
     desc: 'Stack gift card discounts with card rewards and Yureka AI cashback. Get 8-15% off across 500+ top Indian brands.',
-    stat: '8–15% extra discount',
+    stat: '8 to 15% extra discount',
     color: 'emerald',
   },
   {
     icon: BarChart3,
     title: 'Portfolio Intelligence',
-    desc: 'AI monitors your entire card portfolio — fee waiver thresholds, milestone benefits, and renewal worth analysis.',
+    desc: 'AI monitors your entire card portfolio. fee waiver thresholds, milestone benefits, and renewal worth analysis.',
     stat: 'Auto fee-waiver alerts',
     color: 'blue',
   },
@@ -218,7 +218,7 @@ const LiveChatDemo = () => {
       <div className="flex items-center gap-3 px-6 py-4 border-t border-white/5 bg-white/[0.02]">
         <div className="flex-1 flex items-center gap-3 px-4 py-2.5 bg-black rounded-xl border border-white/5">
           <MessageCircle size={16} className="text-white/10 shrink-0" />
-          <span className="text-white/10 text-sm font-sans">Ask anything about your cards…</span>
+          <span className="text-white/10 text-sm font-sans">Ask anything about rewards…</span>
         </div>
         <button className="w-10 h-10 bg-clay rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-clay/20">
           <Send size={16} className="text-cream" />
@@ -273,7 +273,7 @@ const YurekaAIPage: React.FC = () => {
             </h1>
 
             <p className="text-white/60 text-xl md:text-2xl font-sans max-w-3xl mx-auto leading-relaxed mb-12">
-              From deciding the perfect credit card to squeezing every rupee of reward — Yureka AI is your always-on financial co-pilot.
+              From deciding how to spend to squeezing every rupee of reward. Yureka AI is your always-on financial co-pilot.
             </p>
 
             <div className="flex flex-col sm:flex-row justify-center gap-4">
@@ -414,7 +414,7 @@ const YurekaAIPage: React.FC = () => {
                   'Learns your top 5 spending categories automatically',
                   'Tracks milestone benefits & fee-waiver thresholds in real time',
                   'Adapts recommendations as your portfolio evolves',
-                  'Compares your card stack vs India\'s top earners — and closes the gap',
+                  'Compares your rewards vs India\'s top earners. and closes the gap',
                 ].map((point, i) => (
                   <motion.div
                     key={i}
@@ -471,7 +471,7 @@ const YurekaAIPage: React.FC = () => {
                 <div className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-3">Today's AI Alerts</div>
                 {[
                   { msg: 'Use Axis Magnus for ₹12,000 Flipkart order → earn 4,800 pts (₹1,200 value)', type: 'emerald' },
-                  { msg: 'HDFC Infinia fee waiver: ₹8,000 more spend needed this month', type: 'clay' },
+                  { msg: 'Goldback tip: ₹8,000 more spend unlocks this month’s bonus tier', type: 'clay' },
                   { msg: 'Transfer 50,000 Amex MR → Marriott Bonvoy before Jan 31 for best value', type: 'purple' },
                 ].map((alert, i) => (
                   <div key={i} className="flex items-start gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-xl">
@@ -607,7 +607,7 @@ const YurekaAIPage: React.FC = () => {
                 </Link>
               </div>
               <p className="mt-8 text-white/10 text-[10px] font-bold uppercase tracking-[0.5em]">
-                No credit card required · Free forever tier available
+                Free forever tier available
               </p>
             </div>
           </div>

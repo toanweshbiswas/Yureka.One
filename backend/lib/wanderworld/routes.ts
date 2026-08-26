@@ -114,7 +114,7 @@ function canManage(role: WwMemberRole) {
   return role === 'owner' || role === 'admin'
 }
 
-/** Normalize admin-edited installment rows; percents may be 0–100 or 0–1. */
+/** Normalize admin-edited installment rows; percents may be 0 to 100 or 0 to 1. */
 function parsePlanTemplate(raw: unknown): WwPlanInstallmentTemplate[] | { error: string } {
   if (!Array.isArray(raw) || raw.length === 0) {
     return { error: 'Add at least one payment plan installment' }
@@ -191,7 +191,7 @@ export function registerWanderworldRoutes(app: Express) {
     ok(res, { mode: wwBackendMode(), org: getOrg().slug })
   })
 
-  // —— Public / buyer (app) ——
+  // . .  Public / buyer (app) . . 
   app.get('/api/wanderworld/trips', async (_req, res) => {
     try {
       const trips = await listPublishedTrips()
@@ -390,7 +390,7 @@ export function registerWanderworldRoutes(app: Express) {
 
       const existing = await findActiveRegistrationForUserTrip(userId, trip.id)
       if (existing) {
-        return fail(res, 409, 'You already booked this trip — open My bookings to pay')
+        return fail(res, 409, 'You already booked this trip. open My bookings to pay')
       }
 
       const paymentMode = (String(req.body?.paymentMode || 'full') === 'plan' ? 'plan' : 'full') as WwPaymentMode
@@ -418,7 +418,7 @@ export function registerWanderworldRoutes(app: Express) {
       })
       if ('error' in created) {
         if (created.error === 'already_booked') {
-          return fail(res, 409, 'You already booked this trip — open My bookings to pay')
+          return fail(res, 409, 'You already booked this trip. open My bookings to pay')
         }
         if (created.error === 'sold_out') return fail(res, 409, 'No seats left')
         return fail(res, 404, 'Trip not found')
@@ -603,7 +603,7 @@ export function registerWanderworldRoutes(app: Express) {
     }
   })
 
-  // —— Ops portal ——
+  // . .  Ops portal . . 
   app.get('/api/wanderworld/me', async (req, res) => {
     try {
       const userId = await requireUserId(req, res)
@@ -1020,7 +1020,7 @@ export function registerWanderworldRoutes(app: Express) {
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
       if (!current) return fail(res, 403, 'No WanderWorld invitation')
-      // Custom referral IDs are admin-only — promoters may copy links but not rename codes.
+      // Custom referral IDs are admin-only. promoters may copy links but not rename codes.
       if (!canManage(current.member.role)) {
         return fail(res, 403, 'Only admins can set custom referral IDs')
       }
@@ -1035,7 +1035,7 @@ export function registerWanderworldRoutes(app: Express) {
       if (!target) return fail(res, 404, 'Member not found')
 
       if (linkId) {
-        // linkId path — updatePromoterLinkCode finds it
+        // linkId path. updatePromoterLinkCode finds it
       } else if (tripId) {
         await ensurePromoterLink(targetMemberId, tripId)
       } else {
@@ -1311,10 +1311,10 @@ export function registerWanderworldRoutes(app: Express) {
       const result = await deleteRegistration(id)
       if ('error' in result) {
         if (result.error === 'has_payments') {
-          return fail(res, 409, 'Booking has payments — cancel instead of delete')
+          return fail(res, 409, 'Booking has payments. cancel instead of delete')
         }
         if (result.error === 'already_cancelled') {
-          return fail(res, 409, 'Already cancelled — nothing to delete')
+          return fail(res, 409, 'Already cancelled. nothing to delete')
         }
         return fail(res, 404, 'Registration not found')
       }
@@ -1388,7 +1388,7 @@ export function registerWanderworldRoutes(app: Express) {
     }
   })
 
-  // —— Club admin (admin.yureka.one) ——
+  // . .  Club admin (admin.yureka.one) . . 
   function requireClubAdmin(req: Request, res: Response, roles?: AdminRole[]) {
     const token = req.header('x-admin-session') || req.header('X-Admin-Session')
     const session = verifyAdminToken(token)

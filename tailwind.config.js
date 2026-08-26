@@ -49,7 +49,7 @@ export default {
       fontFamily: {
         // Sitewide type system: Space Mono for headings (primary) + Playfair
         // Display italic for heading accents. Almarai for body/subheadings/context.
-        // Legacy class names are kept so existing markup doesn't need touching —
+        // Legacy class names are kept so existing markup doesn't need touching . 
         // they resolve to one of these fonts.
         sans: ['Almarai', 'sans-serif'],
         heading: ['"Space Mono"', 'monospace'],

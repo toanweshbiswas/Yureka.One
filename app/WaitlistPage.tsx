@@ -249,7 +249,7 @@ function parseTransactionData(combinedText: string, sender: string, subject: str
     return { brand: brandName, amount, description };
 }
 
-// scanner.py returns dob as "DD/MM/YYYY" — <input type="date"> needs "YYYY-MM-DD"
+// scanner.py returns dob as "DD/MM/YYYY". <input type="date"> needs "YYYY-MM-DD"
 function parseDobToInputDate(dob?: string): string {
     if (!dob) return '';
     const parts = dob.split('/');
@@ -315,7 +315,7 @@ const WaitlistPage: React.FC = () => {
     const [scannedTransactions, setScannedTransactions] = useState<ParsedTransaction[]>([]);
     const [draftReady, setDraftReady] = useState(false);
 
-    // Logged-in users: never re-run join — send them where they belong.
+    // Logged-in users: never re-run join. send them where they belong.
     useEffect(() => {
         if (isDashboard || authLoading || currentUserStatus === 'loading') return;
         if (!user) return;
@@ -416,7 +416,7 @@ const WaitlistPage: React.FC = () => {
         setStep(6);
     };
 
-    /** If this Gmail already applied, skip the form — status only after login. */
+    /** If this Gmail already applied, skip the form. status only after login. */
     const resumeIfExistingApplicant = async (email: string, profile?: any): Promise<boolean> => {
         const normalized = email.trim().toLowerCase();
         if (!normalized) return false;
@@ -442,7 +442,7 @@ const WaitlistPage: React.FC = () => {
             }
         }
 
-        // Public: existence only — never trust/status from unauthenticated lookup.
+        // Public: existence only. never trust/status from unauthenticated lookup.
         const res = await api.get<{ exists: boolean }>(
             `/api/v1/waitlist/lookup-status?email=${encodeURIComponent(normalized)}`,
             { skipAuth: true, timeoutMs: 15000 }
@@ -501,7 +501,7 @@ const WaitlistPage: React.FC = () => {
         }
     }, [searchParams]);
 
-    // ─── STEP 1: Google sign-up (login scopes only — any Google user after Publish)
+    // ─── STEP 1: Google sign-up (login scopes only. any Google user after Publish)
     // gmail.readonly is RESTRICTED: without Google verification only Test users can
     // grant it. Login must not request it, or public signup stays blocked.
     const GOOGLE_LOGIN_SCOPES = [
@@ -583,7 +583,7 @@ const WaitlistPage: React.FC = () => {
                 return;
             }
 
-            // Already applied? Skip the form — approved → login/dashboard, else confirmation.
+            // Already applied? Skip the form. approved → login/dashboard, else confirmation.
             const resumed = await resumeIfExistingApplicant(profile.email, profile);
             if (resumed) return;
 
@@ -604,8 +604,8 @@ const WaitlistPage: React.FC = () => {
             setScannedProfile(profile);
             setStep(2);
 
-            // Do NOT auto-request gmail.readonly here — it is a restricted Google scope.
-            // Unverified apps show Error 403 access_denied for non–test users and block the flow.
+            // Do NOT auto-request gmail.readonly here. it is a restricted Google scope.
+            // Unverified apps show Error 403 access_denied for non to test users and block the flow.
             // Scoring stays optional via "Compute Yureka Score" on step 2.
         } catch (e) {
             console.error('Profile lookup failed:', e);
@@ -845,7 +845,7 @@ const WaitlistPage: React.FC = () => {
                     Get Early Access
                 </h2>
                 <p className="text-white/60 text-sm leading-relaxed mb-6 sm:mb-8 max-w-xs mx-auto">
-                    Continue with Google to join — if you already applied, we skip the form and send you to the right place.
+                    Continue with Google to join. if you already applied, we skip the form and send you to the right place.
                 </p>
 
                 {isScanning || statusChecking ? (
@@ -1147,7 +1147,7 @@ const WaitlistPage: React.FC = () => {
                         {returningApplicant
                             ? existingStatus === 'accepted'
                                 ? 'Your application was already accepted. Continue to your dashboard.'
-                                : 'We found your application. Jump back to your waiting room — no need to re-apply.'
+                                : 'We found your application. Jump back to your waiting room. no need to re-apply.'
                             : "Your spot is saved. Here's a summary of what we found."}
                     </p>
                 </div>

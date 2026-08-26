@@ -8,11 +8,11 @@ For members and waitlist applicants on **app.yureka.one**.
 
 1. Open [app.yureka.one/join-waitlist](https://app.yureka.one/join-waitlist) (optional `?ref=CODE` if referred).
 2. Enter email → continue through profile steps (name, mobile, spend habits).
-3. Optional: connect Gmail (read-only) so Yureka can estimate your score. Decline is OK — you can still join.
+3. Optional: connect Gmail (read-only) so Yureka can estimate your score. Decline is OK. you can still join.
 4. Submit. You should land on a confirmation / waiting experience.
 5. Check inbox (`support@yureka.one`) for “we received your application.”
 
-**If you already applied:** sign in at `/login`. Public resume no longer shows your approval status without login — that is intentional.
+**If you already applied:** sign in at `/login`. Public resume no longer shows your approval status without login. that is intentional.
 
 ---
 
@@ -42,7 +42,7 @@ For members and waitlist applicants on **app.yureka.one**.
 | Area | What it does |
 |------|----------------|
 | **Home (Goldback)** | Balance and rewards overview |
-| **Offers** | Partner / marketplace deals — opens tracked browse; Goldback credits after **verified** purchase (not on click alone) |
+| **Offers** | Partner / marketplace deals. opens tracked browse; Goldback credits after **verified** purchase (not on click alone) |
 | **Gift cards** | Buy discounted vouchers (Hubble + Razorpay when enabled) |
 | **Expenses** | Lifestyle spend from Gmail ledger (investments excluded) |
 | **Planning** | Budgets, extras, investment-aware views |
@@ -71,13 +71,13 @@ For members and waitlist applicants on **app.yureka.one**.
 | “Gmail inbox access needed” / AUTH_EXPIRED | Reconnect Gmail consent from Expenses |
 | “Resync limit reached” | Wait for the 15-day window or ask Support (they cannot silently bypass without Core Team) |
 | Offers opened but no Goldback | Credits apply after **verified conversion**, not immediately on open |
-| Gift card payment stuck | Wait 2–5 min; check email; if still empty, contact Support with order time + email |
+| Gift card payment stuck | Wait 2 to 5 min; check email; if still empty, contact Support with order time + email |
 | Blank dashboard / spinner | Check network; try another browser; disable aggressive ad blockers for `app.yureka.one` |
 
 ---
 
 ## 6. Privacy expectations (user-facing)
 
-- Gmail access is **read-only** for transaction parsing — we do not send mail as you.
+- Gmail access is **read-only** for transaction parsing. we do not send mail as you.
 - Expenses show lifestyle spend; investments are handled in Planning, not Expenses totals.
 - You can ask Support to clarify what data we store; deletion requests go to Management / Core Team.

@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { isAffiliateRedirectUrl, mobileWebBrowseUrl, sanitizeBrowseUrl } from '@shared/inAppBrowse'
 
-/** Legacy /go links — redirect instantly, no interstitial UI. */
+/** Legacy /go links. redirect instantly, no interstitial UI. */
 const OutboundBridge: React.FC = () => {
   const navigate = useNavigate()
   const [params] = useSearchParams()

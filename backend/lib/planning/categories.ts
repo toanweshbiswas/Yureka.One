@@ -84,7 +84,7 @@ export function isBillType(type?: string): boolean {
   return true
 }
 
-/** Groww / Zerodha / SIP / MF — Planning only; never count in Expenses totals. */
+/** Groww / Zerodha / SIP / MF. Planning only; never count in Expenses totals. */
 export function isInvestmentTransaction(
   tx: Pick<PlanningTransaction, 'brandName' | 'sender' | 'description' | 'type' | 'category'>,
 ): boolean {
@@ -164,7 +164,7 @@ export function transactionKey(tx: Pick<PlanningTransaction, 'brandName' | 'date
 export function needsReview(tx: PlanningTransaction, category: PlanningCategory): boolean {
   if (tx.needsReview === false) return false
   if (tx.needsReview) return true
-  // Investment / broker mail is often sparse on brand wording — keep it in totals.
+  // Investment / broker mail is often sparse on brand wording. keep it in totals.
   if (category === 'investment' && parseInr(tx.amount) > 0) return false
   if (category !== 'other') return false
   const brand = String(tx.brandName || '').trim().toLowerCase()

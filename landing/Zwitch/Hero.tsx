@@ -78,7 +78,7 @@ const Hero: React.FC = () => {
           </motion.div>
         </div>
 
-        {/* Bottom glass-fade edge — blends into the card gap */}
+        {/* Bottom glass-fade edge. blends into the card gap */}
         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent z-50 pointer-events-none" />
 
       </div>

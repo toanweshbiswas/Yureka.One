@@ -16,10 +16,10 @@ interface NavbarProps {
 }
 
 const NAV_LINKS = [
-  { name: 'Gifting', path: '/#gifting', desc: 'Send a gift card without signing up' },
+  { name: 'Gifting', path: '/gift', desc: 'Send a gift card without signing up' },
   { name: 'Brands', path: '/brands', desc: 'Top reward partner brands' },
   { name: 'About', path: '/about', desc: 'Who builds Yureka' },
-  { name: 'FAQ', path: '/faq', desc: 'Goldback, AI, credit, pricing' },
+  { name: 'FAQ', path: '/faq', desc: 'Goldback, AI, pricing' },
   { name: 'Yureka AI', path: '/yureka-ai', desc: 'Access the intelligence hub' },
   { name: 'Zwitch', path: '/zwitch', desc: 'Premium digital agency experience' },
 ];

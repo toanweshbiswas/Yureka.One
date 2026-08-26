@@ -110,7 +110,7 @@ export default function RewardPointsCommissionTab({
     <div className="space-y-6">
       <SectionHeading
         title="Reward points commission structure"
-        subtitle="Default earn rates for reward points. Per-member balances are overridden on the Users tab — not here."
+        subtitle="Default earn rates for reward points. Per-member balances are overridden on the Users tab. not here."
       />
 
       {error && <Callout tone="error">{error}</Callout>}

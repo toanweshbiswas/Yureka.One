@@ -13,17 +13,14 @@ import { formatPaise, goldbackApi } from '@backend/lib/goldback/client'
 import type { GoldbackBalance, GoldbackLedgerEntry, GoldbackOffer } from '@backend/lib/goldback/types'
 import { cacheGet, cacheSet, CACHE_TTL, getLastAuthEmail } from '@shared/dashboardCache'
 import { onGoldbackUpdated } from '@shared/goldbackEvents'
+import { onCatalogUpdate } from '@shared/catalogSync'
 import { api, isApiError } from '@backend/lib/api/client'
 import type { Waitlist as ApiWaitlist } from '@backend/lib/api/types'
 import Icon3d from '@shared/Icon3d'
 import YurekaBrandMark from '@shared/YurekaBrandMark'
 import { googleAvatarUrl } from '@shared/userProfile'
-import { SUPER_BROWSE_STORES, fetchSuperBrowseStores, type SuperBrowseStore } from '@shared/superBrowseStores'
-import { BrandLogo } from '@shared/BrandLogo'
-import { openStoreBrowse, prefetchSuperBrowseLinks, type TrackedOpen } from '@shared/trackedBrowse'
-import { onCatalogUpdate } from '@shared/catalogSync'
 import ExploreBrandScenes from './ExploreBrandScenes'
-import { SuperBrowseGrid } from './SuperBrowse'
+import ExploreBrandsGrid from './ExploreBrandsGrid'
 import NotificationBell from './NotificationBell'
 
 type HomeCache = {
@@ -32,7 +29,7 @@ type HomeCache = {
   offers: GoldbackOffer[]
   yurekaScore: number | null
   scoreDecision: string | null
-  /** Waitlist / membership status — drives the score-card label (not underwriting band). */
+  /** Waitlist / membership status. drives the score-card label (not underwriting band). */
   memberStatus?: string | null
 }
 
@@ -63,7 +60,7 @@ function scoreBandFromNumber(score: number | null | undefined): string | null {
   return 'Rejected'
 }
 
-/** Prefer membership (Accepted) over Gmail scoreDecision — those were getting mixed on the card. */
+/** Prefer membership (Accepted) over Gmail scoreDecision. those were getting mixed on the card. */
 function scoreCardLabel(opts: {
   memberStatus?: string | null
   yurekaScore?: number | null
@@ -106,7 +103,7 @@ function firstName(user: ReturnType<typeof useSupabase>['user']) {
   return full ? full.split(/\s+/)[0] : 'there'
 }
 
-/** Local-time greeting. Late night (before 5am) is evening — not morning. */
+/** Local-time greeting. Late night (before 5am) is evening. not morning. */
 function dayGreeting(now = new Date()) {
   const h = now.getHours()
   if (h >= 5 && h < 12) return 'Good Morning'
@@ -126,9 +123,7 @@ type HomeViewProps = {
   scorePct: number
   avatarUrl: string | null
   ledger: GoldbackLedgerEntry[]
-  exploreStores: SuperBrowseStore[]
   onRefresh: () => void
-  openStore: (url: string, title: string, storeId?: string) => void
   enter: { opacity: number; y?: number }
   settle: { opacity: number; y?: number }
 }
@@ -264,7 +259,7 @@ function MobileHome({
               ) : (
                 <>
                   <p className="mt-1.5 text-[1.7rem] font-semibold tracking-[-0.045em] text-white/30 leading-none">
-                    —
+                    ·
                   </p>
                   <p className="mt-1.5 text-[11px] text-white/40">Unlock via inbox</p>
                 </>
@@ -280,42 +275,12 @@ function MobileHome({
             </MotionLink>
           </div>
         </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <MotionLink
-            to="/dashboard/browse"
-            whileTap={{ scale: 0.985 }}
-            transition={springSnappy}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-[1.25rem] bg-white px-3 py-3.5 text-black shadow-[0_12px_28px_rgba(0,0,0,0.22)]"
-          >
-            <span className="text-[13px] font-semibold tracking-[-0.02em]">Super Browse</span>
-          </MotionLink>
-          <MotionLink
-            to="/dashboard/offers?tab=marketplace"
-            whileTap={{ scale: 0.985 }}
-            transition={springSnappy}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-[1.25rem] border border-white/15 bg-white/[0.06] px-3 py-3.5 text-white"
-          >
-            <span className="text-[13px] font-semibold tracking-[-0.02em]">Explore offers</span>
-          </MotionLink>
-        </div>
       </motion.section>
 
       <motion.section
-        id="explore-brands"
         initial={enter}
         animate={settle}
         transition={{ ...spring, delay: reduceMotion ? 0 : 0.07 }}
-        className="scroll-mt-24 space-y-3"
-      >
-        <span id="super-browse" className="sr-only" aria-hidden />
-        <SuperBrowseGrid showChrome={false} />
-      </motion.section>
-
-      <motion.section
-        initial={enter}
-        animate={settle}
-        transition={{ ...spring, delay: reduceMotion ? 0 : 0.08 }}
         className="space-y-3"
       >
         <div>
@@ -327,6 +292,17 @@ function MobileHome({
           </p>
         </div>
         <ExploreBrandScenes compact />
+      </motion.section>
+
+      <motion.section
+        id="explore-brands"
+        initial={enter}
+        animate={settle}
+        transition={{ ...spring, delay: reduceMotion ? 0 : 0.08 }}
+        className="scroll-mt-24"
+      >
+        <span id="super-browse" className="sr-only" aria-hidden />
+        <ExploreBrandsGrid compact limit={8} />
       </motion.section>
 
       <motion.section
@@ -425,8 +401,6 @@ function DesktopHome({
   yurekaScore,
   scoreLabel,
   ledger,
-  exploreStores,
-  openStore,
   onRefresh,
   enter,
   settle,
@@ -522,7 +496,7 @@ function DesktopHome({
             ) : (
               <>
                 <p className="mt-2.5 text-[2.25rem] font-semibold tracking-[-0.045em] text-white/30 leading-none">
-                  —
+                  ·
                 </p>
                 <p className="mt-2 text-[13px] text-white/45">Complete inbox analysis to unlock</p>
               </>
@@ -609,68 +583,9 @@ function DesktopHome({
       </div>
 
       <motion.section
-        id="explore-brands"
         initial={enter}
         animate={settle}
         transition={{ ...spring, delay: reduceMotion ? 0 : 0.09 }}
-        className="scroll-mt-24 space-y-3"
-      >
-        <span id="super-browse" className="sr-only" aria-hidden />
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
-              Explore brands
-            </p>
-            <p className="mt-1 text-[13px] text-white/50">Tap a store to shop with Goldback</p>
-          </div>
-          <MotionLink
-            to="/dashboard/browse"
-            whileTap={{ scale: 0.98 }}
-            transition={springSnappy}
-            className="text-[12px] font-semibold text-clay"
-          >
-            Explore all brands →
-          </MotionLink>
-        </div>
-        <div className="grid grid-cols-8 gap-3 rounded-[1.5rem] border border-clay/20 bg-[linear-gradient(165deg,rgba(52,211,153,0.14)_0%,rgba(16,55,44,0.4)_55%,rgba(12,20,17,0.85)_100%)] p-4">
-          {exploreStores.slice(0, 8).map((store) => (
-            <motion.button
-              key={store.id}
-              type="button"
-              whileTap={{ scale: 0.94 }}
-              transition={springSnappy}
-              onClick={() => openStore(store.url, store.name, store.id)}
-              className="relative flex flex-col items-center gap-2"
-            >
-              <span
-                className="relative flex aspect-square w-full items-center justify-center rounded-[1.1rem] shadow-[0_8px_18px_rgba(0,0,0,0.2)]"
-                style={{ background: store.bg }}
-              >
-                <BrandLogo
-                  domain={store.domain}
-                  name={store.name}
-                  logoUrl={store.logoUrl}
-                  className="flex h-[68%] w-[68%] max-h-11 max-w-11 items-center justify-center"
-                  imgClassName="h-full w-full object-contain p-[6%]"
-                />
-                {store.cashback && (
-                  <span className="absolute -right-0.5 -top-0.5 z-10 rounded-full bg-[#10372c] px-1.5 py-0.5 text-[8px] font-bold leading-none text-white ring-2 ring-[#0c1411]">
-                    {store.cashback}
-                  </span>
-                )}
-              </span>
-              <span className="w-full truncate text-center text-[11px] font-medium text-white/70">
-                {store.name}
-              </span>
-            </motion.button>
-          ))}
-        </div>
-      </motion.section>
-
-      <motion.section
-        initial={enter}
-        animate={settle}
-        transition={{ ...spring, delay: reduceMotion ? 0 : 0.1 }}
         className="space-y-3"
       >
         <div>
@@ -682,6 +597,17 @@ function DesktopHome({
           </p>
         </div>
         <ExploreBrandScenes />
+      </motion.section>
+
+      <motion.section
+        id="explore-brands"
+        initial={enter}
+        animate={settle}
+        transition={{ ...spring, delay: reduceMotion ? 0 : 0.1 }}
+        className="scroll-mt-24"
+      >
+        <span id="super-browse" className="sr-only" aria-hidden />
+        <ExploreBrandsGrid limit={8} />
       </motion.section>
 
       <section className="space-y-3">
@@ -773,42 +699,9 @@ const GoldbackHome: React.FC = () => {
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [exploreStores, setExploreStores] = useState<SuperBrowseStore[]>(SUPER_BROWSE_STORES.slice(0, 10))
-  const [trackedLinks, setTrackedLinks] = useState<Record<string, TrackedOpen>>({})
 
   const enter = reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }
   const settle = { opacity: 1, y: 0 }
-
-  useEffect(() => {
-    let cancelled = false
-    const loadStores = () => {
-      void fetchSuperBrowseStores().then((next) => {
-        if (!cancelled && next.length) setExploreStores(next.slice(0, 10))
-      })
-    }
-    loadStores()
-    const stop = onCatalogUpdate(() => loadStores())
-    return () => {
-      cancelled = true
-      stop()
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!userId) return
-    let cancelled = false
-    const loadLinks = () => {
-      void prefetchSuperBrowseLinks(userId).then((links) => {
-        if (!cancelled) setTrackedLinks(links)
-      })
-    }
-    loadLinks()
-    const stop = onCatalogUpdate(() => loadLinks())
-    return () => {
-      cancelled = true
-      stop()
-    }
-  }, [userId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -867,8 +760,9 @@ const GoldbackHome: React.FC = () => {
       nextScore = waitlist.data.yurekaScore ?? null
       nextDecision = waitlist.data.scoreDecision ?? null
       nextMember = waitlist.data.status || nextMember
-      setYurekaScore(nextScore)
-      setScoreDecision(nextDecision)
+      // Never clear a known Yu Points value with null from a flaky waitlist read.
+      if (nextScore != null) setYurekaScore(nextScore)
+      if (nextDecision) setScoreDecision(nextDecision)
       setMemberStatus(nextMember)
     } else if (currentUserStatus) {
       setMemberStatus(currentUserStatus)
@@ -930,43 +824,42 @@ const GoldbackHome: React.FC = () => {
   useEffect(() => {
     const onScore = (event: Event) => {
       const detail = (event as CustomEvent).detail || {}
-      // scan returns { score, decision, metrics } — accept either shape
-      const next = Number(
+      // scan returns { score, decision, metrics }. accept either shape
+      const incoming = Number(
         typeof detail === 'number'
           ? detail
           : detail.score != null
             ? detail.score
             : detail.yurekaScore,
       )
-      if (!Number.isFinite(next)) return
+      if (!Number.isFinite(incoming)) return
+      setYurekaScore((prev) => {
+        // Match server smoothing so the card does not jump on every rescan.
+        if (prev == null || !Number.isFinite(prev)) return Math.round(incoming)
+        const blended = Math.round(prev * 0.72 + incoming * 0.28)
+        const maxStep = 8
+        const stepped =
+          Math.abs(blended - prev) <= maxStep
+            ? blended
+            : prev + Math.sign(blended - prev) * maxStep
+        return Math.max(0, Math.min(100, stepped))
+      })
       const nextDecision =
         typeof detail.decision === 'string'
           ? detail.decision
           : typeof detail.scoreDecision === 'string'
             ? detail.scoreDecision
-            : scoreBandFromNumber(next)
-      setYurekaScore(next)
+            : scoreBandFromNumber(incoming)
       setScoreDecision(nextDecision)
-      if (userId) {
-        const hit = cacheGet<HomeCache>(cacheKey(userId), CACHE_TTL.goldbackHome)
-        cacheSet(cacheKey(userId), {
-          balance: hit?.data.balance ?? balance,
-          ledger: hit?.data.ledger ?? ledger,
-          offers: hit?.data.offers ?? offers,
-          yurekaScore: next,
-          scoreDecision: nextDecision,
-          memberStatus: hit?.data.memberStatus ?? memberStatus,
-        })
-      }
     }
     window.addEventListener('yureka-score-updated', onScore)
     return () => window.removeEventListener('yureka-score-updated', onScore)
-  }, [userId, balance, ledger, offers, memberStatus])
+  }, [])
 
   const earnedToday = useMemo(() => {
     const start = new Date()
     start.setHours(0, 0, 0, 0)
-    // Only real offer earnings — admin balance adjusts use status "earned"/"redeemed"
+    // Only real offer earnings. admin balance adjusts use status "earned"/"redeemed"
     // and were inflating this (e.g. set ₹500 then ₹50 → still showed ₹500 earned today).
     return ledger
       .filter(
@@ -989,19 +882,6 @@ const GoldbackHome: React.FC = () => {
     scoreDecision,
   })
 
-  const openStore = (url: string, title: string, storeId?: string) => {
-    const known = storeId ? trackedLinks[storeId] : undefined
-    const cue = known?.affiliate ? known.openUrl : undefined
-    const cueOk = Boolean(cue)
-    void openStoreBrowse(url, userId, {
-      title,
-      returnTo: '/dashboard/home#explore-brands',
-      forceExternal: true,
-      knownOpenUrl: cueOk ? cue : undefined,
-      preferWeb: !cueOk,
-    })
-  }
-
   const viewProps: HomeViewProps = {
     reduceMotion,
     userId,
@@ -1013,9 +893,7 @@ const GoldbackHome: React.FC = () => {
     scorePct,
     avatarUrl,
     ledger,
-    exploreStores,
     onRefresh: () => void load(),
-    openStore,
     enter,
     settle,
   }

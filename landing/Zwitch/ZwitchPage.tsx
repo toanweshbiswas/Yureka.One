@@ -28,17 +28,17 @@ const ZwitchPage: React.FC = () => {
 
       <main className="relative z-10 w-full flex flex-col gap-4 pb-4 px-2 sm:px-4 md:px-6">
 
-        {/* Hero — full-bleed rounded glass card */}
+        {/* Hero. full-bleed rounded glass card */}
         <div className="rounded-3xl overflow-hidden ring-1 ring-white/10 shadow-[0_0_80px_rgba(0,0,0,0.8)]">
           <Hero />
         </div>
 
-        {/* Partnered Brands section — glass card */}
+        {/* Partnered Brands section. glass card */}
         <div className="rounded-3xl overflow-hidden ring-1 ring-white/10 backdrop-blur-sm bg-white/[0.03] shadow-[0_0_60px_rgba(0,0,0,0.6)]">
           <Work />
         </div>
 
-        {/* About / Philosophy section — glass card */}
+        {/* About / Philosophy section. glass card */}
         <div className="rounded-3xl overflow-hidden ring-1 ring-white/10 backdrop-blur-sm bg-white/[0.03] shadow-[0_0_60px_rgba(0,0,0,0.6)]">
           <About />
         </div>

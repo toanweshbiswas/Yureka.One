@@ -65,7 +65,7 @@ export function registerAuthRoutes(app: Express) {
    * Single gating endpoint for the SPA:
    * { role, status, entry }
    * status: admin | accepted | pending | on-hold | rejected | none
-   * Requires Bearer JWT — email is taken from the token, not the query string.
+   * Requires Bearer JWT. email is taken from the token, not the query string.
    */
   app.get('/api/v1/auth/status', async (req: Request, res: Response) => {
     try {

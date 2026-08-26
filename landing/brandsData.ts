@@ -390,7 +390,7 @@ export function brandsCategorySeo(category: string) {
   const examples = listed.slice(0, 3).map((b) => b.name)
   const exampleBit = examples.length ? `, including ${examples.join(', ')}` : ''
   const titleLead = /brands$/i.test(category) ? category : `${category} brands`
-  let description = `Earn card cashback and Yureka Goldback at ${n} ${category.toLowerCase()} ${n === 1 ? 'partner' : 'partners'} on Yureka${exampleBit}. Compare cards and convert rewards into 24K digital gold.`
+  let description = `Earn Yureka Goldback at ${n} ${category.toLowerCase()} ${n === 1 ? 'partner' : 'partners'} on Yureka${exampleBit}. Shop smarter and convert rewards into 24K digital gold.`
   if (description.length > 160) {
     description = `Earn cashback and Yureka Goldback at ${n} ${category.toLowerCase()} partners. Shop with 24K digital gold rewards instead of expiring points.`
   }

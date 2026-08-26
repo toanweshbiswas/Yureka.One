@@ -23,7 +23,7 @@ export async function sendAdminInviteEmail(opts: {
     heading: 'Set your admin password',
     bodyHtml: `
       <p style="color:#444;line-height:1.55">Hi ${name},</p>
-      <p style="color:#444;line-height:1.55">${who} as <strong>${opts.role}</strong> on the Yureka backoffice. Choose a password to open the dashboard — this link expires in ${opts.expiresHours} hours.</p>
+      <p style="color:#444;line-height:1.55">${who} as <strong>${opts.role}</strong> on the Yureka backoffice. Choose a password to open the dashboard. This link expires in ${opts.expiresHours} hours.</p>
     `,
     ctaLabel: 'Set password & open dashboard',
     ctaUrl: opts.inviteUrl,
@@ -32,7 +32,7 @@ export async function sendAdminInviteEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: 'Set your Yureka admin password',
-    text: `Hi ${name},\n\n${who} as ${opts.role}.\n\nSet your password here:\n${opts.inviteUrl}\n\nThis link expires in ${opts.expiresHours} hours.\n\n— Team Yureka`,
+    text: `Hi ${name},\n\n${who} as ${opts.role}.\n\nSet your password here:\n${opts.inviteUrl}\n\nThis link expires in ${opts.expiresHours} hours.\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -46,7 +46,7 @@ export async function sendWaitlistReceivedEmail(opts: { to: string; fullName?: s
     heading: "You're on the list",
     bodyHtml: `
       <p style="color:#444;line-height:1.55">Hi ${name},</p>
-      <p style="color:#444;line-height:1.55">We received your Yureka.One application. We'll email you at this address when you're approved — then you can sign in with Gmail and open the app.</p>
+      <p style="color:#444;line-height:1.55">We received your Yureka.One application. We'll email you at this address when you're approved. Then you can sign in with Gmail and open the app.</p>
     `,
     ctaLabel: 'Check your status',
     ctaUrl: `${urls.app}/waiting`,
@@ -54,7 +54,7 @@ export async function sendWaitlistReceivedEmail(opts: { to: string; fullName?: s
   return sendMail({
     to: opts.to,
     subject: "You're on the Yureka waitlist",
-    text: `Hi ${name},\n\nWe received your Yureka.One application. We'll email you when you're approved.\n\n— Team Yureka`,
+    text: `Hi ${name},\n\nWe received your Yureka.One application. We'll email you when you're approved.\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -68,7 +68,7 @@ export async function sendApprovalEmail(opts: { to: string; fullName?: string | 
     heading: "You're in",
     bodyHtml: `
       <p style="color:#444;line-height:1.55">Hi ${name},</p>
-      <p style="color:#444;line-height:1.55">Your waitlist application was accepted. Sign in with Gmail or your email and password to open your dashboard — Goldback, expenses, and offers are waiting.</p>
+      <p style="color:#444;line-height:1.55">Your waitlist application was accepted. Sign in with Gmail or your email and password to open your dashboard. Goldback, expenses, and offers are waiting.</p>
     `,
     ctaLabel: 'Open your dashboard',
     ctaUrl: urls.appLogin,
@@ -76,8 +76,8 @@ export async function sendApprovalEmail(opts: { to: string; fullName?: string | 
   })
   return sendMail({
     to: opts.to,
-    subject: "You're in — Yureka.One access approved",
-    text: `Hi ${name},\n\nYou're approved for Yureka.One.\n\nSign in with Gmail or email + password:\n${urls.appLogin}\n\n— Team Yureka`,
+    subject: "You're in. Yureka.One access approved",
+    text: `Hi ${name},\n\nYou're approved for Yureka.One.\n\nSign in with Gmail or email + password:\n${urls.appLogin}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -93,11 +93,11 @@ export async function sendAccountReadyEmail(opts: {
   const inviter = (opts.invitedBy || '').trim()
   const who = inviter ? `${inviter} created your account` : 'Your Yureka account is ready'
   const { html } = brandedEmail({
-    preheader: `${who} — sign in with email and password`,
+    preheader: `${who}. Sign in with email and password`,
     heading: 'Your account is ready',
     bodyHtml: `
       <p style="color:#444;line-height:1.55">Hi ${name},</p>
-      <p style="color:#444;line-height:1.55">${who}. Sign in with this email and the password you were given — your access is already approved.</p>
+      <p style="color:#444;line-height:1.55">${who}. Sign in with this email and the password you were given. Your access is already approved.</p>
     `,
     ctaLabel: 'Sign in',
     ctaUrl: urls.appLogin,
@@ -106,7 +106,7 @@ export async function sendAccountReadyEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: 'Your Yureka.One account is ready',
-    text: `Hi ${name},\n\n${who}. Sign in with this email and the password you were given:\n${urls.appLogin}\n\n— Team Yureka`,
+    text: `Hi ${name},\n\n${who}. Sign in with this email and the password you were given:\n${urls.appLogin}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -136,7 +136,7 @@ export async function sendUserInviteEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: "You're invited to Yureka.One",
-    text: `Hi ${name},\n\n${who} to Yureka.One. Create an account with this email:\n${signupUrl}\n\nThen sign in: ${urls.appLogin}\n\n— Team Yureka`,
+    text: `Hi ${name},\n\n${who} to Yureka.One. Create an account with this email:\n${signupUrl}\n\nThen sign in: ${urls.appLogin}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -165,7 +165,7 @@ export async function sendBrandInviteEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: `You're invited to the ${opts.brandName} brand portal`,
-    text: `Hi,\n\n${who} to the ${opts.brandName} brand portal on Yureka.\nCreate an account:\n${signupUrl}\n\nThen sign in: ${urls.brandLogin}\n\n— Team Yureka`,
+    text: `Hi,\n\n${who} to the ${opts.brandName} brand portal on Yureka.\nCreate an account:\n${signupUrl}\n\nThen sign in: ${urls.brandLogin}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -186,7 +186,7 @@ export async function sendWanderworldInviteEmail(opts: {
     heading: 'Join WanderWorld',
     bodyHtml: `
       <p style="color:#444;line-height:1.55">Hi there,</p>
-      <p style="color:#444;line-height:1.55">${who} to the <strong>WanderWorld</strong> trips portal as <strong>${roleLabel}</strong>. Create an account with this email (or sign in if you already have one) on <strong>wanderworld.yureka.one</strong> — not the member app.</p>
+      <p style="color:#444;line-height:1.55">${who} to the <strong>WanderWorld</strong> trips portal as <strong>${roleLabel}</strong>. Create an account with this email (or sign in if you already have one) on <strong>wanderworld.yureka.one</strong>. Not the member app.</p>
     `,
     ctaLabel: 'Open WanderWorld',
     ctaUrl: signupUrl,
@@ -195,7 +195,7 @@ export async function sendWanderworldInviteEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: `You're invited to WanderWorld ops (${roleLabel})`,
-    text: `Hi,\n\n${who} to WanderWorld ops as ${roleLabel}.\nCreate an account on wanderworld.yureka.one:\n${signupUrl}\n\nSign in: ${urls.wwLogin}\n\n— Team Yureka`,
+    text: `Hi,\n\n${who} to WanderWorld ops as ${roleLabel}.\nCreate an account on wanderworld.yureka.one:\n${signupUrl}\n\nSign in: ${urls.wwLogin}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -217,7 +217,7 @@ export async function sendWaitlistRejectedEmail(opts: { to: string; fullName?: s
   return sendMail({
     to: opts.to,
     subject: 'Update on your Yureka.One application',
-    text: `Hi ${name},\n\nThanks for applying to Yureka.One. We're not able to offer access right now.\n\n— Team Yureka`,
+    text: `Hi ${name},\n\nThanks for applying to Yureka.One. We're not able to offer access right now.\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -258,7 +258,7 @@ export async function sendScoreReadyEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: `Your Yureka Score is ready: ${opts.score}/100`,
-    text: `Hi ${name},\n\nYour Yureka Score is ${opts.score}/100${decision}.${breakdownText}\n\nOpen your dashboard: ${urls.appDashboard}\n\n— Team Yureka`,
+    text: `Hi ${name},\n\nYour Yureka Score is ${opts.score}/100${decision}.${breakdownText}\n\nOpen your dashboard: ${urls.appDashboard}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -287,7 +287,7 @@ export async function sendAppUpdateEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: opts.title,
-    text: `Hi ${name},\n\n${opts.body}\n\n${opts.ctaUrl || urls.appDashboard}\n\n— Team Yureka`,
+    text: `Hi ${name},\n\n${opts.body}\n\n${opts.ctaUrl || urls.appDashboard}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -317,7 +317,7 @@ export async function sendBlogPublishedEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: `New on Yureka: ${opts.title}`,
-    text: `Hi ${name},\n\nWe just published: ${opts.title}\n\n${excerpt ? `${excerpt}\n\n` : ''}${opts.url}\n\n— Team Yureka`,
+    text: `Hi ${name},\n\nWe just published: ${opts.title}\n\n${excerpt ? `${excerpt}\n\n` : ''}${opts.url}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -370,13 +370,13 @@ export async function sendGiftCardRecipientEmail(opts: {
       ${message ? `<p style="color:#444;line-height:1.55;padding:12px 14px;background:#f7faf8;border-left:3px solid #00933b;border-radius:8px">“${message.replace(/</g, '&lt;')}”</p>` : ''}
       ${voucherBlocks || '<p style="color:#666;line-height:1.55">Your voucher details will follow shortly from the sender if they are not shown above.</p>'}
     `,
-    footerNote: 'Keep this email private — anyone with the card number and PIN can redeem the balance.',
+    footerNote: 'Keep this email private. Anyone with the card number and PIN can redeem the balance.',
   })
 
   return sendMail({
     to: opts.to,
     subject: `${sender} sent you a ${opts.productTitle} gift card`,
-    text: `Hi ${name},\n\n${sender} sent you a ${opts.productTitle} gift card worth ${amount} via Yureka.\n${message ? `\nMessage: ${message}\n` : ''}\n${textVouchers || 'Voucher details will follow from the sender.'}\n\n— Team Yureka`,
+    text: `Hi ${name},\n\n${sender} sent you a ${opts.productTitle} gift card worth ${amount} via Yureka.\n${message ? `\nMessage: ${message}\n` : ''}\n${textVouchers || 'Voucher details will follow from the sender.'}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -408,7 +408,7 @@ export async function sendGiftCardSenderConfirmationEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: `Gift card sent to ${recipient}`,
-    text: `Hi ${name},\n\nYour ${opts.productTitle} gift card (${amount}) was emailed to ${recipient} (${opts.recipientEmail}).\n\nView order:\n${opts.orderUrl}\n\n— Team Yureka`,
+    text: `Hi ${name},\n\nYour ${opts.productTitle} gift card (${amount}) was emailed to ${recipient} (${opts.recipientEmail}).\n\nView order:\n${opts.orderUrl}\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -435,7 +435,7 @@ export async function sendDeletionRequestReceivedEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: 'We received your Yureka deletion request',
-    text: `Hi ${name},\n\nWe received your account deletion request. An admin will review it. If approved, data is held for ${opts.retentionDays} days then permanently deleted.\n\n— Team Yureka`,
+    text: `Hi ${name},\n\nWe received your account deletion request. An admin will review it. If approved, data is held for ${opts.retentionDays} days then permanently deleted.\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -465,7 +465,7 @@ export async function sendDeletionRequestAdminEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: `Deletion request: ${opts.memberEmail}`,
-    text: `${who} requested account deletion.\nReason: ${opts.reason || '—'}\nRequest: ${opts.requestId}\n\nReview: ${urls.admin}/admin?tab=deletions\n\n— Yureka`,
+    text: `${who} requested account deletion.\nReason: ${opts.reason || '·'}\nRequest: ${opts.requestId}\n\nReview: ${urls.admin}/admin?tab=deletions\n\n.  Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -491,7 +491,7 @@ export async function sendDeletionApprovedEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: 'Yureka account deletion approved',
-    text: `Hi ${name},\n\nYour deletion request was approved. Records are retained until ${when}, then permanently deleted.\n\n— Team Yureka`,
+    text: `Hi ${name},\n\nYour deletion request was approved. Records are retained until ${when}, then permanently deleted.\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -521,7 +521,7 @@ export async function sendDeletionRejectedEmail(opts: {
   return sendMail({
     to: opts.to,
     subject: 'Yureka deletion request declined',
-    text: `Hi ${name},\n\nYour account deletion request was not approved. Your account remains active.\n${opts.note ? `Note: ${opts.note}\n` : ''}\n— Team Yureka`,
+    text: `Hi ${name},\n\nYour account deletion request was not approved. Your account remains active.\n${opts.note ? `Note: ${opts.note}\n` : ''}\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })
@@ -540,7 +540,7 @@ export async function sendDeletionPurgedEmail(opts: { to: string; fullName?: str
   return sendMail({
     to: opts.to,
     subject: 'Your Yureka account has been deleted',
-    text: `Hi ${name},\n\nYour Yureka account and associated personal records have been permanently deleted.\n\n— Team Yureka`,
+    text: `Hi ${name},\n\nYour Yureka account and associated personal records have been permanently deleted.\n\nTeam Yureka`,
     html,
     replyTo: 'support@yureka.one',
   })

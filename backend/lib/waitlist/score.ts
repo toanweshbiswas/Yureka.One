@@ -42,11 +42,11 @@ export async function persistScoreToWaitlist(opts: {
   const existing = await findWaitlistByEmail(email)
   const prevMeta = existing ? parseWaitlistMeta(existing) : {}
   const prevScore = Number(existing?.yurekaScore)
-  // Blend toward new score so rescans don't thrash the home card (87 ↔ 39).
+  // Heavy blend toward previous so rescans / partial inboxes don't thrash Yu Points.
   if (Number.isFinite(prevScore) && prevScore >= 0) {
     const raw = scoreNum
-    const blended = Math.round(prevScore * 0.55 + raw * 0.45)
-    const maxStep = 15
+    const blended = Math.round(prevScore * 0.72 + raw * 0.28)
+    const maxStep = 8
     const stepped =
       Math.abs(blended - prevScore) <= maxStep
         ? blended
@@ -106,7 +106,7 @@ export async function persistScoreToWaitlist(opts: {
         },
       })
     } else {
-      console.warn(`Skipping Yureka Score email for ${email} — ${mail.skipped || mail.error}`)
+      console.warn(`Skipping Yureka Score email for ${email}. ${mail.skipped || mail.error}`)
     }
   }
 
@@ -114,5 +114,11 @@ export async function persistScoreToWaitlist(opts: {
     `Persisted Yureka Score ${scoreNum} for ${email}` +
       (metrics.openai_refined ? ' (openai refined)' : ''),
   )
+  // Mutate payload so API responses match what members see on home.
+  if (refined && typeof refined === 'object') {
+    refined.score = scoreNum
+    refined.decision = decision
+    refined.metrics = metrics
+  }
   return scoreNum
 }

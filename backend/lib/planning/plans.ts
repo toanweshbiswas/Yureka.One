@@ -63,7 +63,7 @@ function heuristicPlans(
       'Cut pace ~25% for the rest of the month.',
       [
         `Cap daily spend near ₹${roundInr(Math.max(0, (conservativeEnd - spent) / remainingDays)).toLocaleString('en-IN')}`,
-        `Trim ${topLabel} first — largest bucket this month`,
+        `Trim ${topLabel} first. largest bucket this month`,
         'Park SIPs already committed; pause new one-off investments',
       ],
     ),
@@ -89,7 +89,7 @@ function heuristicPlans(
       'Allow a buffer for travel, gifts, or market dips.',
       [
         `Daily room ~₹${roundInr(Math.max(0, (stretchEnd - spent) / remainingDays)).toLocaleString('en-IN')}`,
-        `Keep ${topLabel} from running away — soft cap +10%`,
+        `Keep ${topLabel} from running away. soft cap +10%`,
         'Use Goldback / gift cards on planned shopping',
       ],
     ),
@@ -104,6 +104,6 @@ export async function buildSpendPlans(opts: {
 }): Promise<{ plans: SpendPlan[]; engine: 'openai' | 'heuristic' }> {
   void opts.analysis
   void opts.month
-  // Heuristic only — 3 spend plans must not call OpenAI on every planning load.
+  // Heuristic only. 3 spend plans must not call OpenAI on every planning load.
   return { plans: heuristicPlans(opts.forecast, opts.categories), engine: 'heuristic' }
 }

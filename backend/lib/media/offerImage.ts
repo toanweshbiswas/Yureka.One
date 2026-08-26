@@ -17,7 +17,7 @@ const MERCHANT_DOMAINS: Record<string, string> = {
   uber: 'uber.com',
 }
 
-/** Same-origin marks shipped in /public — sharper than remote favicons. */
+/** Same-origin marks shipped in /public. sharper than remote favicons. */
 const LOCAL_LOGO_BY_HOST: Record<string, string> = {
   'amazon.in': '/assets/brand-logos/amazon-logo.png',
   'amazon.com': '/assets/brand-logos/amazon-logo.png',

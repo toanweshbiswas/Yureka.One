@@ -13,7 +13,7 @@ export type DeletionRequest = {
   fullName: string | null
   reason: string | null
   status: DeletionRequestStatus
-  /** When status becomes approved — permanent purge after this instant. */
+  /** When status becomes approved. permanent purge after this instant. */
   purgeAt: string | null
   requestedAt: string
   reviewedAt: string | null

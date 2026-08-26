@@ -26,7 +26,7 @@ const prettyCategory = (c: string) =>
 
 function cardAmountLabel(card: GiftCard): string | null {
   if (card.minAmount != null && card.maxAmount != null) {
-    return `${formatInr(card.minAmount)}–${formatInr(card.maxAmount)}`
+    return `${formatInr(card.minAmount)} to ${formatInr(card.maxAmount)}`
   }
   const denoms = normalizeDenominations(card.denominations)
   if (!denoms.length) return null
@@ -179,7 +179,7 @@ const GiftCardsPage: React.FC = () => {
     else if (items.length === 0) setLoading(true)
     setError(null)
     try {
-      // Catalog load only — force Hubble refresh is admin-gated at POST /api/giftcards/refresh
+      // Catalog load only. force Hubble refresh is admin-gated at POST /api/giftcards/refresh
       const params = new URLSearchParams({ status: 'ACTIVE' })
       if (category !== 'all') params.set('category', category)
       if (apiQuery.trim()) params.set('q', apiQuery.trim())
@@ -436,7 +436,7 @@ const GiftCardsPage: React.FC = () => {
       } else {
         setBuyError(
           msg.includes('DOCTYPE') || msg.includes('Unexpected token')
-            ? 'Could not place order — the payment service returned an unexpected response. Please try again.'
+            ? 'Could not place order. the payment service returned an unexpected response. Please try again.'
             : msg,
         )
       }
@@ -462,7 +462,7 @@ const GiftCardsPage: React.FC = () => {
         <div className="max-w-2xl">
           <h2 className="text-2xl font-black tracking-tight text-white mb-2">Gift cards</h2>
           <p className="text-white/45 text-[15px] leading-relaxed">
-            {(hasSceneBrands ? visibleItems.length : total).toLocaleString('en-IN')} active brands — pay first, then the gift card code is issued.
+            {(hasSceneBrands ? visibleItems.length : total).toLocaleString('en-IN')} active brands. pay first, then the gift card code is issued.
           </p>
         </div>
         <button
@@ -834,7 +834,7 @@ const GiftCardsPage: React.FC = () => {
                           onChange={(e) => setGiftMessage(e.target.value.slice(0, 280))}
                           rows={3}
                           className="w-full resize-none rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-white focus:outline-none focus:border-clay/40"
-                          placeholder="Happy birthday — enjoy this on me"
+                          placeholder="Happy birthday. enjoy this on me"
                         />
                       </div>
                     </div>

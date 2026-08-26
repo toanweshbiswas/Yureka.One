@@ -207,7 +207,7 @@ const PrivacyPolicy: React.FC = () => {
                         <ul className="space-y-6 text-base">
                             <li className="flex items-start gap-4">
                                 <span className="text-clay font-bold text-xl leading-none">01.</span>
-                                <span className="text-white/70">Email <a href="mailto:support@yureka.one" className="text-clay underline font-bold decoration-1 underline-offset-4">support@yureka.one</a> with <br /><span className="text-white italic">"Withdraw Consent - [Your Registered Email]"</span></span>
+                                <span className="text-white/70">Email <a href="mailto:support@yureka.one" className="text-clay underline font-bold decoration-1 underline-offset-4">support@yureka.one</a> with <br /><span className="text-white italic">"Withdraw Consent: [Your Registered Email]"</span></span>
                             </li>
                             <li className="flex items-start gap-4">
                                 <span className="text-clay font-bold text-xl leading-none">02.</span>

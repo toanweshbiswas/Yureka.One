@@ -3,7 +3,7 @@ import SEO from '@shared/SEO';
 import { brandUrl, goExternal, isSplitHostsEnabled } from '@shared/hosts';
 
 /**
- * The "For Brands" page is the standalone Yureka Partnership Deck — a
+ * The "For Brands" page is the standalone Yureka Partnership Deck. a
  * self-contained, full-screen slide presentation that ships with its own
  * global styles, fonts, and slide-navigation scripts. It lives as a static
  * asset in /public and is rendered full-viewport inside an iframe so its
@@ -21,7 +21,7 @@ const ForBrands: React.FC = () => {
       />
       <iframe
         src="/yureka-partnership-deck.html"
-        title="Yureka — Partnership Deck"
+        title="Yureka. Partnership Deck"
         className="fixed inset-0 z-[9999] border-0 bg-[#080B0A]"
         style={{ width: '100vw', height: '100vh' }}
         allow="fullscreen"

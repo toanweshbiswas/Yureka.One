@@ -12,7 +12,7 @@ function isWeakRemoteFavicon(url: string): boolean {
   )
 }
 
-/** Ordered logo candidates — local asset first, then custom URL, then high-res CDNs. */
+/** Ordered logo candidates. local asset first, then custom URL, then high-res CDNs. */
 export function storeLogoSources(domain: string, logoUrl?: string | null): string[] {
   const host = normalizeLogoHost(domain)
   const out: string[] = []

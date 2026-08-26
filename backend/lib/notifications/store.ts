@@ -84,7 +84,7 @@ function normalizeEmail(value?: string | null): string | null {
 
 /**
  * Strict ownership: a notification addressed to another email must never appear
- * in this inbox — even if a bad query or shared id leaked it.
+ * in this inbox. even if a bad query or shared id leaked it.
  */
 export function ownsNotification(
   n: Pick<UserNotification, 'userId' | 'email'>,
@@ -101,7 +101,7 @@ export function ownsNotification(
   // Addressed to a different mailbox → deny.
   if (nEmail && reqEmail && nEmail !== reqEmail) return false
   if (nUidEmail && reqEmail && nUidEmail !== reqEmail) return false
-  // Notification has an email but requester has none — only allow exact userId match.
+  // Notification has an email but requester has none. only allow exact userId match.
   if (nEmail && !reqEmail && nUid !== uid) return false
 
   if (nUid === uid) return true

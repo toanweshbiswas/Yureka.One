@@ -13,7 +13,7 @@ import JoinWaitlistButton from './JoinWaitlistButton';
 import { useVideoScrub } from './useVideoScrub';
 
 // Desktop-only cinematic (vault scrub → hero → panels → crawl).
-// Mobile mounts HeroMobile from MainPage instead — this pin scrub is not
+// Mobile mounts HeroMobile from MainPage instead. this pin scrub is not
 // usable on touch and was the main responsive/video failure on phones.
 
 const VAULT_VIDEO_URL = '/vault.mp4';
@@ -33,7 +33,7 @@ const CINEMATIC_VIDEO_URL = '/rewards-desktop-final.mp4';
 // scroll) so Brands isn't so many screens away, while keeping each phase's
 // relative weight so the pacing still reads the same, just tighter.
 const VAULT_SCRUB_VH = 130; // phase 0: scrub the vault video to its end
-const VAULT_ZOOM_VH = 50; // phase 1: zoom into the vault (kept short — long holds read as a dead black screen)
+const VAULT_ZOOM_VH = 50; // phase 1: zoom into the vault (kept short. long holds read as a dead black screen)
 const HERO_ZOOM_OUT_VH = 55; // phase 2: vault overlay fades away, revealing the Hero panel
 const SLIDE_VH = 140; // phase 3: Hero exits left, Yureka panels, Cinematic Text enters
 const CRAWL_VH = 90; // phase 4: Cinematic Text's tilted 3D crawl
@@ -139,7 +139,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
     target: wrapperRef,
     offset: ['start start', 'end end'],
   });
-  // Critically damped chrome spring — slower settle so ProMotion doesn't feel frantic.
+  // Critically damped chrome spring. slower settle so ProMotion doesn't feel frantic.
   const smoothProgress = useSpring(scrollYProgress, {
     stiffness: 170,
     damping: 32,
@@ -151,7 +151,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
   // 0 for all of phase 0, so the video holds at scale 1 (full frame, no
   // crop) for the entire scrub, then ramps up only here.
   const vaultZoomProgress = useTransform(scrollYProgress, [VAULT_SCRUB_END, VAULT_ZOOM_END], [0, 1]);
-  // Cap the zoom so the last frames still carry image detail — scale 20
+  // Cap the zoom so the last frames still carry image detail. scale 20
   // overshoots into pure black and creates a dead patch before the fade.
   const vaultVideoScale = useTransform(vaultZoomProgress, [0, 1], [1, 8]);
 
@@ -164,7 +164,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
     [1, 0],
   );
 
-  // Watermark can stay sprung — it's decorative and benefits from weight.
+  // Watermark can stay sprung. it's decorative and benefits from weight.
   const heroZoomOutProgress = useTransform(smoothProgress, [VAULT_FADE_START, HERO_ZOOM_OUT_END], [0, 1]);
   const watermarkOpacity = useTransform(heroZoomOutProgress, [0, 1], [0, 0.4]);
 
@@ -181,7 +181,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
   const crawlTransform = useMotionTemplate`rotateX(24deg) translateY(${crawlY}px) translateZ(15px)`;
 
   // Vault scrub: 1:1 with raw scroll (direct manipulation). Never spring the
-  // media time — spring lag reads as a dropped refresh rate.
+  // media time. spring lag reads as a dropped refresh rate.
   const mapVaultTime = useCallback((progress: number, duration: number) => {
     const clamped = Math.max(0, Math.min(1, progress));
     const scrubProgress = Math.min(1, clamped / VAULT_SCRUB_END);
@@ -350,7 +350,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
               >
                 Yureka offers you 360° Rewards and Saving ecosystem where you get more than
                 700+ brands to shop from. Every time you get assured digital gold and reward
-                points. No Extra Investment, Earn when you Spend. No Aesterisk, Available round
+                points. No Extra Investment, Earn when you Spend. No Asterisk, Available round
                 the clock 365 days.
                 <br />
                 We are bringing MAGIC to REALITY
@@ -362,7 +362,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
               >
                 <PhoneBubbleMockup />
 
-                {/* Hide extra cards on mobile — PhoneBubbleMockup fills
+                {/* Hide extra cards on mobile. PhoneBubbleMockup fills
                     the flex-1 space; cards would overflow the 100dvh panel. */}
                 <div className="hidden md:flex relative flex-col overflow-hidden rounded-2xl border border-white/20 bg-[#0a0a0a]/80 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
                   <h3 className="h-12 shrink-0 overflow-hidden text-[16px] font-extrabold uppercase leading-tight text-white sm:h-14 sm:text-[18px]">
@@ -477,7 +477,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
                     playsInline
                     preload="metadata"
                     onCanPlay={(e) => {
-                      // Scroll/intersection gated via cinematicVideoEnabled — no autoplay attr
+                      // Scroll/intersection gated via cinematicVideoEnabled. no autoplay attr
                       const p = e.currentTarget.play();
                       if (p) p.catch(() => {});
                     }}
@@ -525,7 +525,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
           </div>
         </motion.div>
 
-        {/* Fixed blank-column mask — desktop only (hidden on mobile where
+        {/* Fixed blank-column mask. desktop only (hidden on mobile where
             content fills the full viewport width). */}
         <div className="pointer-events-none absolute inset-y-0 left-0 z-20 hidden w-[20vw] bg-black md:block" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-20 hidden w-[20vw] bg-black md:block" />

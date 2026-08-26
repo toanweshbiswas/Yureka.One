@@ -178,7 +178,7 @@ export async function maybeBootstrapOwner(email: string, userId: string): Promis
   const emailNorm = normalizeEmail(email)
   if (!emailNorm) return null
   if (!boot) {
-    // Never auto-promote the first login — prevents owner hijack on empty store.
+    // Never auto-promote the first login. prevents owner hijack on empty store.
     return null
   }
   if (emailNorm !== boot) return null
@@ -482,7 +482,7 @@ function codesForLink(link: WwPromoterLink): string[] {
   return [...set].filter(Boolean)
 }
 
-/** Public referral IDs: 3–24 chars, A–Z / 0–9 / _ / - */
+/** Public referral IDs: 3 to 24 chars, A to Z / 0 to 9 / _ / - */
 export function normalizeReferralCode(raw: string): string | null {
   const c = String(raw || '')
     .trim()
@@ -525,7 +525,7 @@ export async function updatePromoterLinkCode(opts: {
 }): Promise<{ link: WwPromoterLink } | { error: string }> {
   const next = normalizeReferralCode(opts.code)
   if (!next) {
-    return { error: 'Referral ID must be 3–24 characters (letters, numbers, _ or -)' }
+    return { error: 'Referral ID must be 3 to 24 characters (letters, numbers, _ or -)' }
   }
   return mutate((snap) => {
     const link = opts.linkId
@@ -732,7 +732,7 @@ export async function listGroupBookableTrips(member?: WwMember | null): Promise<
     }))
 }
 
-/** Promoter/admin group booking — reserves N seats; creates N per-seat shares + join link. */
+/** Promoter/admin group booking. reserves N seats; creates N per-seat shares + join link. */
 export async function createGroupRegistration(input: {
   tripId: string
   userId: string

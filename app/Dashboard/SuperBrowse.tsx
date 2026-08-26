@@ -32,7 +32,7 @@ function CashbackBadge({ pct }: { pct: string }) {
 }
 
 function useSuperBrowseOpen() {
-  // Always window.open — Super Browse is a store launcher, not the in-app iframe.
+  // Always window.open. Super Browse is a store launcher, not the in-app iframe.
   return (url: string, userId: string, opts?: { title?: string; knownOpenUrl?: string }) => {
     const cueOk = Boolean(opts?.knownOpenUrl)
     void openStoreBrowse(url, userId, {
@@ -62,15 +62,14 @@ function StoreTile({
       <motion.span
         whileTap={{ scale: 0.94 }}
         transition={spring}
-        className="relative flex h-[3.85rem] w-[3.85rem] items-center justify-center overflow-hidden rounded-[1.15rem] shadow-[0_8px_18px_rgba(0,0,0,0.28)]"
-        style={{ background: store.bg }}
+        className="relative flex h-[3.85rem] w-[3.85rem] items-center justify-center"
       >
         <BrandLogo
           domain={store.domain}
           name={store.name}
           logoUrl={store.logoUrl}
-          className="flex h-[72%] w-[72%] max-h-11 max-w-11 items-center justify-center"
-          imgClassName="h-full w-full object-contain p-[6%]"
+          className="flex h-full w-full items-center justify-center"
+          imgClassName="h-full w-full object-contain drop-shadow-[0_6px_14px_rgba(0,0,0,0.35)]"
         />
         {store.cashback && <CashbackBadge pct={store.cashback} />}
       </motion.span>

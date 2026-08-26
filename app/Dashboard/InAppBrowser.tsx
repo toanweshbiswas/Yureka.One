@@ -75,7 +75,7 @@ export function InAppBrowserFrame({
   const safeSrc = sanitizeBrowseUrl(src)
   const frameSrc = embedFrameSrc(safeSrc)
   const host = browseHost(safeSrc)
-  // Flipkart/Amazon never iframe — cookies/login break in third-party frames.
+  // Flipkart/Amazon never iframe. cookies/login break in third-party frames.
   const cookieHost = needsFirstPartyCookies(safeSrc)
   const allowEmbed = Boolean(frameSrc) && !cookieHost
   const useExternal = Boolean(safeSrc && (!frameSrc || embedFailed || cookieHost))
@@ -212,7 +212,7 @@ export function InAppBrowserFrame({
             </p>
             <p className="mt-2 max-w-[20rem] text-[14px] leading-snug text-white/50">
               {cookieHost
-                ? `Login cookies only work in a top-level ${browserName} tab — not inside Yureka.`
+                ? `Login cookies only work in a top-level ${browserName} tab. not inside Yureka.`
                 : `This store blocks embedded browsing. Stay here, or open it in ${browserName}.`}
             </p>
             <motion.button

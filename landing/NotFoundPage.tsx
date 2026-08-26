@@ -15,7 +15,7 @@ const NotFoundPage: React.FC = () => (
       This page doesn't exist.
     </h1>
     <p className="font-overpass-mono text-white/60 text-base md:text-lg max-w-md mb-10">
-      It may have been moved or never existed. Let's get you back to comparing credit cards and earning Goldback.
+      It may have been moved or never existed. Let&apos;s get you back to earning Goldback.
     </p>
     <Link
       to="/"

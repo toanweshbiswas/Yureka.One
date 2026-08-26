@@ -293,7 +293,7 @@ export async function deleteSuperBrowseStore(id: string): Promise<boolean> {
   return removed
 }
 
-/** Persist display order — `orderedIds` is the full ordered list of store ids. */
+/** Persist display order. `orderedIds` is the full ordered list of store ids. */
 export async function reorderSuperBrowseStores(orderedIds: string[]): Promise<SuperBrowseStoreRow[]> {
   const ids = orderedIds.map((id) => String(id || '').trim()).filter(Boolean)
   if (!ids.length) return listSuperBrowseStores({ includeInactive: true })

@@ -7,6 +7,7 @@ function esc(s: string): string {
 
 const NAV = [
   ['Home', '/'],
+  ['Gift cards', '/gift'],
   ['Brands', '/brands'],
   ['About', '/about'],
   ['FAQ', '/faq'],
@@ -24,7 +25,7 @@ function chrome(inner: string): string {
 <nav aria-label="Primary">${nav}</nav>
 ${inner}
 <footer>
-  <p>Yureka.One — India's AI-native Wealth Operating System. Support: <a href="mailto:support@yureka.one">support@yureka.one</a></p>
+  <p>Yureka.One. India's AI-native Wealth Operating System. Support: <a href="mailto:support@yureka.one">support@yureka.one</a></p>
   <p><a href="/privacy-policy">Privacy</a> · <a href="/terms-of-service">Terms</a> · <a href="/join-waitlist">Join waitlist</a></p>
 </footer>
 </div>`
@@ -41,9 +42,9 @@ function howToBlock(): string {
   return `<section>
 <h2>How Yureka turns spending into Goldback</h2>
 <ol>
-<li><strong>Capture</strong> — Consented parsing of shopping receipts and transaction signals (Gmail notifications, UPI messages).</li>
-<li><strong>Score</strong> — A Power Shopper Score from 0–100 for financial health, shopping optimisation, and reliability.</li>
-<li><strong>Optimise</strong> — Route the payment, apply the best reward path, and pay you in 24K digital gold (Yureka Goldback) at up to 16% effective ROI.</li>
+<li><strong>Capture</strong>. Consented parsing of shopping receipts and transaction signals (Gmail notifications, UPI messages).</li>
+<li><strong>Score</strong>. A Power Shopper Score from 0 to 100 for financial health, shopping optimisation, and reliability.</li>
+<li><strong>Optimise</strong>. Route the payment, apply the best reward path, and pay you in 24K digital gold (Yureka Goldback) at up to 16% effective ROI.</li>
 </ol>
 </section>`
 }
@@ -53,7 +54,7 @@ export function crawlerContentHtml(pathname: string): string {
 
   if (path === '/') {
     return chrome(`
-<h1>Yureka.One — India's AI Wealth OS</h1>
+<h1>Yureka.One. India's AI Wealth OS</h1>
 <p>Yureka.One is India's first AI-native Wealth Operating System. It turns everyday spending into 24K digital gold (Yureka Goldback), uses an AI concierge to place food, grocery, and shopping orders, and builds an alternative credit profile from consented transaction data. Premium is ₹99/month or ₹1,199/year, reimbursed 100% as gold.</p>
 ${howToBlock()}
 ${faqBlock()}
@@ -63,8 +64,8 @@ ${faqBlock()}
   if (path === '/about') {
     return chrome(`
 <h1>About Yureka.One</h1>
-<p>Yureka.One is a Bengaluru fintech founded in 2026 by Anwesh Biswas. It builds a Wealth Operating System for India's power shoppers: capture spend, score it, and convert rewards into liquid 24K digital gold while creating RBI-aligned alternative credit profiles.</p>
-<p>The company ships a consumer app, Chrome extension, Yureka AI concierge, and partner checkout tools. Read the <a href="/manifesto">manifesto</a> or <a href="/contact">contact support</a>.</p>
+<p>Yureka.One is a Bengaluru fintech founded in 2026 by Anwesh Biswas and Mainak Saha. It builds a Wealth Operating System for India's power shoppers: capture spend, score it, and convert rewards into liquid 24K digital gold while creating RBI-aligned alternative credit profiles.</p>
+<p>Founding team: <a href="https://www.linkedin.com/in/anweshbiswas/">Anwesh Biswas</a>, <a href="https://www.linkedin.com/in/mainaksaha08/">Mainak Saha</a>. The company ships a consumer app, Chrome extension, Yureka AI concierge, and partner checkout tools. Read the <a href="/manifesto">manifesto</a> or <a href="/contact">contact support</a>.</p>
 `)
   }
 
@@ -91,11 +92,15 @@ ${faqBlock()}
   }
 
   if (path === '/brands') {
-    return chrome(`<h1>Brand Explorer — 80+ partner brands</h1><p>Browse Yureka partner brands across shopping, travel, food, and lifestyle. See which cards maximize cashback and Goldback at each store.</p>`)
+    return chrome(`<h1>Brand Explorer. 80+ partner brands</h1><p>Browse Yureka partner brands across shopping, travel, food, and lifestyle. See which cards maximize cashback and Goldback at each store.</p>`)
+  }
+
+  if (path === '/gift') {
+    return chrome(`<h1>Send gift cards without signing up</h1><p>Buy and send brand gift cards securely on Yureka.One. Pick a brand, pay, and we email the voucher codes to your recipient. No Yureka account required.</p>`)
   }
 
   if (path === '/manifesto') {
-    return chrome(`<h1>The Yureka Manifesto: Spend. Accumulate. Evolve.</h1><p>Yureka.One exists so India's power shoppers can treat every transaction as wealth-building — digital gold rewards and credit access, not expiring points.</p>`)
+    return chrome(`<h1>The Yureka Manifesto: Spend. Accumulate. Evolve.</h1><p>Yureka.One exists so India's power shoppers can treat every transaction as wealth-building. digital gold rewards and credit access, not expiring points.</p>`)
   }
 
   if (path === '/security-protocol') {
@@ -107,15 +112,15 @@ ${faqBlock()}
   }
 
   if (path === '/yureka-ai') {
-    return chrome(`<h1>Yureka AI — the shopping agent that orders and earns</h1><p>An AI concierge on Swiggy MCP that compares prices, picks the best-reward payment, places food and grocery orders, and pays you in Yureka Goldback.</p>`)
+    return chrome(`<h1>Yureka AI. the shopping agent that orders and earns</h1><p>An AI concierge on Swiggy MCP that compares prices, picks the best-reward payment, places food and grocery orders, and pays you in Yureka Goldback.</p>`)
   }
 
   if (path === '/blog') {
-    return chrome(`<h1>Yureka.One Blog — Goldback, AI shopping, and credit</h1><p>Guides on earning Goldback from everyday spending, ordering with AI, and building credit without a credit card.</p>`)
+    return chrome(`<h1>Yureka.One Blog. Goldback, AI shopping, and credit</h1><p>Guides on earning Goldback from everyday spending, ordering with AI, and building credit without a credit card.</p>`)
   }
 
   if (path === '/join-waitlist') {
-    return chrome(`<h1>Join Yureka — earn gold on every order</h1><p>Get invite-gated access to Yureka.One. Earn Goldback, order via AI, and build credit automatically.</p>`)
+    return chrome(`<h1>Join Yureka. earn gold on every order</h1><p>Get invite-gated access to Yureka.One. Earn Goldback, order via AI, and build credit automatically.</p>`)
   }
 
   return ''

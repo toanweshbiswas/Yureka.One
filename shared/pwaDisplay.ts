@@ -63,7 +63,7 @@ function isNativeExpoShell(): boolean {
   }
 }
 
-/** In-app store iframe: installed mobile PWA only — not desktop, Safari tabs, or the native Expo app. */
+/** In-app store iframe: installed mobile PWA only. not desktop, Safari tabs, or the native Expo app. */
 export function canUseInAppBrowse(): boolean {
   return isStandalonePwa() && isLikelyMobile() && !isNativeExpoShell()
 }

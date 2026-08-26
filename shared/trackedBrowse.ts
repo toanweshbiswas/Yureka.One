@@ -56,7 +56,7 @@ export function storeBrowseTarget(
   const safe = sanitizeBrowseUrl(url)
   if (!safe) return null
 
-  // Affiliate click trackers can't be framed — must open outside.
+  // Affiliate click trackers can't be framed. must open outside.
   if (isAffiliateRedirectUrl(safe)) {
     return { mode: 'external', url: safe }
   }
@@ -107,7 +107,7 @@ export async function openStoreBrowse(
     preferWeb?: boolean
     /**
      * Always window.open externally (never /dashboard/browse iframe).
-     * Default true — providers reject in-app / beacon-only clicks.
+     * Default true. providers reject in-app / beacon-only clicks.
      */
     forceExternal?: boolean
   },
@@ -122,7 +122,7 @@ export async function openStoreBrowse(
   // CueLinks when available; otherwise standard merchant URL.
   const preferWeb = opts?.preferWeb ?? !cueAvailable
 
-  // Persist scroll/return sync — never await before window.open (breaks iOS/PWA gesture).
+  // Persist scroll/return sync. never await before window.open (breaks iOS/PWA gesture).
   try {
     rememberBrowseReturn(returnTo)
     saveDashboardScroll(returnTo.split('?')[0].split('#')[0])
@@ -160,7 +160,7 @@ export async function openStoreBrowse(
 
 /**
  * Prefer mobile-web HTTPS for merchant opens.
- * Do not hop through DuckDuckGo/Google — those leave users stuck on the redirector.
+ * Do not hop through DuckDuckGo/Google. those leave users stuck on the redirector.
  * Android may use Chrome intent to avoid installed store apps.
  */
 export function stayInBrowserUrl(raw: string): string {
@@ -171,7 +171,7 @@ export function stayInBrowserUrl(raw: string): string {
   const web = mobileWebBrowseUrl(safe) || safe
   if (typeof window === 'undefined') return web
 
-  // Flipkart login treats Chrome intent / in-app shells as cookieless — plain HTTPS only.
+  // Flipkart login treats Chrome intent / in-app shells as cookieless. plain HTTPS only.
   if (needsFirstPartyCookies(web)) return web
 
   try {
@@ -204,7 +204,7 @@ function prepareLaunchUrl(raw: string): string | null {
 function openGestureTab(): Window | null {
   if (typeof window === 'undefined') return null
   try {
-    // Do not use noopener here — we need a Window handle to set location after await.
+    // Do not use noopener here. we need a Window handle to set location after await.
     const w = window.open('about:blank', '_blank')
     if (w) {
       try {
@@ -281,7 +281,7 @@ function launchUrl(raw: string, opts?: { allowCookies?: boolean }) {
   if (now < launchLockUntil) return
   launchLockUntil = now + 900
 
-  // Native Expo / WKWebView shell — ask the host to open Safari / Chrome Custom Tabs.
+  // Native Expo / WKWebView shell. ask the host to open Safari / Chrome Custom Tabs.
   if (tryNativeOpen(target)) return
 
   // Cookie-sensitive merchants (Flipkart login): top-level tab without noreferrer so
@@ -355,7 +355,7 @@ function launchMerchantAndAffiliate(merchant: string, affiliate: string) {
   if (now < launchLockUntil) return
   launchLockUntil = now + 900
 
-  // Provider click first (same user gesture — popup blockers usually allow both).
+  // Provider click first (same user gesture. popup blockers usually allow both).
   if (aff) {
     try {
       window.open(aff, '_blank', 'noopener,noreferrer')
@@ -405,12 +405,12 @@ function externalOpenTarget(
   // Browse-only: merchant website (anti-app wrap applied in prepareLaunchUrl).
   if (preferWeb) return direct
 
-  // Conversion path when caller explicitly wants CueLinks (rare — still may UL at end).
+  // Conversion path when caller explicitly wants CueLinks (rare. still may UL at end).
   if (affiliate) return affiliate
   return direct
 }
 
-/** Record click, open tracked / store link immediately — no intermediate screen. */
+/** Record click, open tracked / store link immediately. no intermediate screen. */
 export async function openTrackedStore(
   url: string,
   userId: string,

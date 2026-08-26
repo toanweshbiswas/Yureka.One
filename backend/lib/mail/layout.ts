@@ -71,7 +71,7 @@ export function brandedEmail(opts: {
         ${opts.bodyHtml}
         ${cta}
         ${opts.footerNote ? `<p style="color:#888;font-size:13px;line-height:1.5">${opts.footerNote}</p>` : ''}
-        <p style="color:#bbb;font-size:12px;margin-top:32px">— Team Yureka · <a href="mailto:support@yureka.one" style="color:#888">support@yureka.one</a></p>
+        <p style="color:#bbb;font-size:12px;margin-top:32px">Team Yureka · <a href="mailto:support@yureka.one" style="color:#888">support@yureka.one</a></p>
       </div>
     `,
   }

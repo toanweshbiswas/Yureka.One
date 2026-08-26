@@ -88,6 +88,7 @@ const FaqPage = lazyWithRetry(() => import('@landing/FaqPage'));
 const ForBrands = lazyWithRetry(() => import('@landing/ForBrands'));
 const ZwitchPage = lazyWithRetry(() => import('@landing/Zwitch/ZwitchPage'));
 const GiftOrderStatusPage = lazyWithRetry(() => import('@landing/GiftOrderStatusPage'));
+const GiftingPage = lazyWithRetry(() => import('@landing/GiftingPage'));
 const NotFoundPage = lazyWithRetry(() => import('@landing/NotFoundPage'));
 
 // App (product)
@@ -301,7 +302,7 @@ const ScrollToTop = () => {
   const { pathname, hash } = useLocation();
 
   useEffect(() => {
-    // Dashboard keep-alive tabs scroll their own pane — don't jump the whole app.
+    // Dashboard keep-alive tabs scroll their own pane. don't jump the whole app.
     if (pathname.startsWith('/dashboard')) return;
     const isAuthHash =
       hash.includes('access_token') ||
@@ -330,7 +331,7 @@ const ScrollToTop = () => {
 /** Persist WanderWorld promoter ?ref= before auth redirects drop the getaway page. */
 const CaptureWwPromoterRef = () => {
   const { search } = useLocation();
-  // Sync write — ProtectedRoute may Navigate away before useEffect runs.
+  // Sync write. ProtectedRoute may Navigate away before useEffect runs.
   captureGetawayRefFromSearch(search);
   return null;
 };
@@ -341,7 +342,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   // Never tear down the dashboard for a background status/CMS refresh.
   // Waitlist open: any signed-in session can stay (incl. status "none" while
-  // /auth/status auto-accept catches up — that used to bounce signup → login).
+  // /auth/status auto-accept catches up. that used to bounce signup → login).
   if (
     currentUserStatus === 'accepted' ||
     currentUserStatus === 'admin' ||
@@ -389,6 +390,7 @@ function LandingRoutes() {
   return (
     <Routes>
       <Route path="/" element={<MainPage />} />
+      <Route path="/gift" element={<GiftingPage />} />
       <Route path="/gift/orders/:token" element={<GiftOrderStatusPage />} />
       <Route path="/zwitch" element={<><SEO {...staticPageMeta['/zwitch']} /><ZwitchPage /></>} />
       <Route path="/brands" element={<BrandExplorer />} />
@@ -424,7 +426,7 @@ function ProductRoutes() {
       <Route path="/ww-oauth" element={<Navigate to="/login" replace />} />
       <Route path="/login" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
       <Route path="/signup" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
-      {/* Waitlist paused — set VITE_WAITLIST_REQUIRED=true to restore pages */}
+      {/* Waitlist paused. set VITE_WAITLIST_REQUIRED=true to restore pages */}
       <Route
         path="/join-waitlist"
         element={
@@ -517,6 +519,7 @@ function CombinedRoutes() {
     <Routes>
       <Route path="/" element={<MarketingOrPwaHome />} />
       <Route path="/go" element={<OutboundBridge />} />
+      <Route path="/gift" element={<GiftingPage />} />
       <Route path="/gift/orders/:token" element={<GiftOrderStatusPage />} />
       <Route path="/zwitch" element={<><SEO {...staticPageMeta['/zwitch']} /><ZwitchPage /></>} />
       <Route path="/brands" element={<BrandExplorer />} />
@@ -539,7 +542,7 @@ function CombinedRoutes() {
       <Route path="/ww/*" element={<WwPortal />} />
       <Route path="/login" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
       <Route path="/signup" element={<><SEO {...staticPageMeta['/login']} /><LoginPage /></>} />
-      {/* Waitlist paused — set VITE_WAITLIST_REQUIRED=true to restore pages */}
+      {/* Waitlist paused. set VITE_WAITLIST_REQUIRED=true to restore pages */}
       <Route
         path="/join-waitlist"
         element={

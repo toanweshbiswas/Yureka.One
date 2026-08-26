@@ -48,7 +48,7 @@ const About: React.FC = () => {
           >
             <div className="space-y-6 text-gray-300 font-light leading-relaxed text-lg">
               <p>
-                We built Zwitch to close the loop between intent and fulfilment. By combining Yureka’s intelligent wealth-stack with instant commerce, we let you order directly from your favorite partner brands inside the app and have your goods delivered in minutes—while still earning your hard savings, invested digital gold, and liquid reward points on every single order.
+                We built Zwitch to close the loop between intent and fulfilment. By combining Yureka’s intelligent wealth-stack with instant commerce, we let you order directly from your favorite partner brands inside the app and have your goods delivered in minutes. while still earning your hard savings, invested digital gold, and liquid reward points on every single order.
               </p>
             </div>
 

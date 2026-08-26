@@ -9,7 +9,7 @@ interface BrandEntry {
   bgColor: string;
   // Most logos use the default 'contain' (whole logo always inside the bubble).
   // Some source images bake a colored tile onto a white background, or place a
-  // small logo in a large field of solid color — for those we 'cover' + scale
+  // small logo in a large field of solid color. for those we 'cover' + scale
   // to crop the surrounding margin so the tile/logo fills the bubble.
   fit?: 'cover' | 'contain';
   scale?: number;

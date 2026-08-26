@@ -126,7 +126,7 @@ function showConsentBar() {
   bar.innerHTML = `
     <div class="yureka-ext-copy">
       <strong>Yureka · Affiliate disclosure</strong>
-      <span>Deal links may be affiliate links. We may earn a commission if you buy — no extra cost to you.</span>
+      <span>Deal links may be affiliate links. We may earn a commission if you buy. no extra cost to you.</span>
     </div>
     <button type="button" class="yureka-ext-cta">Enable deals</button>
     <button type="button" class="yureka-ext-x" aria-label="Dismiss">×</button>
@@ -189,7 +189,7 @@ async function refreshBar() {
 
   const consented = await getAffiliateConsent()
   if (!consented) {
-    // Gift-card tips do not use affiliate redirects — still allowed without consent.
+    // Gift-card tips do not use affiliate redirects. still allowed without consent.
     const onProduct = isProductPage(host, location.pathname)
     const giftHiddenForPath = sessionStorage.getItem(GIFT_HIDE_KEY) === location.pathname
     if (onProduct && !giftHiddenForPath) {

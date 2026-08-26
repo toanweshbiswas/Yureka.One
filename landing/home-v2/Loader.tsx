@@ -5,7 +5,7 @@ interface LoaderProps {
   show: boolean;
 }
 
-/** Full-bleed black gate until fonts are ready — critically damped exit (Apple default). */
+/** Full-bleed black gate until fonts are ready. critically damped exit (Apple default). */
 export default function Loader({ show }: LoaderProps) {
   const reduceMotion = useReducedMotion();
 

@@ -15,7 +15,7 @@ const MESSAGES = [
   },
   {
     id: 3, sender: 'Arjun',
-    text: "Before you pick randomly — try Yureka.One. It audits your actual spend and gives the mathematically optimal card for YOUR profile. Not generic advice.",
+    text: "Before you pick randomly. try Yureka.One. It audits your actual spend and gives the mathematically optimal card for YOUR profile. Not generic advice.",
     time: '9:45 AM', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Arjun', accent: '#00933b', right: true,
   },
   {

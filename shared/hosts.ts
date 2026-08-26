@@ -97,7 +97,7 @@ export function isSplitHostsEnabled(hostname = currentHostname()) {
   )
 }
 
-/** Absolute URL helper — same-origin when hosts are combined. */
+/** Absolute URL helper. same-origin when hosts are combined. */
 export function absoluteUrl(origin: string, path: string) {
   const p = path.startsWith('/') ? path : `/${path}`
   if (!isSplitHostsEnabled() && !isTemporaryPublicHost()) {

@@ -54,7 +54,7 @@ function SceneCard({
       >
         <div className="absolute inset-0 bg-[#0c0d10]" />
 
-        {/* 3D hero art — same design language on phone + desktop */}
+        {/* 3D hero art. same design language on phone + desktop */}
         <motion.div
           className={
             compact

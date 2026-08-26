@@ -7,7 +7,7 @@ import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import SEO from '@shared/SEO';
 import { staticPageMeta } from '@backend/lib/seo/pageMeta';
 
-const CATEGORIES = ['All', 'Credit Cards', 'Rewards', 'Travel', 'AI', 'Strategy', 'History', 'Finance'];
+const CATEGORIES = ['All', 'Rewards', 'Travel', 'AI', 'Strategy', 'History', 'Finance'];
 
 const spring = { type: 'spring' as const, bounce: 0, duration: 0.4 };
 
@@ -57,7 +57,7 @@ const JournalPage: React.FC = () => {
                             Blog
                         </h1>
                         <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white/50">
-                            Credit, gold, and spending — written for people who actually shop.
+                            Credit, gold, and spending. written for people who actually shop.
                         </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">

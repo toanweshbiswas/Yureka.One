@@ -1,5 +1,5 @@
 /**
- * Browser Supabase client — re-export of the app auth helper.
+ * Browser Supabase client. re-export of the app auth helper.
  * Prefer `getSupabaseBrowser()` / `signInWithGmail()` from `@shared/auth` for auth flows.
  */
 export { getSupabaseBrowser as getSupabase, supabaseConfigured } from '@shared/auth'

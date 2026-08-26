@@ -7,7 +7,7 @@ For customer support / success. Tool: **admin.yureka.one** (viewer or admin role
 ## 1. Shift checklist
 
 1. Sign in at [admin.yureka.one](https://admin.yureka.one).
-2. Open **Waitlist** — scan new `pending` rows.
+2. Open **Waitlist**. scan new `pending` rows.
 3. Open **Users** / activity for any open tickets.
 4. Check **Club → Push** only if asked to send (admin role); prefer one-user sends.
 5. Log ticket outcomes in your CS tool (email + action + time).
@@ -45,26 +45,26 @@ Do **not** change status unless you have **admin** role and follow Admin SOP “
 ### B. “I was accepted but still waiting”
 
 1. Confirm status is `accepted`.
-2. Ask: Google login vs password — must match waitlist email.
+2. Ask: Google login vs password. must match waitlist email.
 3. If still broken → escalate Core Team (auth / status API).
 
 ### C. Gmail / expenses empty or error
 
 1. Ask them to reconnect Gmail from Expenses.
-2. Note Google may block unverified OAuth for new accounts — Core Team owns OAuth verification.
+2. Note Google may block unverified OAuth for new accounts. Core Team owns OAuth verification.
 3. Resync quota: **5 / 15 days**. Soft refresh is fine; force resync burns quota.
 4. Do not ask them to paste Gmail access tokens into chat.
 
 ### D. Goldback not credited
 
 1. Explain: opening an offer only **tracks click**; credit after **verified purchase / conversion**.
-2. Admin **Goldback → adjust** is for ops correction (admin role) — see Admin SOP; log reason.
+2. Admin **Goldback → adjust** is for ops correction (admin role). see Admin SOP; log reason.
 
 ### E. Gift card not received
 
 1. Collect: email, phone used at checkout, approximate time, amount.
 2. Admin → overview / gift activity if available; else escalate Integrations (Hubble / Razorpay).
-3. Never resend voucher codes in public Slack — use email to the buyer only.
+3. Never resend voucher codes in public Slack. use email to the buyer only.
 
 ### F. Notification / email not received
 
@@ -86,7 +86,7 @@ Do **not** change status unless you have **admin** role and follow Admin SOP “
 
 **Resync limit**
 
-> Inbox force-resync is limited to 5 times every 15 days to protect your quota and our scanners. Soft refresh still updates when possible. The counter resets after the window — we can’t raise it from Support without engineering.
+> Inbox force-resync is limited to 5 times every 15 days to protect your quota and our scanners. Soft refresh still updates when possible. The counter resets after the window. we can’t raise it from Support without engineering.
 
 **Goldback**
 
@@ -110,4 +110,4 @@ Do **not** change status unless you have **admin** role and follow Admin SOP “
 
 - Verify requester owns the email (login screenshot or reply-from that address).
 - Never dump full waitlist CSV into tickets.
-- No password resets via admin guesswork — use product reset email.
+- No password resets via admin guesswork. use product reset email.

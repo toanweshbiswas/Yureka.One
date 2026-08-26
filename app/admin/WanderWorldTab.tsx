@@ -135,7 +135,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
       <div className="space-y-6">
         <PageHeader
           title="WanderWorld"
-          subtitle="Trips sold in Join your getaway — registrations, revenue, team, and ops links."
+          subtitle="Trips sold in Join your getaway. registrations, revenue, team, and ops links."
         />
         <Callout tone="error">Viewer role cannot access WanderWorld buyer or revenue data.</Callout>
       </div>
@@ -316,7 +316,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
                       .map((p) => (
                       <tr key={p.memberId} className="border-t border-white/5">
                         <td className="px-4 py-2.5">
-                          <div className="font-mono text-xs text-white">{p.code || '—'}</div>
+                          <div className="font-mono text-xs text-white">{p.code || '·'}</div>
                           <div className="text-xs text-white/40">{p.email}</div>
                         </td>
                         <td className="px-4 py-2.5 text-white/55">{p.clicks ?? 0}</td>
@@ -334,7 +334,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
 
           <SectionHeading
             title="Inventory & bookings"
-            subtitle="Create and publish trips in the ops portal — this list is read-only here."
+            subtitle="Create and publish trips in the ops portal. this list is read-only here."
           />
           <div className="grid gap-6 lg:grid-cols-2">
             <Surface className="overflow-x-auto p-0">
@@ -343,7 +343,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
                 <EmptyState>
                   {q
                     ? 'No trips match.'
-                    : 'No trips yet — create and publish in the WanderWorld ops portal.'}
+                    : 'No trips yet. create and publish in the WanderWorld ops portal.'}
                 </EmptyState>
               ) : (
                 <table className="w-full min-w-[420px] text-left text-sm">
@@ -387,7 +387,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
                 <EmptyState>
                   {q
                     ? 'No registrations match.'
-                    : 'No registrations yet — bookings from Join your getaway will show here.'}
+                    : 'No registrations yet. bookings from Join your getaway will show here.'}
                 </EmptyState>
               ) : (
                 <table className="w-full min-w-[480px] text-left text-sm">
@@ -416,7 +416,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
                           <div className="font-medium text-white">{registration.buyerName}</div>
                           <div className="text-xs text-white/40">{registration.buyerEmail}</div>
                         </td>
-                        <td className="px-4 py-2.5 text-white/55">{trip?.title || '—'}</td>
+                        <td className="px-4 py-2.5 text-white/55">{trip?.title || '·'}</td>
                         <td className="px-4 py-2.5 text-white/55">
                           {registration.status} · {registration.paymentMode}
                         </td>
@@ -433,7 +433,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
 
           <SectionHeading
             title="Ops team"
-            subtitle="Invite promoters or owners. They use wanderworld.yureka.one — same store as this overview."
+            subtitle="Invite promoters or owners. They use wanderworld.yureka.one. same store as this overview."
           />
           <div className="grid gap-6 lg:grid-cols-2">
             <Surface className="p-4">
@@ -467,7 +467,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
                   </li>
                 ))}
                 {data.members.length === 0 && (
-                  <p className="text-sm text-white/40">No members yet — invite an owner below.</p>
+                  <p className="text-sm text-white/40">No members yet. invite an owner below.</p>
                 )}
               </ul>
             </Surface>
@@ -522,7 +522,7 @@ export default function WanderWorldTab({ token, canWrite }: { token: string | nu
                   {a.promoters.map((p) => (
                     <tr key={p.memberId} className="border-t border-white/5">
                       <td className="px-4 py-2.5 text-white">{p.email}</td>
-                      <td className="px-4 py-2.5 font-mono text-xs text-white/55">{p.code || '—'}</td>
+                      <td className="px-4 py-2.5 font-mono text-xs text-white/55">{p.code || '·'}</td>
                       <td className="px-4 py-2.5 text-white/55">{p.registrations}</td>
                       <td className="px-4 py-2.5 text-white/55">
                         ₹{Math.round(p.revenueInr).toLocaleString('en-IN')}

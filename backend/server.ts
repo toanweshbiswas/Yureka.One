@@ -45,7 +45,7 @@ function resolvePythonExecutable(): string {
       return candidate;
     }
   }
-  console.warn('[python] venv not found — falling back to system python3 (scanner deps may be missing)');
+  console.warn('[python] venv not found. falling back to system python3 (scanner deps may be missing)');
   return 'python3';
 }
 
@@ -53,7 +53,7 @@ function resolvePythonExecutable(): string {
 async function ensurePythonDeps(): Promise<void> {
   const script = path.join(process.cwd(), 'scripts', 'ensure-python-deps.sh');
   if (!fs.existsSync(script)) {
-    console.warn('[python] ensure-python-deps.sh missing — skip auto-install');
+    console.warn('[python] ensure-python-deps.sh missing. skip auto-install');
     return;
   }
   const { spawn } = await import('child_process');
@@ -244,7 +244,7 @@ async function startServer() {
 
 
 
-  // Per-user ledger cache only — requires verified Bearer. Legacy global file removed from public API.
+  // Per-user ledger cache only. requires verified Bearer. Legacy global file removed from public API.
   app.get("/api/financial-ledger", async (req, res) => {
     try {
       const { requireAuthEmail } = await import("./lib/auth/userId.js");
@@ -264,7 +264,7 @@ async function startServer() {
     }
   });
 
-  // Fast profile-only lookup — requires a Gmail accessToken; rate-limited.
+  // Fast profile-only lookup. requires a Gmail accessToken; rate-limited.
   app.post("/api/scan-profile", async (req, res) => {
     const { isRateLimited } = await import("./lib/auth/rateLimit.js");
     if (isRateLimited(req, "scan-profile", { limit: 20, windowMs: 15 * 60_000 })) {
@@ -307,7 +307,7 @@ async function startServer() {
     });
   });
 
-  // Email Deep Scanner — bind waitlist score to Gmail-derived email only (never body email).
+  // Email Deep Scanner. bind waitlist score to Gmail-derived email only (never body email).
   app.post("/api/scan-email", async (req, res) => {
     const { isRateLimited } = await import("./lib/auth/rateLimit.js");
     if (isRateLimited(req, "scan-email", { limit: 10, windowMs: 15 * 60_000 })) {
@@ -348,7 +348,7 @@ async function startServer() {
           return res.status(400).json({ error: result.error });
         }
 
-        // Persist score only to the Gmail account that was scanned — never trust body.email.
+        // Persist score only to the Gmail account that was scanned. never trust body.email.
         const gmailEmail = String(result.profile?.email || "")
           .trim()
           .toLowerCase();
@@ -378,6 +378,7 @@ async function startServer() {
           try {
             const refined = await refineYurekaScore(result.score);
             result.score = refined;
+            // Persist mutates refined.score to the smoothed value members see.
             await persistScoreToWaitlist({
               email: recipient,
               profile: result.profile,
@@ -385,6 +386,7 @@ async function startServer() {
               notify: true,
               refine: false,
             });
+            result.score = refined;
           } catch (err) {
             console.error("Failed to persist score to waitlist:", err);
           }
@@ -397,7 +399,7 @@ async function startServer() {
     });
   });
 
-  // Admin onboarding email — requires admin session (was unauthenticated; open mailer).
+  // Admin onboarding email. requires admin session (was unauthenticated; open mailer).
   app.post("/api/notify-team-member", async (req, res) => {
     const { verifyAdminToken } = await import("./lib/admin/auth.js");
     const token = req.header("x-admin-session") || req.header("X-Admin-Session");
@@ -459,7 +461,7 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(__dirname, '..', 'dist');
-    // index: false — otherwise express.static auto-serves the raw index.html
+    // index: false. otherwise express.static auto-serves the raw index.html
     // for the exact "/" request (with its own ETag) before the catch-all
     // below ever runs, silently skipping meta injection on the homepage only.
     app.use(express.static(distPath, {
@@ -470,19 +472,19 @@ async function startServer() {
         const base = path.basename(filePath);
         const rel = path.relative(distPath, filePath).split(path.sep).join('/');
 
-        // HTML entry must always revalidate — it points at hashed chunks.
+        // HTML entry must always revalidate. it points at hashed chunks.
         if (base === 'index.html' || base.endsWith('.html')) {
           res.setHeader('Cache-Control', 'public, max-age=0, s-maxage=120, must-revalidate');
           return;
         }
 
-        // Vite content-hashed bundles — safe to cache forever.
+        // Vite content-hashed bundles. safe to cache forever.
         if (rel.startsWith('assets/')) {
           res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
           return;
         }
 
-        // Unhashed media (videos/images) — cache a day, revalidate in background.
+        // Unhashed media (videos/images). cache a day, revalidate in background.
         // Avoids year-long stale vault/rewards after content updates.
         if (/\.(mp4|mov|webm|jpg|jpeg|png|webp|gif|svg|ico|woff2?)$/i.test(base)) {
           res.setHeader('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
@@ -493,7 +495,7 @@ async function startServer() {
       },
     }));
 
-    // Read once at boot — every request injects route-specific meta into this
+    // Read once at boot. every request injects route-specific meta into this
     // same cached template string, so crawlers that don't execute JS still
     // get a correct unique <title>/description/OG image/JSON-LD per URL.
     const indexTemplate = fs.readFileSync(path.resolve(distPath, 'index.html'), 'utf-8');
@@ -508,13 +510,13 @@ async function startServer() {
       });
     });
 
-    // Express 5 requires named wildcard params — bare '*' is no longer valid
+    // Express 5 requires named wildcard params. bare '*' is no longer valid
     app.get('/{*splat}', async (req, res) => {
       if (req.url.startsWith('/api')) {
         return res.status(404).json({ error: 'API not found' });
       }
 
-      // Never let browsers / Cloudflare cache the SPA shell — stale HTML
+      // Never let browsers / Cloudflare cache the SPA shell. stale HTML
       // references deleted chunk hashes and looks like a "cache loading" hang.
       res.set({
         'Cache-Control': 'public, max-age=0, s-maxage=120, must-revalidate',
@@ -621,7 +623,7 @@ async function startServer() {
   void runDeletionPurge()
   setInterval(runDeletionPurge, 60 * 60_000)
 
-  // Do not block listen on pip install — run in background so health checks pass.
+  // Do not block listen on pip install. run in background so health checks pass.
   void ensurePythonDeps().then(() => {
     console.log('[python] deps ready:', resolvePythonExecutable());
   });

@@ -1,6 +1,6 @@
 # Management SOPs
 
-For founders / leads. Focus: access, risk, escalation, and member trust — not day-to-day ticket macros.
+For founders / leads. Focus: access, risk, escalation, and member trust. not day-to-day ticket macros.
 
 ---
 
@@ -18,10 +18,10 @@ For founders / leads. Focus: access, risk, escalation, and member trust — not 
 
 ## 2. Access governance
 
-1. **Admin portal:** least privilege — Support = `viewer` when possible; status changes = `admin`; invites = `superadmin`.
+1. **Admin portal:** least privilege. Support = `viewer` when possible; status changes = `admin`; invites = `superadmin`.
 2. Offboard within **24h**: disable admin row; rotate shared secrets if that person had env access.
 3. Production `.env` / Render / Supabase / Google Cloud: named owners only; no shared “team” password DMs.
-4. Approve `ALLOW_CLIENT_GOLDBACK_EARN=true` only for short-lived staging experiments — never leave on in prod.
+4. Approve `ALLOW_CLIENT_GOLDBACK_EARN=true` only for short-lived staging experiments. never leave on in prod.
 
 ---
 
@@ -29,7 +29,7 @@ For founders / leads. Focus: access, risk, escalation, and member trust — not 
 
 1. Define acceptance bar (score, spend, fraud signals) with Admin; write it down.
 2. Bulk accepts only with a named batch owner + Support ready for login spikes.
-3. Rejections: consistent reason category (risk / capacity / incomplete) — Support uses approved scripts.
+3. Rejections: consistent reason category (risk / capacity / incomplete). Support uses approved scripts.
 4. Hold status for KYC-like follow-ups; don’t leave forever without a touch.
 
 ---
@@ -54,7 +54,7 @@ For founders / leads. Focus: access, risk, escalation, and member trust — not 
 ## 5. Money & Goldback
 
 1. Manual Goldback adjusts need ticket ID + reason; sample audit weekly.
-2. Partner offer economics: Club offers vs CueLinks — no conflicting promises in marketing.
+2. Partner offer economics: Club offers vs CueLinks. no conflicting promises in marketing.
 3. Refunds: Razorpay/Hubble process per Integrations SOP; Management approves goodwill credits.
 
 ---

@@ -76,7 +76,7 @@ export default function JournalSection() {
           >
             <p className="text-[13px] uppercase tracking-[0.2em] text-clay mb-4">Yureka Editorial</p>
             <p className="text-[22px] sm:text-[28px] font-light tracking-[-0.02em] text-white max-w-xl">
-              Credit, gold, and spending — written for people who actually shop.
+              Credit, gold, and spending. written for people who actually shop.
             </p>
             <p className="mt-6 inline-flex items-center gap-2 text-[14px] text-white/50">
               Open the blog <ArrowRight size={14} />

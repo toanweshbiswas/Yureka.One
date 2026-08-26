@@ -161,7 +161,7 @@ function needleHitsHay(hay: string, needle: string): boolean {
     return true
   }
 
-  // Compact (punctuation-stripped) match only for longer brand tokens — e.g. "makemytrip".
+  // Compact (punctuation-stripped) match only for longer brand tokens. e.g. "makemytrip".
   // Short tokens must stay whole-word only (avoids ride⊂bride, ola⊂cola).
   if (nCompact.length < 5) return false
   const compact = hay.replace(/[^a-z0-9]+/g, '')

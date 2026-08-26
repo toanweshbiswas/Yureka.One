@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react';
 const Hero: React.FC = () => {
   return (
     <>
-      {/* Hero Section — full-viewport-height card within the col-span-3 column */}
+      {/* Hero Section. full-viewport-height card within the col-span-3 column */}
       <section
         id="hero"
         className="relative w-full flex flex-col bg-[#0a0a0a] overflow-hidden"
@@ -17,7 +17,7 @@ const Hero: React.FC = () => {
             className="relative w-full rounded-2xl overflow-hidden"
             style={{ height: 'calc(100vh - 10rem)' }}
           >
-            {/* Background image — Ben Franklin */}
+            {/* Background image. Ben Franklin */}
             <img
               src="/images/hero-bg.jpg"
               alt="Hero background"
@@ -33,7 +33,7 @@ const Hero: React.FC = () => {
                 className="font-cirka text-black text-3xl md:text-4xl lg:text-5xl font-extrabold leading-tight max-w-3xl mb-4"
                 style={{ letterSpacing: '-0.04em' }}
               >
-                Stop Letting Banks Hold Your Rewards<br />—Earn 15% More with Yureka.
+                Stop Letting Banks Hold Your Rewards<br />. Earn 15% More with Yureka.
               </h1>
 
               <p className="font-overpass-mono text-black/70 text-base md:text-2xl font-bold max-w-md mb-8 leading-relaxed">

@@ -89,7 +89,7 @@ export function registerNotificationRoutes(app: Express) {
     }
   })
 
-  // Legacy dashboard paths — same inbox, no client-side personalization.
+  // Legacy dashboard paths. same inbox, no client-side personalization.
   app.get('/api/v1/notifications', async (req, res) => {
     try {
       const ident = await requireIdentity(req, res)
