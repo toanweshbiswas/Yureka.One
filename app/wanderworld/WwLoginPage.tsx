@@ -14,6 +14,7 @@ import {
   wanderworldResetPasswordCallbackUrl,
 } from '@shared/auth'
 import { landingUrl } from '@shared/hosts'
+import { GoogleSignInScopeNote } from '@shared/GmailLimitedUseNotice'
 import { isPasswordRecoveryCallback } from '@shared/oauthHandoff'
 import { WwLogo } from './wwBrand'
 import { wwHomePath, wwLoginPath, wwResetPath, wwSignupPath } from './wwPaths'
@@ -180,6 +181,7 @@ const WwLoginPage: React.FC = () => {
         )}
 
         {!isForgot && (
+          <>
           <button
             type="button"
             onClick={onGoogle}
@@ -189,6 +191,8 @@ const WwLoginPage: React.FC = () => {
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogIn className="h-4 w-4" />}
             Continue with Google
           </button>
+          <GoogleSignInScopeNote variant="ops" className="mt-3 text-center text-[11px] leading-relaxed text-white/35" />
+          </>
         )}
 
         <form onSubmit={onEmail} className="mt-5 space-y-3">

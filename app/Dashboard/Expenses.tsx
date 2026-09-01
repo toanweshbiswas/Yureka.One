@@ -5,6 +5,7 @@ import {
     ArrowUpRight, ShoppingBag, Eye, Calendar, Sparkles, LogIn, Lock
 } from 'lucide-react';
 import { useSupabase } from '@shared/SupabaseProvider';
+import { GmailLimitedUseNotice } from '@shared/GmailLimitedUseNotice';
 import { ScannerProgress } from './ScannerProgress';
 import { useExpenseLedger } from './useMergedSpend';
 
@@ -137,12 +138,15 @@ const Expenses: React.FC = () => {
                                 </h4>
                                 <p className="text-white/40 text-xs mt-1">
                                     {error === "AUTH_EXPIRED" 
-                                        ? "Grant read-only Gmail access so we can pull purchase and bill emails for your spending ledger."
+                                        ? "Connect Gmail only if you want us to parse purchase and bill emails for your ledger."
                                         : error === "RESYNC_LIMIT"
                                         ? `You can resync inbox ${limit} times every ${windowDays} days. Next available ${nextResync || 'soon'}.`
                                         : error
                                     }
                                 </p>
+                                {error === "AUTH_EXPIRED" && (
+                                    <GmailLimitedUseNotice className="mt-2 text-[11px] leading-relaxed text-white/35" />
+                                )}
                             </div>
                         </div>
                         {error === "AUTH_EXPIRED" && (

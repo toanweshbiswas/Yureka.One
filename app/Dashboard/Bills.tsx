@@ -5,6 +5,7 @@ import {
     ShieldCheck, Bell, LogIn, ArrowUpRight
 } from 'lucide-react';
 import { useSupabase } from '@shared/SupabaseProvider';
+import { GmailLimitedUseNotice } from '@shared/GmailLimitedUseNotice';
 import { ScannerProgress } from './ScannerProgress';
 import { api, isApiError } from '@backend/lib/api/client';
 
@@ -155,12 +156,15 @@ const Bills: React.FC = () => {
                                 </h4>
                                 <p className="text-white/40 text-xs mt-1">
                                     {error === "AUTH_EXPIRED"
-                                        ? "Grant read-only Gmail access. We only read financial emails (card statements, dues, bank alerts)—never personal mail."
+                                        ? "Connect Gmail only if you want us to parse card statements and due-date emails."
                                         : error === "RESYNC_LIMIT"
                                         ? `You can resync inbox ${limit} times every ${windowDays} days. Next available ${nextResync || 'soon'}.`
                                         : error
                                     }
                                 </p>
+                                {error === "AUTH_EXPIRED" && (
+                                    <GmailLimitedUseNotice className="mt-2 text-[11px] leading-relaxed text-white/35" />
+                                )}
                             </div>
                         </div>
                         {error === "AUTH_EXPIRED" && (

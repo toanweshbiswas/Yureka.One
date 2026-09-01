@@ -3,11 +3,14 @@ import { motion, AnimatePresence } from 'motion/react'
 import { Mail, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
+import { GmailLimitedUseNotice } from '@shared/GmailLimitedUseNotice'
 import { ScannerProgress } from './ScannerProgress'
 
+const SKIP_KEY = 'yureka_gmail_sync_prompt_skipped'
+
 /**
- * Sticky prompt until the member completes at least one Gmail inbox sync.
- * Not dismissible. clears only after a successful sync.
+ * Prominent disclosure before gmail.readonly. Optional at account level.
+ * Expenses/Bills still need a sync; user can skip this banner.
  */
 const GmailSyncPrompt: React.FC = () => {
   const {
@@ -19,9 +22,25 @@ const GmailSyncPrompt: React.FC = () => {
     ledgerError,
   } = useSupabase()
   const navigate = useNavigate()
+  const [skipped, setSkipped] = React.useState(() => {
+    try {
+      return sessionStorage.getItem(SKIP_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
 
   const canAccess = currentUserStatus === 'accepted' || currentUserStatus === 'admin'
-  const open = Boolean(needsGmailSync && canAccess)
+  const open = Boolean(needsGmailSync && canAccess && !skipped)
+
+  const skipForNow = () => {
+    try {
+      sessionStorage.setItem(SKIP_KEY, '1')
+    } catch {
+      // ignore
+    }
+    setSkipped(true)
+  }
 
   const startSync = () => {
     void syncLedger(true)
@@ -44,14 +63,17 @@ const GmailSyncPrompt: React.FC = () => {
               </div>
               <div className="min-w-0 text-left">
                 <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-clay">
-                  Required · Gmail
+                  Optional · Gmail
                 </p>
                 <h2 className="text-[1.05rem] font-semibold tracking-[-0.02em] text-white md:text-xl">
-                  Sync your Gmail to unlock Expenses & Bills
+                  Connect Gmail for Expenses & Bills
                 </h2>
-                <p className="mt-1.5 max-w-xl text-[13px] leading-snug text-white/45 md:text-sm">
-                  Grant read-only Gmail access once. We read only financial emails—card statements, dues, and bank alerts—for your ledger. Revoke anytime in Google Account settings.
-                </p>
+                <GmailLimitedUseNotice className="mt-1.5 max-w-xl text-[13px] leading-snug text-white/45 md:text-sm" />
+                {ledgerError && /verification|test user|access_denied|limited until Google/i.test(String(ledgerError)) && (
+                  <p className="mt-2 text-xs text-amber-200/90">
+                    Google may show an unverified-app warning until review finishes. Use Advanced → Continue only if you trust Yureka, or wait until verification is approved.
+                  </p>
+                )}
                 {ledgerError === 'AUTH_EXPIRED' && (
                   <p className="mt-2 text-xs text-red-300/90">
                     Permission was declined or expired. Tap sync again and allow Gmail access.
@@ -76,6 +98,13 @@ const GmailSyncPrompt: React.FC = () => {
                 className="text-[11px] font-semibold uppercase tracking-widest text-white/35 hover:text-white/60"
               >
                 Open Expenses
+              </button>
+              <button
+                type="button"
+                onClick={skipForNow}
+                className="text-[11px] font-semibold uppercase tracking-widest text-white/30 hover:text-white/55"
+              >
+                Not now
               </button>
             </div>
           </div>

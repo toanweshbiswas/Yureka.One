@@ -14,6 +14,7 @@ import {
   supabaseConfigured,
 } from '@shared/auth'
 import { landingUrl } from '@shared/hosts'
+import { GoogleSignInScopeNote } from '@shared/GmailLimitedUseNotice'
 import { isPasswordRecoveryCallback } from '@shared/oauthHandoff'
 
 const BrandLoginPage: React.FC = () => {
@@ -218,9 +219,12 @@ const BrandLoginPage: React.FC = () => {
         </form>
 
         {!isForgot && (
+          <>
           <button type="button" onClick={handleGmail} disabled={busy || !supabaseConfigured} className="w-full bg-white text-black py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.25em] flex items-center justify-center gap-3 disabled:opacity-50">
             Continue with Google
           </button>
+          <GoogleSignInScopeNote variant="ops" className="mt-3 text-center text-[11px] leading-relaxed text-white/35" />
+          </>
         )}
 
         <p className="mt-8 text-[10px] font-black uppercase tracking-[0.35em] text-white/25">

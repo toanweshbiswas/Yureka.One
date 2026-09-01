@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { DateField } from '@shared/DateField'
+import { GmailLimitedUseNotice } from '@shared/GmailLimitedUseNotice'
 import {
   clearPlanningGmailToken,
   requestPlanningGmailToken,
@@ -928,6 +929,7 @@ const ExpensePlanning: React.FC = () => {
               Extra inboxes are merged into Planning budgets and Investment totals only.
               They do not change Expenses or Yureka Score.
             </p>
+            <GmailLimitedUseNotice className="mt-2 text-[11px] leading-relaxed text-white/35" />
           </div>
           <button
             type="button"

@@ -77,3 +77,50 @@ export async function createAppAuthUser(opts: {
 
   return { userId: updated.data.user.id, created: false, passwordUpdated: true }
 }
+
+function googleIdentityIds(user: User): string[] {
+  const ids = new Set<string>()
+  for (const ident of user.identities || []) {
+    if (String(ident.provider || '') !== 'google') continue
+    if (ident.id) ids.add(String(ident.id))
+    const sub = (ident.identity_data as { sub?: string } | undefined)?.sub
+    if (sub) ids.add(String(sub))
+  }
+  const metaSub = (user.user_metadata as { sub?: string } | undefined)?.sub
+  if (metaSub) ids.add(String(metaSub))
+  return [...ids]
+}
+
+export async function findAuthUserByGoogleSub(sub: string): Promise<User | null> {
+  const target = String(sub || '').trim()
+  if (!target) return null
+  const sb = getServiceClient()
+  for (let page = 1; page <= 20; page += 1) {
+    const { data, error } = await sb.auth.admin.listUsers({ page, perPage: 200 })
+    if (error) throw new Error(error.message)
+    const users = data?.users || []
+    const match = users.find((u) => googleIdentityIds(u).includes(target))
+    if (match) return match
+    if (users.length < 200) break
+  }
+  return null
+}
+
+export async function signOutAllSessions(userId: string): Promise<void> {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) throw new Error('Supabase service role is not configured')
+  const res = await fetch(`${url.replace(/\/$/, '')}/auth/v1/admin/users/${encodeURIComponent(userId)}/logout`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${key}`,
+      apikey: key,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ scope: 'global' }),
+  })
+  if (!res.ok && res.status !== 404) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Failed to sign out user (${res.status}): ${text.slice(0, 200)}`)
+  }
+}

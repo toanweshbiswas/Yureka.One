@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import HomeFooter from '@landing/home-v2/Footer';
+import { Footer as HomeFooter } from '@landing/home';
 import Icon3d from '@shared/Icon3d';
 import YurekaBrandMark from '@shared/YurekaBrandMark';
 

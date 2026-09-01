@@ -9,12 +9,21 @@ export default {
     "./shared/**/*.{js,ts,jsx,tsx}",
     "./backend/**/*.{js,ts,jsx,tsx}",
     "!**/node_modules/**",
-    "!**/design-reference/**",
+    "!**/landing/_archive/**",
     "!**/dist/**",
   ],
   theme: {
     extend: {
       colors: {
+        landing: {
+          bg: '#0d4428',
+          primary: '#def46e',
+          sub: '#ffffff',
+          ink: '#000000',
+          muted: 'rgba(255, 255, 255, 0.62)',
+          caption: 'rgba(255, 255, 255, 0.72)',
+          body: 'rgba(255, 255, 255, 0.88)',
+        },
         cream: '#0a0a0a', 
         ink: 'rgba(255, 255, 255, 0.9)',   
         clay: '#00933b',

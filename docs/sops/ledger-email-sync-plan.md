@@ -86,7 +86,7 @@ Primary key: (user_id, inbox_gmail)
 ### 2. Supabase table (mirror `planning_inbox_cache`)
 
 ```sql
--- backend/supabase/migrations/0xx_financial_ledger_cache.sql
+-- supabase/migrations/0xx_financial_ledger_cache.sql
 create table if not exists public.financial_ledger_cache (
   user_id text not null,
   gmail text not null,
@@ -226,7 +226,7 @@ localStorage = **UI cache only**, never source of truth:
 | `backend/server.ts` | 0, 1 |
 | `backend/scripts/scanner.py` | 2, 3 |
 | `shared/SupabaseProvider.tsx` | 1, 6 |
-| `backend/supabase/migrations/0xx_*.sql` | 1, 4 |
+| `supabase/migrations/0xx_*.sql` | 1, 4 |
 | `CLAUDE.md`, `ScannerProgress.tsx` | 1 (fix stale financial_ledger docs) |
 
 ---

@@ -2,6 +2,7 @@ import fs from 'fs'
 import path from 'path'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { SUPER_BROWSE_STORES as SEED } from '../../../shared/superBrowseStores.js'
+import catalog from '../../../shared/superBrowseCatalog.json' with { type: 'json' }
 
 export type SuperBrowseStoreRow = {
   id: string
@@ -17,7 +18,7 @@ export type SuperBrowseStoreRow = {
   updatedAt: string
 }
 
-type FileStore = { stores: SuperBrowseStoreRow[]; seeded?: boolean }
+type FileStore = { stores: SuperBrowseStoreRow[]; seeded?: boolean; catalogImportedAt?: string }
 
 let supabaseSchemaUnavailable = false
 
@@ -104,7 +105,41 @@ function mapRow(row: any): SuperBrowseStoreRow {
   }
 }
 
+function catalogImportedAt(): string | null {
+  const at = (catalog as { importedAt?: string }).importedAt
+  return at ? String(at) : null
+}
+
+function shouldRefreshCatalog(local: FileStore | null, catalogRows: SuperBrowseStoreRow[] | null): boolean {
+  if (!catalogRows?.length) return false
+  const importedAt = catalogImportedAt()
+  if (importedAt && local?.catalogImportedAt !== importedAt) return true
+  return (local?.stores?.length ?? 0) < catalogRows.length
+}
+
+function catalogSeedRows(): SuperBrowseStoreRow[] | null {
+  const rows = (catalog as { stores?: SuperBrowseStoreRow[] }).stores
+  if (!Array.isArray(rows) || !rows.length) return null
+  const now = new Date().toISOString()
+  return rows.map((s, i) => ({
+    id: s.id,
+    name: s.name,
+    domain: s.domain,
+    url: s.url,
+    logoUrl: s.logoUrl ?? null,
+    cashback: s.cashback ?? null,
+    bg: s.bg || '#ffffff',
+    active: s.active !== false,
+    sortOrder: Number.isFinite(s.sortOrder) ? s.sortOrder : i,
+    createdAt: s.createdAt || now,
+    updatedAt: s.updatedAt || now,
+  }))
+}
+
 function seedRows(): SuperBrowseStoreRow[] {
+  const fromCatalog = catalogSeedRows()
+  if (fromCatalog) return fromCatalog.map(normalizeStoreRow)
+
   const now = new Date().toISOString()
   return SEED.map((s, i) => ({
     id: s.id,
@@ -122,25 +157,70 @@ function seedRows(): SuperBrowseStoreRow[] {
 }
 
 function readFileStore(): FileStore {
+  const catalogRows = catalogSeedRows()
   const p = filePath()
   try {
     if (!fs.existsSync(p)) {
-      const snap: FileStore = { stores: seedRows(), seeded: true }
+      const snap: FileStore = { stores: catalogRows || seedRows(), seeded: true }
       fs.mkdirSync(path.dirname(p), { recursive: true })
       fs.writeFileSync(p, JSON.stringify(snap, null, 2))
       return snap
     }
     const snap = JSON.parse(fs.readFileSync(p, 'utf-8')) as FileStore
     if (!Array.isArray(snap.stores) || !snap.stores.length) {
-      snap.stores = seedRows()
+      snap.stores = catalogRows || seedRows()
       snap.seeded = true
+      writeFileStore(snap)
+    } else if (catalogRows && shouldRefreshCatalog(snap, catalogRows)) {
+      snap.stores = catalogRows
+      snap.seeded = true
+      snap.catalogImportedAt = catalogImportedAt() || snap.catalogImportedAt
       writeFileStore(snap)
     }
     return snap
   } catch {
-    const snap: FileStore = { stores: seedRows(), seeded: true }
+    const snap: FileStore = { stores: catalogRows || seedRows(), seeded: true }
     writeFileStore(snap)
     return snap
+  }
+}
+
+async function ensureCatalogSeeded(sb: SupabaseClient, existingCount: number): Promise<SuperBrowseStoreRow[] | null> {
+  const catalogRows = catalogSeedRows()
+  if (!catalogRows) return null
+  const snap = readFileStoreRaw()
+  if (!shouldRefreshCatalog(snap, catalogRows)) return null
+  await sb.from('super_browse_stores').upsert(
+    catalogRows.map((s) => ({
+      id: s.id,
+      name: s.name,
+      domain: s.domain,
+      url: s.url,
+      logo_url: s.logoUrl,
+      cashback: s.cashback,
+      bg: s.bg,
+      active: s.active,
+      sort_order: s.sortOrder,
+      updated_at: s.updatedAt,
+    })),
+    { onConflict: 'id' },
+  )
+  const next: FileStore = {
+    stores: catalogRows,
+    seeded: true,
+    catalogImportedAt: catalogImportedAt() || undefined,
+  }
+  writeFileStore(next)
+  return catalogRows
+}
+
+function readFileStoreRaw(): FileStore | null {
+  const p = filePath()
+  try {
+    if (!fs.existsSync(p)) return null
+    return JSON.parse(fs.readFileSync(p, 'utf-8')) as FileStore
+  } catch {
+    return null
   }
 }
 
@@ -185,6 +265,10 @@ export async function listSuperBrowseStores(opts?: {
             { onConflict: 'id' },
           )
           return includeInactive ? seeded : seeded.filter((s) => s.active)
+        }
+        const synced = await ensureCatalogSeeded(sb, data.length)
+        if (synced) {
+          return includeInactive ? synced : synced.filter((s) => s.active)
         }
         return data.map(mapRow).map(normalizeStoreRow)
       }

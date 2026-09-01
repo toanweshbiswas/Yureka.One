@@ -19,6 +19,7 @@ declare global {
           initTokenClient: (config: {
             client_id: string
             scope: string
+            include_granted_scopes?: boolean
             callback: (response: {
               access_token?: string
               expires_in?: number
@@ -32,6 +33,7 @@ declare global {
           initCodeClient: (config: {
             client_id: string
             scope: string
+            include_granted_scopes?: boolean
             ux_mode?: 'popup' | 'redirect'
             callback: (response: { code?: string; error?: string; error_description?: string }) => void
             error_callback?: (err: unknown) => void
@@ -85,7 +87,7 @@ function consentErrorMessage(tokenResponse: { error?: string; error_description?
     /access_denied|403/i.test(code) ||
     /access_denied|verification/i.test(String(tokenResponse?.error_description || ''))
   return denied
-    ? 'Gmail access is limited until Google verifies Yureka (or adds your email as a test user). You can continue without inbox sync.'
+    ? 'Gmail access was declined. You can keep using Yureka without inbox sync, or try Connect Gmail again.'
     : tokenResponse?.error_description ||
         tokenResponse?.error ||
         'Gmail access was denied. Grant read-only inbox access to sync spending.'
@@ -113,6 +115,7 @@ function requestGmailAuthCode(opts?: { forceConsent?: boolean }): Promise<{
       const client = google.accounts.oauth2.initCodeClient({
         client_id: clientId,
         scope: GMAIL_READONLY,
+        include_granted_scopes: false,
         ux_mode: 'popup',
         callback: (response) => {
           if (response?.error || !response?.code) {
@@ -180,6 +183,7 @@ export function requestGmailReadonlyToken(opts?: {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: GMAIL_READONLY,
+        include_granted_scopes: false,
         callback: (tokenResponse) => {
           if (tokenResponse?.error || !tokenResponse?.access_token) {
             resolve({

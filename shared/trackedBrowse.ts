@@ -11,6 +11,8 @@ import { rememberBrowseReturn, saveDashboardScroll } from '@shared/dashboardScro
 import { canUseInAppBrowse, isAndroidDevice, isStandalonePwa } from '@shared/pwaDisplay'
 import { getAuthAccessToken } from '@shared/auth'
 
+export type BrowseClickSource = 'super_browse' | 'explore' | 'offers' | 'manual' | 'unknown'
+
 export type TrackedOpen = {
   openUrl: string
   destUrl: string
@@ -19,16 +21,33 @@ export type TrackedOpen = {
   goldbackOfferId: string | null
 }
 
+export type TrackBrowseOpts = {
+  record?: boolean
+  storeId?: string | null
+  storeName?: string | null
+  source?: BrowseClickSource
+  openedUrl?: string | null
+}
+
 export async function resolveTrackedOpen(
   url: string,
   userId: string,
-  record = true,
+  recordOrOpts: boolean | TrackBrowseOpts = true,
 ): Promise<TrackedOpen | null> {
   const safe = sanitizeBrowseUrl(url)
   if (!safe) return null
+  const opts: TrackBrowseOpts =
+    typeof recordOrOpts === 'boolean' ? { record: recordOrOpts } : recordOrOpts
   const res = await api.post<TrackedOpen>(
     '/api/browse/out',
-    { url: safe, record },
+    {
+      url: safe,
+      record: opts.record !== false,
+      storeId: opts.storeId ?? undefined,
+      storeName: opts.storeName ?? undefined,
+      source: opts.source ?? undefined,
+      openedUrl: opts.openedUrl ?? undefined,
+    },
     { headers: { 'x-user-id': userId }, timeoutMs: 8000 },
   )
   if (isApiError(res) || !res.data) return null
@@ -42,6 +61,21 @@ export async function prefetchSuperBrowseLinks(userId: string) {
   })
   if (isApiError(res) || !res.data?.links) return {} as Record<string, TrackedOpen>
   return res.data.links
+}
+
+/** Resolve CueLinks / goldback for a subset of stores (e.g. home grid tiles). */
+export async function prefetchStoreLinks(
+  userId: string,
+  stores: Array<{ id: string; url: string }>,
+): Promise<Record<string, TrackedOpen>> {
+  const links: Record<string, TrackedOpen> = {}
+  await Promise.all(
+    stores.map(async (store) => {
+      const tracked = await resolveTrackedOpen(store.url, userId, { record: false })
+      if (tracked) links[store.id] = tracked
+    }),
+  )
+  return links
 }
 
 export type StoreBrowseTarget =
@@ -99,6 +133,9 @@ export async function openStoreBrowse(
     title?: string
     returnTo?: string
     navigate?: (path: string) => void
+    storeId?: string | null
+    storeName?: string | null
+    source?: BrowseClickSource
     /**
      * When true, open the merchant website.
      * When false, open CueLinks (when knownOpenUrl / resolve finds one).
@@ -134,6 +171,9 @@ export async function openStoreBrowse(
   if (forceExternal || !opts?.navigate) {
     await openTrackedStore(safe, userId, cueAvailable ? known! : undefined, opts?.title, {
       preferWeb,
+      storeId: opts?.storeId,
+      storeName: opts?.storeName ?? opts?.title,
+      source: opts?.source,
     })
     return
   }
@@ -177,8 +217,8 @@ export function stayInBrowserUrl(raw: string): string {
   try {
     const u = new URL(web)
 
-    // Android: open in Chrome (not the merchant app) when possible.
-    if (isAndroidDevice()) {
+    // Android: Chrome intent only for cookie-sensitive Indian retail (avoids breaking intl sites).
+    if (isAndroidDevice() && needsFirstPartyCookies(web)) {
       const path = `${u.pathname || '/'}${u.search || ''}${u.hash || ''}`
       return `intent://${u.host}${path}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(web)};end`
     }
@@ -410,33 +450,70 @@ function externalOpenTarget(
   return direct
 }
 
+function trackBrowseOpen(
+  url: string,
+  userId: string,
+  openedUrl: string,
+  meta?: { storeId?: string | null; storeName?: string | null; source?: BrowseClickSource },
+) {
+  void resolveTrackedOpen(url, userId, {
+    record: true,
+    storeId: meta?.storeId,
+    storeName: meta?.storeName,
+    source: meta?.source,
+    openedUrl,
+  })
+}
+
 /** Record click, open tracked / store link immediately. no intermediate screen. */
 export async function openTrackedStore(
   url: string,
   userId: string,
   knownOpenUrl?: string,
   _title?: string,
-  opts?: { preferWeb?: boolean; alsoOpenAffiliate?: boolean },
+  opts?: {
+    preferWeb?: boolean
+    alsoOpenAffiliate?: boolean
+    storeId?: string | null
+    storeName?: string | null
+    source?: BrowseClickSource
+  },
 ) {
   const fallback = sanitizeBrowseUrl(url)
   if (!fallback) return
+  const trackMeta = {
+    storeId: opts?.storeId,
+    storeName: opts?.storeName ?? _title,
+    source: opts?.source,
+  }
 
   // Sync path: window.open under the tap so CueLinks accepts the click.
   if (knownOpenUrl) {
     const cue = isAffiliateRedirectUrl(knownOpenUrl)
     const preferWeb = opts?.preferWeb ?? !cue
-    void resolveTrackedOpen(url, userId, true)
     const stamped = stampAffiliateSubId(knownOpenUrl, userId)
     const target = externalOpenTarget(fallback, knownOpenUrl, userId, preferWeb)
     if (opts?.alsoOpenAffiliate && cue && preferWeb) {
       launchMerchantAndAffiliate(target, stamped)
+      trackBrowseOpen(fallback, userId, target, trackMeta)
       return
     }
     launchUrl(target, { allowCookies: needsFirstPartyCookies(fallback) && preferWeb })
+    trackBrowseOpen(fallback, userId, target, trackMeta)
     return
   }
 
-  // Async path: hold a blank tab under the gesture, then point it at CueLinks or merchant.
+  const preferWeb = opts?.preferWeb ?? true
+
+  // Merchant website: open immediately under the tap (no about:blank while awaiting /api/browse/out).
+  if (preferWeb) {
+    const target = externalOpenTarget(fallback, null, userId, true)
+    launchUrl(target, { allowCookies: needsFirstPartyCookies(fallback) })
+    trackBrowseOpen(fallback, userId, target, trackMeta)
+    return
+  }
+
+  // CueLinks-only path: hold a blank tab under the gesture, then point it at the tracker.
   const held = openGestureTab()
   try {
     const tracked = await resolveTrackedOpen(url, userId, true)
@@ -461,8 +538,10 @@ export async function openTrackedStore(
       return
     }
     navigateGestureTab(held, target)
+    trackBrowseOpen(fallback, userId, target, trackMeta)
   } catch {
     navigateGestureTab(held, fallback)
+    trackBrowseOpen(fallback, userId, fallback, trackMeta)
   }
 }
 

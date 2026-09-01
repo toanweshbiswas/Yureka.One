@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import HeroCinematic from '@landing/home-v2/HeroCinematic';
-import HeroMobile from '@landing/home-v2/HeroMobile';
+import {
+  Architecture,
+  BrandsSection,
+  FAQSection,
+  Footer,
+  HeroCinematic,
+  HeroMobile,
+  JournalSection,
+  Loader,
+  MetricsTechnology,
+  Navbar,
+  ScrollDownCue,
+  YurekaCallout,
+  usePrefersCinematic,
+} from '@landing/home';
 import SEO from '@shared/SEO';
 import { SITE_URL, staticPageMeta } from '@backend/lib/seo/pageMeta';
 import { faqPageSchema } from '@backend/lib/seo/structuredData';
 import { faqQuestions } from '@backend/lib/faq';
-
-import Loader from '@landing/home-v2/Loader';
-import Navbar from '@landing/home-v2/Navbar';
-import ScrollDownCue from '@landing/home-v2/ScrollDownCue';
-import BrandsSection from '@landing/home-v2/BrandsSection';
-import MetricsTechnology from '@landing/home-v2/MetricsTechnology';
-import Architecture from '@landing/home-v2/Architecture';
-import FAQSection from '@landing/home-v2/FAQSection';
-import YurekaCallout from '@landing/home-v2/YurekaCallout';
-import Footer from '@landing/home-v2/Footer';
-import { usePrefersCinematic } from '@landing/home-v2/usePrefersCinematic';
 
 /**
  * Homepage composition:
@@ -39,8 +41,6 @@ const MainPage: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
 
-    // Gate entrance on font readiness. short min delay so first paint feels
-    // instant (Apple: kill latency). Cap wait so a hung font CDN can't stall.
     const fontsReady =
       typeof document !== 'undefined' && 'fonts' in document
         ? document.fonts.ready
@@ -63,9 +63,9 @@ const MainPage: React.FC = () => {
     <>
       <SEO {...staticPageMeta['/']} schema={[homeSchema, faqPageSchema(faqQuestions)]} />
 
-      <div className="yureka-one-home bg-black min-h-screen text-white">
+      <div className="yureka-one-home min-h-screen text-landing-sub">
         <Loader show={!entranceComplete} />
-        <Navbar entranceComplete={entranceComplete} />
+        <Navbar entranceComplete={entranceComplete} theme="landing" />
         {prefersCinematic && <ScrollDownCue />}
         {prefersCinematic ? (
           <HeroCinematic entranceComplete={entranceComplete} />
@@ -75,6 +75,7 @@ const MainPage: React.FC = () => {
         <BrandsSection />
         <MetricsTechnology />
         <Architecture />
+        <JournalSection />
         <FAQSection />
         <YurekaCallout />
         <Footer />

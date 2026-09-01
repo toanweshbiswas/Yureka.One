@@ -62,9 +62,11 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
     body: '',
     mode: 'one' as 'one' | 'broadcast',
     audience: 'accepted',
+    tripId: '',
     email: '',
     href: '/dashboard',
     confirmBroadcast: false,
+    sendEmail: false,
   })
 
   const load = useCallback(async () => {
@@ -114,6 +116,11 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
     } else {
       payload.audience = form.audience
       payload.confirmBroadcast = true
+      payload.sendEmail = form.sendEmail
+      if (form.tripId.trim()) payload.tripId = form.tripId.trim()
+      if (form.audience.startsWith('wanderworld_') && !form.href) {
+        payload.href = '/dashboard/getaway'
+      }
     }
 
     const res = await adminFetch<{ sent: number; failed: number; recipients: number; mode?: string }>(
@@ -139,7 +146,7 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
     <section className="space-y-6">
       <PageHeader
         title="Push notifications"
-        subtitle="In-app inbox only. One-user sends stay private. broadcasts copy the same message to every recipient."
+        subtitle="In-app inbox by default. For WanderWorld audiences you can also send branded email. Prefer trip Announce in the WanderWorld portal for trip-specific messages."
       />
       {canWrite && (
         <form onSubmit={send} className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 space-y-3">
@@ -195,8 +202,34 @@ export default function PushTab({ token, canWrite }: { token: string | null; can
                   <option value="accepted">Accepted members</option>
                   <option value="pending">Pending waitlist</option>
                   <option value="all">Everyone on waitlist</option>
+                  <option value="wanderworld_registrants">WanderWorld — all booked</option>
+                  <option value="wanderworld_unpaid">WanderWorld — unpaid / due</option>
+                  <option value="wanderworld_promoters">WanderWorld — promoters & staff</option>
                 </select>
               </label>
+              {(form.audience === 'wanderworld_registrants' ||
+                form.audience === 'wanderworld_unpaid') && (
+                <label className="block">
+                  <FieldLabel>Trip id (optional — blank = all trips)</FieldLabel>
+                  <input
+                    className={fieldClass}
+                    placeholder="uuid of trip"
+                    value={form.tripId}
+                    onChange={(e) => setForm({ ...form, tripId: e.target.value })}
+                  />
+                </label>
+              )}
+              {form.audience.startsWith('wanderworld_') && (
+                <label className="flex items-start gap-2 text-[12px] text-white/70">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={form.sendEmail}
+                    onChange={(e) => setForm({ ...form, sendEmail: e.target.checked })}
+                  />
+                  Also send branded email (not only inbox)
+                </label>
+              )}
               <p className="text-[12px] text-amber-100/70 leading-snug">
                 The same title/body is copied to every person. Do not put one member&apos;s name in the title unless you intend that.
               </p>

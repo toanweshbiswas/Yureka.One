@@ -1,5 +1,6 @@
 import { listWaitlist, type WaitlistRow } from './store.js'
 import { listAllAccounts, listAllClicks, listAllLedger, listAllOffers } from '../goldback/store.js'
+import { listBrowseClicks } from '../browse/store.js'
 import { listAllOrders } from '../hubble/store.js'
 import { listAllNotifications } from '../notifications/store.js'
 import { parseWaitlistMeta } from '../waitlist/public.js'
@@ -12,6 +13,7 @@ export type AdminActivityKind =
   | 'goldback'
   | 'gift'
   | 'click'
+  | 'browse'
   | 'notification'
 
 export interface AdminDayPoint {
@@ -20,6 +22,7 @@ export interface AdminDayPoint {
   goldback: number
   gifts: number
   clicks: number
+  browseClicks: number
 }
 
 export interface AdminNamedCount {
@@ -69,6 +72,19 @@ export interface AdminGiftOrderRow {
   createdAt: string
 }
 
+export interface AdminBrowseClickRow {
+  id: string
+  at: string
+  userId: string
+  storeId: string | null
+  storeName: string | null
+  host: string
+  affiliate: boolean
+  source: string
+  destUrl: string
+  openedUrl: string
+}
+
 export interface AdminOverview {
   generatedAt: string
   kpis: {
@@ -88,6 +104,8 @@ export interface AdminOverview {
     giftSuccess: number
     giftFailed: number
     offerClicks: number
+    browseClicks: number
+    browseAffiliateClicks: number
     notifications: number
     activeUsers7d: number
     pwaInstalled: number
@@ -100,6 +118,8 @@ export interface AdminOverview {
   activity: AdminActivityEvent[]
   users: AdminUserRollup[]
   giftOrders: AdminGiftOrderRow[]
+  browseByStore: AdminNamedCount[]
+  recentBrowseClicks: AdminBrowseClickRow[]
 }
 
 function dayKey(iso: string | null | undefined): string | null {
@@ -154,11 +174,12 @@ async function safe<T>(label: string, fn: () => Promise<T>, fallback: T, ms = 12
 }
 
 export async function buildAdminOverview(): Promise<AdminOverview> {
-  const [waitlist, ledger, accounts, clicks, orders, notifications, offers] = await Promise.all([
+  const [waitlist, ledger, accounts, clicks, browseClicks, orders, notifications, offers] = await Promise.all([
     safe('waitlist', () => listWaitlist({ status: 'all' }), [] as WaitlistRow[]),
     safe('ledger', () => listAllLedger(2000), [] as GoldbackLedgerEntry[]),
     safe('accounts', () => listAllAccounts(), [] as GoldbackBalance[]),
     safe('clicks', () => listAllClicks(800), [] as { id: string; userId: string; offerId: string; createdAt: string }[]),
+    safe('browseClicks', () => listBrowseClicks(2000), []),
     safe('orders', () => listAllOrders(800), [] as StoredOrder[]),
     safe('notifications', () => listAllNotifications(400), [] as UserNotification[]),
     safe('offers', () => listAllOffers(), [] as { id: string; merchant: string; title: string }[]),
@@ -199,6 +220,7 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
   const goldbackDay = new Map<string, number>()
   const giftDay = new Map<string, number>()
   const clickDay = new Map<string, number>()
+  const browseDay = new Map<string, number>()
   for (const row of waitlist) {
     const k = dayKey(row.createdAt)
     if (k && daySet.has(k)) bump(waitlistDay, k)
@@ -215,12 +237,17 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
     const k = dayKey(c.createdAt)
     if (k && daySet.has(k)) bump(clickDay, k)
   }
+  for (const c of browseClicks) {
+    const k = dayKey(c.createdAt)
+    if (k && daySet.has(k)) bump(browseDay, k)
+  }
   const series: AdminDayPoint[] = days.map((date) => ({
     date,
     waitlist: waitlistDay.get(date) || 0,
     goldback: goldbackDay.get(date) || 0,
     gifts: giftDay.get(date) || 0,
     clicks: clickDay.get(date) || 0,
+    browseClicks: browseDay.get(date) || 0,
   }))
 
   const merchantMap = new Map<string, { count: number; paise: number }>()
@@ -440,6 +467,16 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
       userKey: resolveKey(c.userId, uuidToEmail.get(c.userId)),
     })
   }
+  for (const c of browseClicks.slice(0, 80)) {
+    activity.push({
+      id: `br:${c.id}`,
+      at: c.createdAt,
+      kind: 'browse',
+      title: c.affiliate ? 'Super Browse · CueLinks' : 'Super Browse',
+      subtitle: `${shortUser(c.userId)} · ${c.storeName || c.host}${c.source ? ` · ${c.source}` : ''}`,
+      userKey: resolveKey(c.userId, uuidToEmail.get(c.userId)),
+    })
+  }
   for (const n of notifications.slice(0, 40)) {
     activity.push({
       id: `nt:${n.id}`,
@@ -463,6 +500,29 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
     createdAt: o.createdAt,
   }))
 
+  const browseStoreMap = new Map<string, number>()
+  for (const c of browseClicks) {
+    const label = c.storeName || c.host || 'Unknown'
+    browseStoreMap.set(label, (browseStoreMap.get(label) || 0) + 1)
+  }
+  const browseByStore: AdminNamedCount[] = [...browseStoreMap.entries()]
+    .map(([label, count]) => ({ key: label, label, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 12)
+
+  const recentBrowseClicks: AdminBrowseClickRow[] = browseClicks.slice(0, 100).map((c) => ({
+    id: c.id,
+    at: c.createdAt,
+    userId: c.userId,
+    storeId: c.storeId,
+    storeName: c.storeName,
+    host: c.host,
+    affiliate: c.affiliate,
+    source: c.source,
+    destUrl: c.destUrl,
+    openedUrl: c.openedUrl,
+  }))
+
   return {
     generatedAt: new Date().toISOString(),
     kpis: {
@@ -482,6 +542,8 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
       giftSuccess: orders.filter((o) => o.status === 'SUCCESS').length,
       giftFailed: orders.filter((o) => o.status === 'FAILED').length,
       offerClicks: clicks.length,
+      browseClicks: browseClicks.length,
+      browseAffiliateClicks: browseClicks.filter((c) => c.affiliate).length,
       notifications: notifications.length,
       activeUsers7d,
       pwaInstalled,
@@ -499,5 +561,7 @@ export async function buildAdminOverview(): Promise<AdminOverview> {
     activity: activity.slice(0, 60),
     users: userList,
     giftOrders,
+    browseByStore,
+    recentBrowseClicks,
   }
 }

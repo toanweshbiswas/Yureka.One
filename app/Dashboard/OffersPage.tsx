@@ -330,10 +330,10 @@ const OffersPage: React.FC = () => {
       knownOpenUrl,
       title,
       returnTo: offersReturnTo,
-      // Stay on Offers. never swap into /dashboard/browse.
       forceExternal: true,
-      // CueLinks needs window.open of the tracked URL when present.
       preferWeb: opts?.preferWeb ?? !knownOpenUrl,
+      storeName: title,
+      source: 'offers',
     })
   }
 
@@ -421,7 +421,7 @@ const OffersPage: React.FC = () => {
         transition={spring}
         className="max-w-xl"
       >
-        <h2 className="text-[28px] font-semibold tracking-[-0.035em] text-white leading-none">Offers</h2>
+        <h2 className="text-[28px] font-semibold tracking-[-0.035em] text-white leading-none">Lightning Deals</h2>
         <p className="mt-2 text-[15px] leading-relaxed text-white/55">
           Live coupons in Marketplace. Goldback deals credit your balance
           {catalogTotal ? ` · ${catalogTotal.toLocaleString('en-IN')} in catalog` : ''}.

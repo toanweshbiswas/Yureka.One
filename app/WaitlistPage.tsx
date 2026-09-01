@@ -16,6 +16,7 @@ import { useSupabase } from '@shared/SupabaseProvider';
 import { DateField } from '@shared/DateField';
 import { appUrl, appOrigin, landingUrl } from '@shared/hosts';
 import { requestGmailReadonlyToken } from '@shared/gmailConsent';
+import { GmailLimitedUseNotice, GoogleSignInScopeNote } from '@shared/GmailLimitedUseNotice';
 
 const WAITLIST_DRAFT_KEY = 'yureka_waitlist_draft';
 const WAITLIST_EMAIL_KEY = 'yureka_waitlist_email';
@@ -526,6 +527,7 @@ const WaitlistPage: React.FC = () => {
         const tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
             scope: GOOGLE_LOGIN_SCOPES,
+            include_granted_scopes: false,
             callback: (tokenResponse: any) => {
                 if (tokenResponse?.error || !tokenResponse?.access_token) {
                     setScanError('Google sign-in was cancelled or denied. Please try again.');
@@ -845,7 +847,7 @@ const WaitlistPage: React.FC = () => {
                     Get Early Access
                 </h2>
                 <p className="text-white/60 text-sm leading-relaxed mb-6 sm:mb-8 max-w-xs mx-auto">
-                    Continue with Google to join. if you already applied, we skip the form and send you to the right place.
+                    Continue with Google to join. Sign-in uses only your name and email. If you already applied, we skip the form.
                 </p>
 
                 {isScanning || statusChecking ? (
@@ -871,6 +873,7 @@ const WaitlistPage: React.FC = () => {
                         <span className="text-[11px] font-black uppercase tracking-[0.2em]">Continue with Google</span>
                     </button>
                 )}
+                <GoogleSignInScopeNote className="mt-4 text-[11px] leading-relaxed text-white/40" />
 
                 <div className="mt-8 pt-6 border-t border-white/10 text-left space-y-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-white/30 text-center">
@@ -910,6 +913,14 @@ const WaitlistPage: React.FC = () => {
 
                 <p className="mt-6 text-[9px] font-bold uppercase tracking-widest text-white/25">
                     No spam · Unsubscribe anytime
+                    {' · '}
+                    <a href={landingUrl('/privacy-policy')} className="hover:text-white/50" target="_blank" rel="noopener noreferrer">
+                        Privacy
+                    </a>
+                    {' · '}
+                    <a href={landingUrl('/terms-of-service')} className="hover:text-white/50" target="_blank" rel="noopener noreferrer">
+                        Terms
+                    </a>
                 </p>
             </div>
         </motion.div>
@@ -932,8 +943,9 @@ const WaitlistPage: React.FC = () => {
             {!yurekaScore && (
                 <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-5 py-4 space-y-3">
                     <p className="text-xs text-white/45 leading-relaxed">
-                        Optional: connect Gmail to estimate your Yureka Score from purchase emails. Until Google verifies the app, only approved test emails can grant inbox access.
+                      Optional. Connect Gmail to estimate a Yureka Score from purchase emails. The score stays inside Yureka — it is not a credit report and is not shared with lenders.
                     </p>
+                    <GmailLimitedUseNotice className="text-[11px] leading-relaxed text-white/35" />
                     <button
                         type="button"
                         disabled={isScanning || !(formData.email || scannedProfile?.email)}

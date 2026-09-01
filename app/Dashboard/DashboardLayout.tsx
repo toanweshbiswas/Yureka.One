@@ -56,7 +56,7 @@ type NavItem = {
 
 const PRIMARY_NAV: NavItem[] = [
     { id: 'home', label: 'Home', icon: 'dollar', path: '/dashboard/home' },
-    { id: 'offers', label: 'Offers', icon: 'bag', path: '/dashboard/offers' },
+    { id: 'offers', label: 'Lightning Deals', icon: 'bag', path: '/dashboard/offers' },
     { id: 'giftcards', label: 'Gift cards', icon: 'gift', path: '/dashboard/giftcards' },
     { id: 'getaway', label: 'Join your getaway', icon: 'flash', path: '/dashboard/getaway' },
 ];
@@ -88,7 +88,7 @@ const TAB_ICONS: Record<string, typeof House> = {
 const TAB_LABELS: Record<string, string> = {
     home: 'Home',
     browse: 'Super',
-    offers: 'Offers',
+    offers: 'Deals',
     giftcards: 'Gifts',
 };
 
@@ -325,13 +325,13 @@ const DashboardLayout: React.FC = () => {
             </motion.div>
             <h2 className="text-3xl font-black tracking-tight text-white mb-3">Coming soon</h2>
             <p className="text-white/40 max-w-sm mx-auto text-[15px] leading-relaxed">
-                This piece of Yureka is still baking. Goldback and Offers are live today.
+                This piece of Yureka is still baking. Goldback and Lightning Deals are live today.
             </p>
             <Link
                 to="/dashboard/offers"
                 className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-clay text-black px-6 py-3.5 text-[11px] font-black uppercase tracking-[0.2em] hover:brightness-110 transition"
             >
-                Browse offers
+                Lightning Deals
             </Link>
         </div>
     );
@@ -493,7 +493,7 @@ const DashboardLayout: React.FC = () => {
                 className={`flex-1 relative min-w-0 min-h-0 ${
                 isEmbeddedBrowse
                     ? 'flex flex-col overflow-hidden'
-                    : 'overflow-y-auto overflow-x-hidden dashboard-scroll pb-[calc(4.75rem+env(safe-area-inset-bottom,0px))] md:pb-10'
+                    : 'overflow-y-auto overflow-x-hidden dashboard-scroll pb-[calc(5.75rem+env(safe-area-inset-bottom,0px))] md:pb-10'
             }`}>
                 {!isEmbeddedBrowse && (
                 <div
@@ -625,23 +625,26 @@ const DashboardLayout: React.FC = () => {
                 </div>
             </main>
 
-            {/* Mobile tab bar. iOS-style: equal cells, system type, glass, safe area */}
+            {/* Mobile tab bar — floating glass island (Apple-style translucency) */}
             {!isEmbeddedBrowse && (
             <nav
-                className="md:hidden fixed inset-x-0 bottom-0 z-40"
+                className="md:hidden fixed inset-x-0 bottom-0 z-40 pointer-events-none px-3"
                 style={{
-                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-                    background: 'rgba(10, 10, 10, 0.72)',
-                    backdropFilter: 'blur(20px) saturate(180%)',
-                    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
-                    boxShadow: '0 -0.5px 0 rgba(255,255,255,0.18)',
+                    paddingBottom: 'max(0.625rem, env(safe-area-inset-bottom, 0px))',
                     fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
                 }}
                 aria-label="Primary"
             >
                 <div
-                    className={`grid ${pwaBrowse ? 'grid-cols-5' : 'grid-cols-4'}`}
-                    style={{ height: 49 }}
+                    className="pointer-events-auto mx-auto max-w-md rounded-[2rem] border border-white/[0.18] bg-[rgba(18,18,20,0.62)] shadow-[0_12px_40px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.14)] backdrop-blur-2xl supports-[backdrop-filter]:bg-[rgba(18,18,20,0.52)]"
+                    style={{
+                        WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+                        backdropFilter: 'blur(28px) saturate(180%)',
+                    }}
+                >
+                <div
+                    className={`grid px-1 py-1 ${pwaBrowse ? 'grid-cols-5' : 'grid-cols-4'}`}
+                    style={{ minHeight: 52 }}
                 >
                     {MOBILE_TABS.map((item) => {
                         const active = activeTab === item.id
@@ -705,6 +708,7 @@ const DashboardLayout: React.FC = () => {
                             </span>
                         </motion.span>
                     </button>
+                </div>
                 </div>
             </nav>
             )}

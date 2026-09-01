@@ -32,17 +32,21 @@ function CashbackBadge({ pct }: { pct: string }) {
 }
 
 function useSuperBrowseOpen() {
-  // Always window.open. Super Browse is a store launcher, not the in-app iframe.
-  return (url: string, userId: string, opts?: { title?: string; knownOpenUrl?: string }) => {
-    const cueOk = Boolean(opts?.knownOpenUrl)
+  return (url: string, userId: string, opts?: { title?: string; knownOpenUrl?: string; storeId?: string }) => {
     void openStoreBrowse(url, userId, {
       title: opts?.title,
       returnTo: '/dashboard/browse',
       forceExternal: true,
-      knownOpenUrl: cueOk ? opts?.knownOpenUrl : undefined,
-      preferWeb: !cueOk,
+      knownOpenUrl: opts?.knownOpenUrl,
+      storeId: opts?.storeId,
+      storeName: opts?.title,
+      source: 'super_browse',
     })
   }
+}
+
+function cueOpenUrl(tracked?: TrackedOpen | null): string | undefined {
+  return tracked?.affiliate ? tracked.openUrl : undefined
 }
 
 function StoreTile({
@@ -84,10 +88,10 @@ function StoreTile({
       type="button"
       className={className}
       onClick={() => {
-        const cue = knownOpen?.affiliate ? knownOpen.openUrl : undefined
         openStore(store.url, userId, {
           title: store.name,
-          knownOpenUrl: cue,
+          knownOpenUrl: cueOpenUrl(knownOpen),
+          storeId: store.id,
         })
       }}
     >
@@ -145,7 +149,11 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
   const openDraft = () => {
     const url = sanitizeBrowseUrl(draft.includes('://') ? draft : `https://${draft}`)
     if (!url) return
-    openStore(url, userId)
+    void openStoreBrowse(url, userId, {
+      returnTo: '/dashboard/browse',
+      forceExternal: true,
+      source: 'manual',
+    })
   }
 
   return (
@@ -202,12 +210,10 @@ export function SuperBrowseGrid({ showChrome = true }: { showChrome?: boolean })
           type="button"
           className="rounded-2xl border border-white/20 bg-transparent px-4 py-3 text-center text-[13px] font-semibold text-white"
           onClick={() => {
-            const cue = trackedLinks.flipkart?.affiliate
-              ? trackedLinks.flipkart.openUrl
-              : undefined
             openStore('https://www.flipkart.com/', userId, {
               title: 'Flipkart',
-              knownOpenUrl: cue,
+              knownOpenUrl: cueOpenUrl(trackedLinks.flipkart),
+              storeId: 'flipkart',
             })
           }}
         >

@@ -18,7 +18,7 @@ Hosts: `yureka.one` · `app.yureka.one` · `admin.yureka.one` · `brand.yureka.o
 ## 2. Ship checklist
 
 1. Branch off default; PR with test plan (auth paths if touched).
-2. Migrations: apply Supabase SQL before relying on new columns (`backend/supabase/migrations/`).
+2. Migrations: apply Supabase SQL before relying on new columns (`supabase/migrations/` or `pnpm supabase:push`).
 3. Env: update Render + build-time `VITE_*` separately; never commit `.env`.
 4. Deploy API first if contract changes; then frontend.
 5. Smoke:

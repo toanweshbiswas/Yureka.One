@@ -1,3 +1,5 @@
+@import './landing/home/landingTheme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -21,10 +23,25 @@
 .yureka-one-home .font-heading {
   font-family: 'Space Mono', monospace !important;
   text-transform: none !important;
-  color: #fff !important;
 }
-.yureka-one-home h2[class*="text-[#5fae52]"] {
-  color: #5fae52 !important;
+
+/* Beat sitewide `h1–h6 { color: #00933b !important }` for landing tokens. */
+.yureka-one-home h1.text-landing-sub,
+.yureka-one-home h2.text-landing-sub,
+.yureka-one-home h3.text-landing-sub,
+.yureka-one-home h4.text-landing-sub,
+.yureka-one-home h5.text-landing-sub,
+.yureka-one-home h6.text-landing-sub {
+  color: var(--landing-sub) !important;
+}
+
+.yureka-one-home h1.text-landing-primary,
+.yureka-one-home h2.text-landing-primary,
+.yureka-one-home h3.text-landing-primary,
+.yureka-one-home h4.text-landing-primary,
+.yureka-one-home h5.text-landing-primary,
+.yureka-one-home h6.text-landing-primary {
+  color: var(--landing-primary) !important;
 }
 
 .yureka-one-home {
@@ -149,11 +166,11 @@
   }
 }
 
-@keyframes home-v2-marquee {
+@keyframes landing-marquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
-@keyframes home-v2-marquee-reverse {
+@keyframes landing-marquee-reverse {
   from { transform: translateX(-50%); }
   to { transform: translateX(0); }
 }
@@ -614,7 +631,7 @@
   .yureka-one-home video {
     animation: none !important;
   }
-  .yureka-one-home [style*='home-v2-marquee'] {
+  .yureka-one-home [style*='landing-marquee'] {
     animation: none !important;
   }
 }

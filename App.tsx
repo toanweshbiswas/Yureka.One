@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
-import Navbar from '@landing/home-v2/Navbar';
+import { Navbar } from '@landing/home';
 import Footer from '@shared/Footer';
 import SEO from '@shared/SEO';
 import { SupabaseProvider, useSupabase } from '@shared/SupabaseProvider';
@@ -82,6 +82,7 @@ const SecurityProtocolPage = lazyWithRetry(() => import('@landing/SecurityProtoc
 const CommunityGuidelines = lazyWithRetry(() => import('@landing/CommunityGuidelines'));
 const YurekaAIPage = lazyWithRetry(() => import('@landing/YurekaAIPage'));
 const CareersPage = lazyWithRetry(() => import('@landing/CareersPage'));
+const GetawayLandingPage = lazyWithRetry(() => import('@landing/GetawayLandingPage'));
 const AboutPage = lazyWithRetry(() => import('@landing/AboutPage'));
 const ContactPage = lazyWithRetry(() => import('@landing/ContactPage'));
 const FaqPage = lazyWithRetry(() => import('@landing/FaqPage'));
@@ -410,6 +411,7 @@ function LandingRoutes() {
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/faq" element={<FaqPage />} />
       <Route path="/jobs" element={<CareersPage />} />
+      <Route path="/getaway" element={<GetawayLandingPage />} />
       <Route path="/yureka-ai" element={<><SEO {...staticPageMeta['/yureka-ai']} /><YurekaAIPage /></>} />
       <Route path="/ai-magic" element={<Navigate to="/yureka-ai" replace />} />
       <Route path="/ai" element={<Navigate to="/yureka-ai" replace />} />
@@ -582,6 +584,7 @@ function CombinedRoutes() {
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/faq" element={<FaqPage />} />
       <Route path="/jobs" element={<CareersPage />} />
+      <Route path="/getaway" element={<GetawayLandingPage />} />
       <Route path="/yureka-ai" element={<><SEO {...staticPageMeta['/yureka-ai']} /><YurekaAIPage /></>} />
       <Route path="/ai-magic" element={<Navigate to="/yureka-ai" replace />} />
       <Route path="/ai" element={<Navigate to="/yureka-ai" replace />} />
@@ -599,6 +602,7 @@ const AppContent: React.FC = () => {
   const isWwRoute = location.pathname.startsWith('/ww') || isWwHostShell;
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const isHomeRoute = location.pathname === '/' && (role === 'landing' || role === 'all');
+  const isGiftRoute = location.pathname === '/gift' || location.pathname.startsWith('/gift/');
   const isForBrandsRoute = location.pathname === '/for-brands';
   const isBlogRoute =
     location.pathname === '/blog' ||
@@ -613,9 +617,9 @@ const AppContent: React.FC = () => {
     isWwHostShell ||
     isForBrandsRoute ||
     role === 'app';
-  const applyEditorialGrid = !isSpecialRoute && !isHomeRoute && !isBlogRoute;
+  const applyEditorialGrid = !isSpecialRoute && !isHomeRoute && !isBlogRoute && !isGiftRoute;
   const isZwitchRoute = location.pathname === '/zwitch';
-  const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute || isWwHostShell;
+  const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute || isWwHostShell || isGiftRoute;
   const isProductShell =
     role === 'app' ||
     role === 'admin' ||
@@ -625,10 +629,15 @@ const AppContent: React.FC = () => {
     isDashboardRoute ||
     isBrandRoute ||
     isWwRoute;
-  const shellBg = isHomeRoute || isProductShell || isWwHostShell ? 'bg-[#070707]' : 'bg-cream';
+  const shellBg =
+    isHomeRoute || isGiftRoute
+      ? 'bg-landing-bg'
+      : isProductShell || isWwHostShell
+        ? 'bg-[#070707]'
+        : 'bg-cream';
   const showSiteNavbar =
     role === 'landing' || role === 'all'
-      ? !isHomeRoute && (!isSpecialRoute || isForBrandsRoute)
+      ? !isHomeRoute && !isGiftRoute && (!isSpecialRoute || isForBrandsRoute)
       : false;
 
   const appRoutes =

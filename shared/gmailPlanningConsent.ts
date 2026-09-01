@@ -86,6 +86,7 @@ export function requestPlanningGmailToken(opts?: {
       const client = google.accounts.oauth2.initTokenClient({
         client_id: clientId,
         scope: GMAIL_READONLY,
+        include_granted_scopes: false,
         callback: (tokenResponse) => {
           if (tokenResponse?.error || !tokenResponse?.access_token) {
             const code = String(tokenResponse?.error || '')
@@ -94,7 +95,7 @@ export function requestPlanningGmailToken(opts?: {
               /access_denied|verification/i.test(String(tokenResponse?.error_description || ''))
             resolve({
               error: denied
-                ? 'Gmail access is limited until Google verifies Yureka (or adds your email as a test user).'
+                ? 'Gmail access was declined. You can add another inbox later, or continue without it.'
                 : tokenResponse?.error_description ||
                   tokenResponse?.error ||
                   'Gmail access was denied. Grant read-only inbox access to add another account.',

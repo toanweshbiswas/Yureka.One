@@ -223,6 +223,28 @@ export const wwApi = {
       method: 'PATCH',
       body: JSON.stringify(body),
     }),
+  announceTrip: (
+    userId: string,
+    tripId: string,
+    body: {
+      title?: string
+      body: string
+      audience?: 'booked' | 'unpaid' | 'promoters' | 'related'
+      sendInbox?: boolean
+      sendEmail?: boolean
+    },
+  ) =>
+    wwFetch<{
+      sent: number
+      recipients: number
+      tripId: string
+      tripTitle: string
+      audience: string
+      channels: string[]
+    }>(`/api/wanderworld/admin/trips/${encodeURIComponent(tripId)}/announce`, userId, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   deleteTrip: (userId: string, id: string) =>
     wwFetch<{ deleted: boolean }>(
       `/api/wanderworld/admin/trips/${encodeURIComponent(id)}`,
@@ -262,11 +284,21 @@ export const wwApi = {
   analytics: (userId: string) => wwFetch<WwAnalytics>('/api/wanderworld/admin/analytics', userId),
   members: (userId: string) =>
     wwFetch<{ members: WwMember[] }>('/api/wanderworld/admin/members', userId),
-  inviteMember: (userId: string, body: { email: string; role: string }) =>
+  inviteMember: (userId: string, body: { email: string; role: string; tripIds?: string[] }) =>
     wwFetch<{ member: WwMember; emailed?: boolean }>('/api/wanderworld/admin/members', userId, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  updateMemberRole: (
+    userId: string,
+    memberId: string,
+    body: { role: string; tripIds?: string[] },
+  ) =>
+    wwFetch<{ member: WwMember }>(
+      `/api/wanderworld/admin/members/${encodeURIComponent(memberId)}/role`,
+      userId,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
   deleteMember: (userId: string, id: string) =>
     wwFetch<{ deleted: boolean }>(
       `/api/wanderworld/admin/members/${encodeURIComponent(id)}`,
@@ -362,6 +394,12 @@ export const wwApi = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  notifyGroupBooking: (userId: string, registrationId: string) =>
+    wwFetch<{ sent: boolean; joinUrl: string }>(
+      `/api/wanderworld/promoter/group-booking/${encodeURIComponent(registrationId)}/notify`,
+      userId,
+      { method: 'POST' },
+    ),
   cancelMyRegistration: (userId: string, id: string) =>
     wwFetch<{
       registration: WwRegistration
@@ -435,6 +473,21 @@ export const wwApi = {
       `/api/wanderworld/admin/members/${encodeURIComponent(memberId)}/trips`,
       userId,
       { method: 'PATCH', body: JSON.stringify({ tripIds }) },
+    ),
+  chatThreads: (userId: string) =>
+    wwFetch<{ threads: import('./types').WwChatThread[] }>('/api/wanderworld/chat/threads', userId),
+  chatMessages: (userId: string, tripId: string, since?: string) => {
+    const qs = since ? `?since=${encodeURIComponent(since)}` : ''
+    return wwFetch<{
+      trip: { id: string; title: string; slug: string }
+      messages: import('./types').WwChatMessage[]
+    }>(`/api/wanderworld/chat/trips/${encodeURIComponent(tripId)}/messages${qs}`, userId)
+  },
+  sendChatMessage: (userId: string, tripId: string, body: string, name?: string) =>
+    wwFetch<{ message: import('./types').WwChatMessage }>(
+      `/api/wanderworld/chat/trips/${encodeURIComponent(tripId)}/messages`,
+      userId,
+      { method: 'POST', body: JSON.stringify({ body, name }) },
     ),
 }
 

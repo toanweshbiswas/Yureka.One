@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2, ArrowLeft, Plane } from 'lucide-react'
+import { Loader2, ArrowLeft, Plane, MessageCircle } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { wwApi, type WwInstallment, type WwTripPublic } from '@backend/lib/wanderworld/client'
+import NotificationBell from '../NotificationBell'
+import WwTripChat from '../../wanderworld/WwTripChat'
 import {
   captureGetawayRef,
   captureGetawayRefFromSearch,
@@ -60,10 +62,17 @@ const GetawayPage: React.FC = () => {
     if (path.endsWith('/getaway/bookings') || path.endsWith('/getaway/bookings/')) {
       return { kind: 'bookings' as const }
     }
+    const chatMatch = path.match(/\/getaway\/chat(?:\/([^/]+))?$/)
+    if (chatMatch) {
+      return {
+        kind: 'chat' as const,
+        tripSlug: chatMatch[1] ? decodeURIComponent(chatMatch[1]) : undefined,
+      }
+    }
     const groupMatch = path.match(/\/getaway\/group\/([^/]+)$/)
     if (groupMatch?.[1]) return { kind: 'group' as const, code: decodeURIComponent(groupMatch[1]) }
     const m = path.match(/\/getaway\/([^/]+)$/)
-    if (m && m[1] && m[1] !== 'bookings' && m[1] !== 'group') {
+    if (m && m[1] && m[1] !== 'bookings' && m[1] !== 'group' && m[1] !== 'chat') {
       return { kind: 'trip' as const, slug: m[1] }
     }
     return { kind: 'catalog' as const }
@@ -93,7 +102,14 @@ const GetawayPage: React.FC = () => {
   const [paymentMode, setPaymentMode] = useState<'full' | 'plan'>('full')
   const [buyerName, setBuyerName] = useState('')
   const [buyerPhone, setBuyerPhone] = useState('')
+  const [paySuccess, setPaySuccess] = useState<string | null>(
+    searchParams.get('paid') === '1' ? 'Payment received. See details below.' : null,
+  )
+  const activeRef = readGetawayRef()
   const [city, setCity] = useState('')
+  const [groupHasChat, setGroupHasChat] = useState(false)
+
+  const loginNext = encodeURIComponent(location.pathname + location.search)
 
   const loadCatalog = useCallback(async () => {
     setLoading(true)
@@ -146,14 +162,25 @@ const GetawayPage: React.FC = () => {
       setGroupInvite(null)
     } else {
       setGroupInvite(res.data)
+      if (userId && res.data.trip.slug) {
+        const b = await wwApi.bookings(userId)
+        const hit = (b.data?.bookings || []).some(
+          (row) =>
+            row.trip?.slug === res.data!.trip.slug && row.registration?.status !== 'cancelled',
+        )
+        setGroupHasChat(hit)
+      } else {
+        setGroupHasChat(false)
+      }
     }
     setLoading(false)
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     if (view.kind === 'catalog') void loadCatalog()
     else if (view.kind === 'trip') void loadTrip(view.slug)
     else if (view.kind === 'group') void loadGroup(view.code)
+    else if (view.kind === 'chat') setLoading(false)
     else void loadBookings()
   }, [view, loadCatalog, loadTrip, loadBookings, loadGroup])
 
@@ -172,7 +199,7 @@ const GetawayPage: React.FC = () => {
       })
       if (res.error || !res.data) throw new Error(res.error || 'Could not join group')
       if (res.data.alreadyPaid) {
-        navigate('/dashboard/getaway/bookings')
+        navigate('/dashboard/getaway/bookings?paid=1')
         return
       }
       if (res.data.paymentsUnavailable || !res.data.keyId || !res.data.razorpayOrderId) {
@@ -197,7 +224,8 @@ const GetawayPage: React.FC = () => {
         ...pay,
       })
       if (verify.error) throw new Error(verify.error)
-      navigate('/dashboard/getaway/bookings')
+      setGroupHasChat(true)
+      navigate('/dashboard/getaway/bookings?paid=1')
     } catch (e: any) {
       if (e?.message !== 'Payment cancelled') setError(e?.message || 'Could not join group')
     } finally {
@@ -238,7 +266,8 @@ const GetawayPage: React.FC = () => {
         ...pay,
       })
       if (verify.error) throw new Error(verify.error)
-      navigate('/dashboard/getaway/bookings')
+      setPaySuccess('Payment received. See My bookings for details.')
+      navigate('/dashboard/getaway/bookings?paid=1')
     } catch (e: any) {
       if (e?.message !== 'Payment cancelled') setError(e?.message || 'Checkout failed')
     } finally {
@@ -296,7 +325,8 @@ const GetawayPage: React.FC = () => {
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <NotificationBell />
           {view.kind !== 'catalog' && (
             <Link
               to="/dashboard/getaway"
@@ -311,8 +341,28 @@ const GetawayPage: React.FC = () => {
           >
             My bookings
           </Link>
+          {userId ? (
+            <Link
+              to="/dashboard/getaway/chat"
+              className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-white/10 px-4 text-[11px] font-black uppercase tracking-[0.18em] text-white transition active:scale-[0.97]"
+            >
+              <MessageCircle className="h-3.5 w-3.5" /> Chat
+            </Link>
+          ) : null}
         </div>
       </div>
+
+      {activeRef && view.kind === 'trip' && (
+        <p className="mb-4 rounded-2xl border border-clay/20 bg-clay/10 px-4 py-2.5 text-xs text-clay/90">
+          Referral <span className="font-mono">{activeRef}</span> applied at checkout.
+        </p>
+      )}
+
+      {paySuccess && view.kind === 'bookings' && (
+        <p className="mb-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+          {paySuccess}
+        </p>
+      )}
 
       {error && (
         <p className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-xs text-red-200">
@@ -446,6 +496,16 @@ const GetawayPage: React.FC = () => {
                   Open my bookings
                 </Link>
               </div>
+            ) : !userId ? (
+              <div className="mt-5 space-y-3">
+                <p className="text-sm text-white/50">Sign in with your Yureka account to book and receive trip updates in your inbox.</p>
+                <Link
+                  to={`/login?next=${loginNext}`}
+                  className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-clay text-[11px] font-black uppercase tracking-[0.22em] text-black transition active:scale-[0.97]"
+                >
+                  Sign in to book
+                </Link>
+              </div>
             ) : (
               <>
                 <div className="mt-5 space-y-3">
@@ -483,7 +543,7 @@ const GetawayPage: React.FC = () => {
           </div>
 
           {/* Mobile sticky CTA */}
-          {!alreadyBooked && (
+          {!alreadyBooked && userId && (
             <div
               className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 p-3 md:hidden"
               style={{
@@ -598,8 +658,44 @@ const GetawayPage: React.FC = () => {
             <p className="text-center text-[12px] text-white/35">
               Each traveler pays only their seat. After paying, the booking shows under My bookings.
             </p>
+            {userId && groupInvite.trip.slug && groupHasChat ? (
+              <Link
+                to={`/dashboard/getaway/chat/${groupInvite.trip.slug}`}
+                className="flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] text-[11px] font-black uppercase tracking-[0.18em] text-white/70 transition active:scale-[0.97]"
+              >
+                <MessageCircle className="h-3.5 w-3.5" />
+                Open trip chat
+              </Link>
+            ) : userId ? (
+              <p className="text-center text-[12px] text-white/35">
+                Trip chat unlocks right after you join and pay your seat.
+              </p>
+            ) : null}
           </div>
         </motion.div>
+      )}
+
+      {!loading && view.kind === 'chat' && userId && (
+        <WwTripChat
+          userId={userId}
+          userEmail={user.email}
+          userName={buyerName || user.user_metadata?.full_name}
+          tripRef={view.tripSlug}
+          chatBasePath="/dashboard/getaway/chat"
+          variant="getaway"
+        />
+      )}
+
+      {!loading && view.kind === 'chat' && !userId && (
+        <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-8 text-center">
+          <p className="text-sm text-white/45">Sign in to access trip chat with your group.</p>
+          <Link
+            to={`/login?next=${encodeURIComponent(location.pathname)}`}
+            className="mt-4 inline-flex min-h-11 items-center rounded-2xl bg-clay px-5 text-[11px] font-black uppercase tracking-[0.18em] text-black"
+          >
+            Sign in
+          </Link>
+        </div>
       )}
 
       {!loading && view.kind === 'bookings' && (
@@ -630,16 +726,28 @@ const GetawayPage: React.FC = () => {
                 </p>
               ) : (
               <ul className="mt-4 space-y-2">
-                {installments.map((inst) => (
+                {installments.map((inst) => {
+                  const overdue = inst.status === 'overdue'
+                  const dueSoon =
+                    inst.status === 'due' &&
+                    inst.dueAt &&
+                    new Date(inst.dueAt).getTime() - Date.now() < 3 * 86400000
+                  return (
                   <li
                     key={inst.id}
-                    className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-black/30 px-4 py-3"
+                    className={`flex flex-wrap items-center justify-between gap-2 rounded-2xl px-4 py-3 ${
+                      overdue
+                        ? 'border border-red-500/25 bg-red-500/10'
+                        : dueSoon
+                          ? 'border border-amber-500/20 bg-amber-500/10'
+                          : 'bg-black/30'
+                    }`}
                   >
                     <div>
                       <p className="text-sm font-semibold text-white">
                         #{inst.sequence} {inst.label}
                       </p>
-                      <p className="text-xs text-white/40">
+                      <p className={`text-xs ${overdue ? 'text-red-200/80' : 'text-white/40'}`}>
                         {formatInr(inst.amountInr)} · {inst.status}
                         {inst.dueAt ? ` · due ${inst.dueAt.slice(0, 10)}` : ''}
                       </p>
@@ -656,14 +764,31 @@ const GetawayPage: React.FC = () => {
                       </button>
                     )}
                   </li>
-                ))}
+                  )
+                })}
               </ul>
               )}
+              {!cancelled && t?.slug ? (
+                <Link
+                  to={`/dashboard/getaway/chat/${t.slug}`}
+                  className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl bg-white/[0.06] px-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70 transition active:scale-[0.97]"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" /> Trip chat
+                </Link>
+              ) : null}
             </div>
             )
           })}
           {bookings.length === 0 && (
-            <p className="py-16 text-center text-sm text-white/40">No bookings yet.</p>
+            <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-8 text-center">
+              <p className="text-sm text-white/45">No bookings yet.</p>
+              <Link
+                to="/dashboard/getaway"
+                className="mt-4 inline-flex min-h-11 items-center rounded-2xl bg-clay px-5 text-[11px] font-black uppercase tracking-[0.18em] text-black"
+              >
+                Browse getaways
+              </Link>
+            </div>
           )}
         </div>
       )}

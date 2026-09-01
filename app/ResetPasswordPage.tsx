@@ -1,14 +1,48 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
-import { motion } from 'motion/react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { motion, useReducedMotion } from 'motion/react'
 import { establishRecoverySession, friendlyAuthError, getSupabaseBrowser } from '@shared/auth'
 import { landingUrl } from '@shared/hosts'
+import YurekaBrandMark from '@shared/YurekaBrandMark'
+
+const spring = { type: 'spring' as const, bounce: 0, duration: 0.35 }
+const springSnappy = { type: 'spring' as const, bounce: 0, duration: 0.22 }
+
+const pillInputClass =
+  'w-full rounded-full border border-white/12 bg-white/[0.05] py-3.5 pl-5 pr-12 text-[16px] leading-none text-white placeholder:text-white/35 outline-none transition-[border-color,box-shadow] duration-150 focus:border-clay/50 focus:ring-2 focus:ring-clay/15'
+
+function AuthHero({ reduceMotion }: { reduceMotion: boolean | null }) {
+  return (
+    <div className="relative mx-auto mb-8 flex h-[7.5rem] w-[7.5rem] items-center justify-center">
+      {!reduceMotion && (
+        <>
+          <motion.span
+            className="absolute -left-3 top-2 h-10 w-10 rounded-full bg-clay/10 blur-[1px]"
+            animate={{ y: [0, -6, 0], opacity: [0.45, 0.7, 0.45] }}
+            transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
+            aria-hidden
+          />
+          <motion.span
+            className="absolute -right-2 bottom-1 h-14 w-14 rounded-full bg-clay/[0.07]"
+            animate={{ y: [0, 5, 0], opacity: [0.35, 0.55, 0.35] }}
+            transition={{ duration: 6.5, repeat: Infinity, ease: 'easeInOut', delay: 0.4 }}
+            aria-hidden
+          />
+        </>
+      )}
+      <div className="relative flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-full border border-clay/20 bg-clay/[0.08] shadow-[0_0_40px_rgba(52,211,153,0.15),inset_0_1px_0_rgba(255,255,255,0.12)]">
+        <YurekaBrandMark className="h-12 w-12 rounded-2xl object-cover" />
+      </div>
+    </div>
+  )
+}
 
 const ResetPasswordPage: React.FC = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const next = useMemo(() => searchParams.get('next') || '/dashboard', [searchParams])
+  const reduceMotion = useReducedMotion()
 
   const [busy, setBusy] = useState(true)
   const [canReset, setCanReset] = useState(false)
@@ -17,6 +51,8 @@ const ResetPasswordPage: React.FC = () => {
 
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [updating, setUpdating] = useState(false)
 
   useEffect(() => {
@@ -85,108 +121,160 @@ const ResetPasswordPage: React.FC = () => {
     navigate(`/login?next=${encodeURIComponent(next)}`, { replace: true })
   }
 
+  const enter = reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }
+  const settle = { opacity: 1, y: 0 }
+
   if (busy) {
     return (
-      <div className="min-h-dvh bg-[#080808] flex items-center justify-center">
-        <Loader2 className="animate-spin text-clay" size={40} />
+      <div className="flex min-h-dvh items-center justify-center bg-[#070707]">
+        <Loader2 className="animate-spin text-clay" size={36} aria-hidden />
+        <span className="sr-only">Loading</span>
       </div>
     )
   }
 
   return (
     <div
-      className="min-h-dvh bg-[#080808] flex items-center justify-center px-5 sm:px-6 relative overflow-hidden"
+      className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-[#070707] px-5 sm:px-6"
       style={{
-        paddingTop: 'max(3rem, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(3rem, env(safe-area-inset-bottom, 0px))',
+        paddingTop: 'max(1.5rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px))',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
       }}
     >
       <div
-        className="fixed inset-0 pointer-events-none opacity-[0.04]"
-        style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '40px 40px' }}
+        className="pointer-events-none fixed inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(52,211,153,0.12), transparent 60%)',
+        }}
       />
-      <div className="fixed top-1/4 -left-1/4 w-[50%] h-[50%] bg-clay/10 blur-[120px] rounded-full pointer-events-none" />
 
       <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-        className="relative z-10 w-full max-w-md bg-white/[0.04] border border-white/10 rounded-[2rem] sm:rounded-[2.5rem] p-7 sm:p-10 text-center shadow-2xl"
+        initial={enter}
+        animate={settle}
+        transition={spring}
+        className="relative z-10 w-full max-w-[22rem]"
       >
-        <div className="w-14 h-14 rounded-2xl bg-clay/15 border border-clay/25 flex items-center justify-center mx-auto mb-8">
-          <svg viewBox="0 0 24 24" className="w-6 h-6 text-clay" aria-hidden>
-            <path
-              d="M12 12c2.21 0 4-1.79 4-4S14.21 4 12 4 8 5.79 8 8s1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"
-              fill="currentColor"
-            />
-          </svg>
+        <AuthHero reduceMotion={reduceMotion} />
+
+        <div className="text-center">
+          <h1 className="text-[1.5rem] font-semibold leading-tight tracking-[-0.03em] text-white">
+            Choose a new password
+          </h1>
+          <p className="mt-2 text-[14px] leading-relaxed text-white/45">
+            {canReset
+              ? 'You can sign in right after updating.'
+              : 'Request a fresh link from login, then open it in the same browser.'}
+          </p>
         </div>
 
-        <h1 className="text-3xl md:text-4xl font-heading font-black text-white uppercase tracking-tighter mb-3">
-          Reset password
-        </h1>
-
-        <p className="text-sm text-white/40 mb-8 leading-relaxed">
-          {canReset
-            ? 'Choose a new password. Once updated, you can sign in immediately.'
-            : 'Request a fresh link from login, then open it in the same browser (avoid email in-app browsers).'}
-        </p>
-
-        {error && (
-          <p className="mb-6 text-xs text-red-200 bg-red-500/10 border border-red-500/20 rounded-2xl px-4 py-3">
-            {error}
-          </p>
-        )}
-        {info && (
-          <p className="mb-6 text-xs text-clay bg-clay/10 border border-clay/20 rounded-2xl px-4 py-3">{info}</p>
-        )}
-
-        {canReset ? (
-          <form onSubmit={handleUpdate} className="space-y-3 text-left mb-5">
-            <input
-              className="w-full rounded-2xl bg-black/50 border border-white/10 px-4 py-3.5 text-sm text-white focus:outline-none focus:border-clay/40"
-              placeholder="New password (min 8 chars)"
-              type="password"
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-            <input
-              className="w-full rounded-2xl bg-black/50 border border-white/10 px-4 py-3.5 text-sm text-white focus:outline-none focus:border-clay/40"
-              placeholder="Confirm new password"
-              type="password"
-              required
-              minLength={8}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              autoComplete="new-password"
-            />
-
-            <button
-              type="submit"
-              disabled={updating}
-              className="w-full bg-clay text-black py-4 rounded-2xl font-black text-[11px] uppercase tracking-[0.25em] flex items-center justify-center gap-3 hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
+        <div className="mt-7 space-y-3">
+          {error && (
+            <p
+              role="alert"
+              className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-[13px] leading-relaxed text-red-100/90"
             >
-              {updating ? <Loader2 size={18} className="animate-spin" /> : 'Update password'}
-            </button>
-          </form>
-        ) : null}
+              {error}
+            </p>
+          )}
+          {info && (
+            <p className="rounded-2xl border border-clay/25 bg-clay/10 px-4 py-3 text-[13px] leading-relaxed text-clay">
+              {info}
+            </p>
+          )}
 
-        <p className="mt-8 text-[10px] font-black uppercase tracking-[0.35em] text-white/25">
-          <Link to="/login?mode=forgot" className="hover:text-clay transition-colors">
-            Request a new link
+          {canReset ? (
+            <form onSubmit={handleUpdate} className="space-y-3">
+              <div className="relative">
+                <label htmlFor="new-password" className="sr-only">
+                  New password
+                </label>
+                <input
+                  id="new-password"
+                  className={pillInputClass}
+                  placeholder="New password"
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.92 }}
+                  transition={springSnappy}
+                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} strokeWidth={1.75} />
+                  ) : (
+                    <Eye size={18} strokeWidth={1.75} />
+                  )}
+                </motion.button>
+              </div>
+
+              <div className="relative">
+                <label htmlFor="confirm-new-password" className="sr-only">
+                  Confirm password
+                </label>
+                <input
+                  id="confirm-new-password"
+                  className={pillInputClass}
+                  placeholder="Confirm password"
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                />
+                <motion.button
+                  type="button"
+                  whileTap={{ scale: 0.92 }}
+                  transition={springSnappy}
+                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} strokeWidth={1.75} />
+                  ) : (
+                    <Eye size={18} strokeWidth={1.75} />
+                  )}
+                </motion.button>
+              </div>
+
+              <motion.button
+                type="submit"
+                disabled={updating}
+                whileTap={{ scale: updating ? 1 : 0.98 }}
+                transition={springSnappy}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-clay py-3.5 text-[15px] font-semibold tracking-[-0.01em] text-black shadow-[0_8px_24px_rgba(52,211,153,0.28)] disabled:opacity-50"
+              >
+                {updating ? <Loader2 size={18} className="animate-spin" aria-hidden /> : 'Update password'}
+              </motion.button>
+            </form>
+          ) : null}
+        </div>
+
+        <nav
+          className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[12px] font-medium text-white/30"
+          aria-label="Reset password footer"
+        >
+          <Link to="/login?mode=forgot" className="transition-colors hover:text-white/55">
+            Request new link
           </Link>
-          <span className="mx-3">·</span>
-          <Link to={`/login?next=${encodeURIComponent(next)}`} className="hover:text-clay transition-colors">
-            Back to login
+          <Link to={`/login?next=${encodeURIComponent(next)}`} className="transition-colors hover:text-white/55">
+            Back to sign in
           </Link>
-          <span className="mx-3">·</span>
-          <a href={landingUrl('/')} className="hover:text-clay transition-colors">
+          <a href={landingUrl('/')} className="transition-colors hover:text-white/55">
             Home
           </a>
-        </p>
+        </nav>
       </motion.div>
     </div>
   )

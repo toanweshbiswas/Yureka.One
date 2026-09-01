@@ -28,7 +28,7 @@ const TermsOfService: React.FC = () => {
                         </p>
                         <div className="text-center md:text-right">
                             <p className="text-[10px] uppercase tracking-widest font-bold text-white/40">Last Updated</p>
-                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">12th August 2026</p>
+                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">26th August 2026</p>
                         </div>
                     </div>
                 </div>
@@ -55,7 +55,7 @@ const TermsOfService: React.FC = () => {
                         Product account features (including waitlist, login, and dashboard) are primarily available at <span className="text-white font-bold">https://app.yureka.one</span>. The marketing site at <span className="text-white font-bold">https://yureka.one</span> provides information about Yureka. Our Privacy Policy at <a href="https://yureka.one/privacy-policy" className="text-clay underline">https://yureka.one/privacy-policy</a> forms part of these Terms.
                     </p>
                     <p>
-                        If you connect a Google account, you authorize us to receive the profile information Google shares with us for authentication. Optional Gmail inbox access, if granted by you, is used only as described in the Privacy Policy and may be revoked by you at any time.
+                        If you connect a Google account, you authorize us to receive the profile information Google shares with us for authentication (name and email). Optional Gmail inbox access, if granted by you in a separate consent, is used only as described in the Privacy Policy under Google Limited Use, and may be revoked by you at any time. We do not read personal emails in the app. Gmail data is not used for ads and is not sold.
                     </p>
                 </section>
 

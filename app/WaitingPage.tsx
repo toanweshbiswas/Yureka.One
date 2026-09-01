@@ -66,7 +66,7 @@ const GmailModal: React.FC<{
 
             <h3 className="text-2xl font-black italic tracking-tighter text-white text-center mb-2">Verify Your Identity</h3>
             <p className="text-white/40 text-sm text-center mb-8 leading-relaxed">
-                We'll cross-reference this Gmail with your waitlist record to calculate your real-time rank.
+                We match this Google sign-in email to your waitlist record. This does not request inbox access.
             </p>
 
             {/* Email Pill */}

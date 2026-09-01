@@ -7,7 +7,10 @@ const CONTENT_DIGEST =
   /credit\s+utilization|utilisation\s+ratio|the\s+fine\s+print|\bdecoded\b|\bexplained\b|did\s+you\s+know|here.?s\s+why|how\s+to\s+(?:improve|boost|fix|build)|tips?\s+to\b|money\s+tips?|credit\s+health|score\s+decoded|in\s+case\s+you\s+missed|weekly\s+(?:wrap|digest|roundup)|your\s+credit\s+(?:report|score|limit)\s+(?:decoded|explained|guide)/i
 
 const INVESTMENT_DIGEST =
-  /(?:portfolio\s+(?:value|update|summary)|current\s+value|total\s+(?:returns?|gains?)|xirr|cagr|market\s+(?:update|wrap|today)|stocks?\s+to\s+watch|watchlist|your\s+investments?\s+(?:are|have)|mutual\s+fund\s+(?:insight|tip|guide)|sip\s+reminder(?!\s+successful)|invest(?:ing)?\s+101|learn\s+to\s+invest|nfo\s+(?:alert|open)|new\s+fund\s+offer|refer\s+(?:and|&)\s+earn|invite\s+friends|app\s+update|what.?s\s+new\s+on\s+groww|motilal\s+oswal\s+(?:research|view|digest)|weekly\s+market)/i
+  /(?:portfolio\s+(?:value|update|summary)|current\s+value|total\s+(?:returns?|gains?)|xirr|cagr|market\s+(?:update|wrap|today|outlook|note|view)|stocks?\s+to\s+watch|watchlist|your\s+investments?\s+(?:are|have)|mutual\s+fund\s+(?:insight|tip|guide|news|update)|sip\s+reminder(?!\s+successful)|invest(?:ing)?\s+101|learn\s+to\s+invest|nfo\s+(?:alert|open)|new\s+fund\s+offer|refer\s+(?:and|&)\s+earn|invite\s+friends|app\s+update|what.?s\s+new\s+on\s+groww|motilal\s+oswal\s+(?:research|view|digest)|weekly\s+market|india'?s\s+\w+|crore\s+push|lakh\s+crore|industry\s+hits|sector\s+update|manufacturing\s+gets|auto\s+component|electronics\s+manufacturing|economic\s+outlook|macro\s+update|top\s+picks|stocks?\s+in\s+focus)/i
+
+const INVESTMENT_NEWS =
+  /india'?s\s+|crore\s+push|lakh\s+crore|industry\s+hits|sector\s+(?:update|outlook)|market\s+(?:outlook|wrap|note|view)|research\s+(?:note|report|update)|mutual\s+fund\s+(?:news|update|insight)|manufacturing\s+gets|auto\s+component|electronics\s+manufacturing|gets\s+₹|hits\s+₹|budget\s+\d{4}|election\s+impact|economic\s+outlook|macro\s+update|top\s+picks|stocks?\s+in\s+focus/i
 
 const REAL_PAYMENT =
   /\b(bill\s+paid|payment\s+(?:successful|received|done)|debited|emi\s+(?:paid|due)|txn\s+alert|transaction\s+alert|amount\s+due|statement\s+ready|order\s+confirmed|upi\s*ref|units?\s+allot(?:ted|ed)|order\s+executed|sip\s+(?:successful|instalment|installment|processed|done)|you\s+invested|successfully\s+invested|amount\s+invested|shares?\s+bought|equity\s+delivery)\b/i
@@ -36,6 +39,9 @@ export function isMarketingLedgerRow(tx: {
   if (INVESTMENT_DIGEST.test(desc) || INVESTMENT_DIGEST.test(hay)) {
     if (!REAL_PAYMENT.test(desc) && !REAL_PAYMENT.test(hay)) return true
   }
+  if (INVESTMENT_NEWS.test(desc) || INVESTMENT_NEWS.test(hay)) {
+    if (!REAL_PAYMENT.test(desc) && !REAL_PAYMENT.test(hay)) return true
+  }
   if (PROMO.test(desc) && !REAL_PAYMENT.test(desc)) return true
 
   // CRED editorial without a payment cue
@@ -52,6 +58,7 @@ export function isMarketingLedgerRow(tx: {
   // Broker / AMC content without a real invest/debit cue → not a ledger row
   if (BROKER.test(hay) && !REAL_PAYMENT.test(hay)) {
     if (
+      INVESTMENT_NEWS.test(hay) ||
       /update|digest|insight|research|newsletter|returns?|portfolio|watchlist|market|nfo|refer|invite|learn|tip|guide|congratulat/i.test(
         hay,
       )

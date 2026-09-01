@@ -20,12 +20,9 @@ import type {
   WwTripPublic,
   WwTripStatus,
 } from './types.js'
+import { syncSnapshotToSupabase, wwStoreMode } from './supabaseSync.js'
 
 const ORG_SLUG = 'wanderworld'
-
-function forceFileMode() {
-  return true // v1: file store; migration 017 ready for later supabase
-}
 
 function filePath() {
   return path.join(process.cwd(), 'data', 'wanderworld_store.json')
@@ -105,6 +102,15 @@ function readStore(): WwSnapshot {
 function writeStore(snap: WwSnapshot) {
   fs.mkdirSync(path.dirname(filePath()), { recursive: true })
   fs.writeFileSync(filePath(), JSON.stringify(snap, null, 2))
+  if (wwStoreMode() !== 'file') {
+    void syncSnapshotToSupabase(snap).catch((e) =>
+      console.warn('[wanderworld] async supabase sync:', e?.message || e),
+    )
+  }
+}
+
+export function writeStoreSnapshot(snap: WwSnapshot) {
+  writeStore(snap)
 }
 
 function mutate<T>(fn: (snap: WwSnapshot) => T): T {
@@ -114,8 +120,8 @@ function mutate<T>(fn: (snap: WwSnapshot) => T): T {
   return result
 }
 
-export function wwBackendMode() {
-  return forceFileMode() ? 'file' : 'file'
+export function wwBackendMode(): 'supabase' | 'file' | 'dual' {
+  return wwStoreMode()
 }
 
 function slugify(title: string) {
@@ -202,13 +208,17 @@ export async function maybeBootstrapOwner(email: string, userId: string): Promis
 export async function inviteMember(input: {
   email: string
   role: WwMemberRole
+  tripIds?: string[]
 }): Promise<WwMember> {
   return mutate((snap) => {
     const email = normalizeEmail(input.email)
     const existing = snap.members.find((m) => m.email === email)
+    const valid = new Set(snap.trips.map((t) => t.id))
+    const assigned = [...new Set((input.tripIds || []).map(String).filter((id) => valid.has(id)))]
     if (existing) {
       existing.role = input.role
-      return { ...existing }
+      if (input.tripIds !== undefined) existing.assignedTripIds = assigned
+      return { ...existing, assignedTripIds: [...(existing.assignedTripIds || [])] }
     }
     const member: WwMember = {
       id: randomUUID(),
@@ -218,6 +228,7 @@ export async function inviteMember(input: {
       role: input.role,
       invitedAt: nowIso(),
       joinedAt: null,
+      assignedTripIds: assigned,
     }
     snap.members.push(member)
     return { ...member }
@@ -277,7 +288,7 @@ export async function updateMemberProfile(
   })
 }
 
-/** Admin assigns which trips a promoter can sell / promote. Empty = all trips. */
+/** Admin assigns which trips a promoter/admin can access. Empty = all trips. */
 export async function setMemberTripAssignments(
   memberId: string,
   tripIds: string[],
@@ -313,11 +324,38 @@ export async function setMemberTripAssignments(
   })
 }
 
+/** Owner always all trips. Admin/promoter: empty assignedTripIds = all, else listed trips only. */
 export function memberCanAccessTrip(member: WwMember, tripId: string): boolean {
-  if (member.role === 'owner' || member.role === 'admin') return true
+  if (member.role === 'owner') return true
   const assigned = member.assignedTripIds || []
   if (assigned.length === 0) return true
   return assigned.includes(tripId)
+}
+
+/** Org-wide admin (not trip-scoped). Can invite members and assign roles. */
+export function isWwOrgAdmin(member: WwMember): boolean {
+  if (member.role === 'owner') return true
+  return member.role === 'admin' && !(member.assignedTripIds || []).length
+}
+
+export function isWwTripAdmin(member: WwMember): boolean {
+  return member.role === 'owner' || member.role === 'admin'
+}
+
+export async function setMemberRole(
+  memberId: string,
+  role: WwMemberRole,
+): Promise<WwMember | null> {
+  return mutate((snap) => {
+    const m = snap.members.find((x) => x.id === memberId)
+    if (!m) return null
+    if (m.role === 'owner' && role !== 'owner') {
+      const owners = snap.members.filter((x) => x.role === 'owner' && x.id !== memberId)
+      if (!owners.length) return null
+    }
+    m.role = role
+    return { ...m, assignedTripIds: [...(m.assignedTripIds || [])] }
+  })
 }
 
 export async function listTrips(opts?: { status?: WwTripStatus | 'all' }): Promise<WwTrip[]> {
@@ -770,21 +808,10 @@ export async function createGroupRegistration(input: {
     if (trip.seatsTaken + size > trip.seats) return { error: 'sold_out' as const }
 
     const pricing = computeGroupPricing(nt, size)
-    // Group join/pay uses equal per-seat shares (plan templates don't apply to shares).
-    const mode: WwPaymentMode = 'full'
+    const mode: WwPaymentMode =
+      input.paymentMode === 'plan' && trip.paymentPlansEnabled ? 'plan' : 'full'
     const perSeatInr =
       size > 0 ? Math.round((pricing.amountDueInr / size) * 100) / 100 : pricing.amountDueInr
-    // Fix remainder on last share so seats sum to amountDueInr
-    let allocated = 0
-    const seatAmounts: number[] = []
-    for (let i = 0; i < size; i++) {
-      const isLast = i === size - 1
-      const amt = isLast
-        ? Math.round((pricing.amountDueInr - allocated) * 100) / 100
-        : perSeatInr
-      allocated += amt
-      seatAmounts.push(amt)
-    }
 
     let joinCode = `G${randomCode(7)}`
     while (snap.registrations.some((r) => r.joinCode === joinCode)) joinCode = `G${randomCode(7)}`
@@ -822,20 +849,70 @@ export async function createGroupRegistration(input: {
     }
     snap.registrations.push(reg)
 
-    const installments: WwInstallment[] = seatAmounts.map((amountInr, i) => ({
-      id: randomUUID(),
-      registrationId: reg.id,
-      sequence: i + 1,
-      label: `Group share ${i + 1}/${size}`,
-      amountInr,
-      dueAt: ts,
-      status: 'due' as const,
-      // Reserve first share for the lead (email); they claim userId via join link.
-      claimedByUserId: null,
-      claimedByEmail: i === 0 ? leadEmail : null,
-      claimedByName: i === 0 ? leadName : null,
-      claimedAt: i === 0 ? ts : null,
-    }))
+    const installments: WwInstallment[] = []
+    const template =
+      mode === 'plan' && trip.planTemplate.length
+        ? trip.planTemplate
+        : mode === 'plan'
+          ? [
+              { percent: 0.3, daysBeforeStart: null, label: 'Booking deposit' },
+              { percent: 0.7, daysBeforeStart: 14, label: 'Balance' },
+            ]
+          : null
+
+    if (mode === 'full') {
+      let allocated = 0
+      const seatAmounts: number[] = []
+      for (let i = 0; i < size; i++) {
+        const isLast = i === size - 1
+        const amt = isLast
+          ? Math.round((pricing.amountDueInr - allocated) * 100) / 100
+          : perSeatInr
+        allocated += amt
+        seatAmounts.push(amt)
+      }
+      for (let i = 0; i < size; i++) {
+        installments.push({
+          id: randomUUID(),
+          registrationId: reg.id,
+          sequence: i + 1,
+          label: `Group share ${i + 1}/${size}`,
+          amountInr: seatAmounts[i],
+          dueAt: ts,
+          status: 'due' as const,
+          claimedByUserId: null,
+          claimedByEmail: i === 0 ? leadEmail : null,
+          claimedByName: i === 0 ? leadName : null,
+          claimedAt: i === 0 ? ts : null,
+        })
+      }
+    } else if (template) {
+      let seq = 0
+      for (let seat = 0; seat < size; seat++) {
+        let allocated = 0
+        template.forEach((tmpl, ti) => {
+          const isLast = ti === template.length - 1
+          const amount = isLast
+            ? Math.round((perSeatInr - allocated) * 100) / 100
+            : Math.round(perSeatInr * tmpl.percent * 100) / 100
+          allocated += amount
+          seq += 1
+          installments.push({
+            id: randomUUID(),
+            registrationId: reg.id,
+            sequence: seq,
+            label: `Seat ${seat + 1} — ${tmpl.label || `Part ${ti + 1}`}`,
+            amountInr: amount,
+            dueAt: dueDateForTemplate(trip.startDate, tmpl, ti),
+            status: 'due' as const,
+            claimedByUserId: null,
+            claimedByEmail: seat === 0 && ti === 0 ? leadEmail : null,
+            claimedByName: seat === 0 && ti === 0 ? leadName : null,
+            claimedAt: seat === 0 && ti === 0 ? ts : null,
+          })
+        })
+      }
+    }
     snap.installments.push(...installments)
     trip.seatsTaken += size
     trip.groupSeatsTaken = (trip.groupSeatsTaken || 0) + size
@@ -1007,15 +1084,35 @@ export async function installmentsForRegistration(registrationId: string): Promi
     .map((i) => ({ ...i }))
 }
 
-export async function registrationsForUser(userId: string): Promise<
+export async function registrationsForIdentity(opts: {
+  userId?: string | null
+  email?: string | null
+}): Promise<
   { registration: WwRegistration; trip: WwTrip | null; installments: WwInstallment[] }[]
 > {
   const snap = readStore()
+  const uid = String(opts.userId || '').trim()
+  const em = opts.email ? normalizeEmail(opts.email) : ''
+
   const claimedRegIds = new Set(
-    snap.installments.filter((i) => i.claimedByUserId === userId).map((i) => i.registrationId),
+    snap.installments
+      .filter((i) => {
+        if (uid && i.claimedByUserId === uid) return true
+        if (em && i.claimedByEmail && normalizeEmail(i.claimedByEmail) === em) return true
+        return false
+      })
+      .map((i) => i.registrationId),
   )
+
+  const matches = (r: WwRegistration) => {
+    if (claimedRegIds.has(r.id)) return true
+    if (uid && r.userId === uid) return true
+    if (em && normalizeEmail(r.buyerEmail) === em) return true
+    return false
+  }
+
   return snap.registrations
-    .filter((r) => r.userId === userId || claimedRegIds.has(r.id))
+    .filter(matches)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map((registration) => ({
       registration: { ...registration },
@@ -1025,6 +1122,12 @@ export async function registrationsForUser(userId: string): Promise<
         .sort((a, b) => a.sequence - b.sequence)
         .map((i) => ({ ...i })),
     }))
+}
+
+export async function registrationsForUser(userId: string): Promise<
+  { registration: WwRegistration; trip: WwTrip | null; installments: WwInstallment[] }[]
+> {
+  return registrationsForIdentity({ userId })
 }
 
 export async function listRegistrations(opts?: {
@@ -1101,7 +1204,8 @@ export async function cancelRegistration(
 
 /** Whether this WW member may manage (cancel/edit/cash) a registration. */
 export function memberOwnsRegistration(member: WwMember, reg: WwRegistration): boolean {
-  if (member.role === 'owner' || member.role === 'admin') return true
+  if (member.role === 'owner') return true
+  if (member.role === 'admin' && memberCanAccessTrip(member, reg.tripId)) return true
   if (reg.bookedByMemberId && reg.bookedByMemberId === member.id) return true
   const snap = readStore()
   const links = snap.promoterLinks.filter((l) => l.memberId === member.id)
@@ -1260,6 +1364,30 @@ export async function patchInstallment(
     if (patch.paidAt !== undefined) row.paidAt = patch.paidAt
     return { ...row }
   })
+}
+
+export async function markInstallmentOverdue(installmentId: string): Promise<WwInstallment | null> {
+  return mutate((snap) => {
+    const row = snap.installments.find((i) => i.id === installmentId)
+    if (!row || row.status !== 'due') return null
+    row.status = 'overdue'
+    return { ...row }
+  })
+}
+
+export async function getPromoterMemberForRegistration(
+  reg: WwRegistration,
+): Promise<{ email: string; userId: string | null } | null> {
+  const code = reg.promoterCode
+  if (!code) return null
+  const snap = readStore()
+  const link = snap.promoterLinks.find(
+    (l) => l.code === code || (l.previousCodes || []).includes(code),
+  )
+  if (!link) return null
+  const member = snap.members.find((m) => m.id === link.memberId)
+  if (!member) return null
+  return { email: member.email, userId: member.userId || member.email }
 }
 
 export async function markInstallmentPaid(opts: {

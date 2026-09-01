@@ -42,7 +42,7 @@ export interface WwMember {
   city?: string | null
   bio?: string | null
   instagram?: string | null
-  /** Empty = all published trips; otherwise only these trip IDs */
+  /** Empty = all trips. For promoters: sell/promote. For admins: manage those trips only. */
   assignedTripIds?: string[]
 }
 
@@ -217,4 +217,31 @@ export interface WwSnapshot {
   promoterLinks: WwPromoterLink[]
   registrations: WwRegistration[]
   installments: WwInstallment[]
+}
+
+export type WwChatAuthorRole = 'traveler' | 'promoter' | 'admin' | 'owner' | 'system'
+
+export interface WwChatMessage {
+  id: string
+  orgId: string
+  tripId: string
+  authorUserId: string
+  authorEmail?: string | null
+  authorName: string
+  authorRole: WwChatAuthorRole
+  body: string
+  createdAt: string
+}
+
+export interface WwChatThread {
+  tripId: string
+  tripTitle: string
+  tripSlug: string
+  coverImageUrl?: string | null
+  participantCount: number
+  lastMessage?: {
+    body: string
+    authorName: string
+    createdAt: string
+  } | null
 }

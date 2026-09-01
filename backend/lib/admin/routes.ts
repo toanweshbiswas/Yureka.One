@@ -902,14 +902,51 @@ export function registerAdminRoutes(app: Express) {
         if (req.body?.confirmBroadcast !== true) {
           return fail(res, 400, 'confirmBroadcast required for audience sends')
         }
-        const status = typeof req.body?.audience === 'string' ? req.body.audience : 'accepted'
-        const rows = await listWaitlist({ status: status === 'all' ? 'all' : status })
-        recipients = rows
-          .map((r) => ({
-            userId: String(r.email || '').trim().toLowerCase(),
-            email: String(r.email || '').trim().toLowerCase() || null,
-          }))
-          .filter((r) => r.userId.includes('@'))
+        const audience = typeof req.body?.audience === 'string' ? req.body.audience : 'accepted'
+        if (audience === 'wanderworld_registrants') {
+          const tripId = String(req.body?.tripId || '').trim()
+          const { listRegistrations } = await import('../wanderworld/store.js')
+          const rows = await listRegistrations(tripId ? { tripId } : undefined)
+          recipients = rows
+            .filter((r) => r.registration.status !== 'cancelled')
+            .map((r) => ({
+              userId: r.registration.userId.startsWith('group:')
+                ? r.registration.buyerEmail
+                : r.registration.userId,
+              email: r.registration.buyerEmail,
+            }))
+        } else if (audience === 'wanderworld_promoters') {
+          const { listMembers } = await import('../wanderworld/store.js')
+          const members = await listMembers()
+          recipients = members
+            .filter((m) => m.role === 'promoter' || m.role === 'admin' || m.role === 'owner')
+            .map((m) => ({ userId: m.userId || m.email, email: m.email }))
+        } else if (audience === 'wanderworld_unpaid') {
+          const { listRegistrations } = await import('../wanderworld/store.js')
+          const rows = await listRegistrations({})
+          recipients = rows
+            .filter(
+              (r) =>
+                r.registration.status !== 'cancelled' &&
+                r.registration.status !== 'paid' &&
+                r.installments.some((i) => i.status === 'due' || i.status === 'overdue'),
+            )
+            .map((r) => ({
+              userId: r.registration.userId.startsWith('group:')
+                ? r.registration.buyerEmail
+                : r.registration.userId,
+              email: r.registration.buyerEmail,
+            }))
+        } else {
+          const status = audience === 'all' ? 'all' : audience
+          const rows = await listWaitlist({ status: status === 'all' ? 'all' : status })
+          recipients = rows
+            .map((r) => ({
+              userId: String(r.email || '').trim().toLowerCase(),
+              email: String(r.email || '').trim().toLowerCase() || null,
+            }))
+            .filter((r) => r.userId.includes('@'))
+        }
       } else {
         return fail(res, 400, 'Set mode to "one" (with email) or "broadcast" (with confirmBroadcast)')
       }
@@ -924,7 +961,45 @@ export function registerAdminRoutes(app: Express) {
         href: req.body?.href || '/dashboard',
         imageUrl: req.body?.imageUrl || null,
       })
-      ok(res, { ...result, recipients: recipients.length, mode: singleEmail ? 'one' : 'broadcast' })
+
+      let emailed = 0
+      const audience = typeof req.body?.audience === 'string' ? req.body.audience : ''
+      const wantEmail =
+        req.body?.sendEmail === true &&
+        (audience.startsWith('wanderworld_') || mode === 'one' || Boolean(singleEmail))
+      if (wantEmail) {
+        const { sendWwTripAnnouncementEmail } = await import('../mail/appEmails.js')
+        const { mailUrls } = await import('../mail/layout.js')
+        const href = String(req.body?.href || '/dashboard/getaway')
+        const ctaUrl = href.startsWith('http')
+          ? href
+          : `${mailUrls().app.replace(/\/$/, '')}${href.startsWith('/') ? href : `/${href}`}`
+        for (const r of recipients) {
+          const to = String(r.email || r.userId || '').trim().toLowerCase()
+          if (!to.includes('@')) continue
+          try {
+            await sendWwTripAnnouncementEmail({
+              to,
+              name: to.split('@')[0] || 'there',
+              tripTitle: 'WanderWorld',
+              headline: title,
+              body,
+              ctaUrl,
+              ctaLabel: 'Open Yureka',
+            })
+            emailed += 1
+          } catch (mailErr: any) {
+            console.warn('[admin] broadcast email failed:', mailErr?.message || mailErr)
+          }
+        }
+      }
+
+      ok(res, {
+        ...result,
+        emailed,
+        recipients: recipients.length,
+        mode: singleEmail ? 'one' : 'broadcast',
+      })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to broadcast')
     }

@@ -21,7 +21,9 @@ import YurekaBrandMark from '@shared/YurekaBrandMark'
 import { googleAvatarUrl } from '@shared/userProfile'
 import ExploreBrandScenes from './ExploreBrandScenes'
 import ExploreBrandsGrid from './ExploreBrandsGrid'
+import GoogleAdSlot from '@shared/GoogleAdSlot'
 import NotificationBell from './NotificationBell'
+import { WAITLIST_REQUIRED } from '@shared/waitlistGate'
 
 type HomeCache = {
   balance: GoldbackBalance | null
@@ -60,14 +62,16 @@ function scoreBandFromNumber(score: number | null | undefined): string | null {
   return 'Rejected'
 }
 
-/** Prefer membership (Accepted) over Gmail scoreDecision. those were getting mixed on the card. */
+/** Prefer membership label only while waitlist gating is on; otherwise show score band. */
 function scoreCardLabel(opts: {
   memberStatus?: string | null
   yurekaScore?: number | null
   scoreDecision?: string | null
 }): string {
-  const member = membershipLabel(opts.memberStatus)
-  if (member) return member
+  if (WAITLIST_REQUIRED) {
+    const member = membershipLabel(opts.memberStatus)
+    if (member) return member
+  }
   const band = scoreBandFromNumber(opts.yurekaScore)
   if (band) return band
   const stored = String(opts.scoreDecision || '').trim()
@@ -75,7 +79,7 @@ function scoreCardLabel(opts: {
 }
 
 const QUICK_ACTIONS = [
-  { label: 'Offers', icon: 'bag', path: '/dashboard/offers?tab=marketplace' },
+  { label: 'Lightning Deals', icon: 'bag', path: '/dashboard/offers?tab=marketplace' },
   { label: 'Expenses', icon: 'chart', path: '/dashboard/expenses' },
   { label: 'Yureka AI', icon: 'flash', path: '/dashboard/planning' },
   { label: 'Gift cards', icon: 'gift', path: '/dashboard/giftcards' },
@@ -86,7 +90,7 @@ const QUICK_ACTIONS = [
 ] as const
 
 const DESKTOP_QUICK = [
-  { label: 'Offers', icon: 'bag', path: '/dashboard/offers?tab=marketplace' },
+  { label: 'Lightning Deals', icon: 'bag', path: '/dashboard/offers?tab=marketplace' },
   { label: 'Expenses', icon: 'chart', path: '/dashboard/expenses' },
   { label: 'Planning', icon: 'calender', path: '/dashboard/planning' },
   { label: 'Bills', icon: 'wallet', path: '/dashboard/bills' },
@@ -285,10 +289,10 @@ function MobileHome({
       >
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/40">
-            Explore offers
+            Your daily essentials
           </p>
           <p className="mt-1 text-[13px] text-white/50">
-            Coupons and deals by category.
+            save min 2%
           </p>
         </div>
         <ExploreBrandScenes compact />
@@ -310,19 +314,19 @@ function MobileHome({
         animate={settle}
         transition={{ ...spring, delay: reduceMotion ? 0 : 0.09 }}
       >
-        <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-1 snap-x snap-mandatory scrollbar-none">
+        <div className="grid grid-cols-4 gap-x-2 gap-y-4">
           {QUICK_ACTIONS.map((item) => (
             <MotionLink
               key={item.label}
               to={item.path}
               whileTap={{ scale: 0.94 }}
               transition={springSnappy}
-              className="flex w-[4.5rem] shrink-0 snap-start flex-col items-center gap-2"
+              className="flex min-w-0 flex-col items-center gap-2"
             >
               <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#10372c] shadow-[0_10px_22px_rgba(0,0,0,0.3)]">
                 <Icon3d name={item.icon} className="h-8 w-8 object-contain" alt="" />
               </span>
-              <span className="w-full truncate text-center text-[10px] font-semibold tracking-[-0.01em] text-white/65">
+              <span className="w-full px-0.5 text-center text-[9px] font-semibold leading-tight tracking-[-0.01em] text-white/65 line-clamp-2">
                 {item.label}
               </span>
             </MotionLink>
@@ -389,6 +393,8 @@ function MobileHome({
           </ul>
         )}
       </section>
+
+      <GoogleAdSlot placement="dashboard-home-footer" className="px-0.5 pb-1" />
     </div>
   )
 }
@@ -471,7 +477,7 @@ function DesktopHome({
                 transition={springSnappy}
                 className="rounded-full bg-clay px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-black"
               >
-                Explore offers
+                Lightning Deals
               </MotionLink>
               <p className="text-[12px] text-white/40">
                 {earnedToday > 0 ? `Earned today ${formatPaise(earnedToday)}` : 'Offer cashback lands here'}
@@ -590,10 +596,10 @@ function DesktopHome({
       >
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40">
-            Explore offers
+            Your daily essentials
           </p>
           <p className="mt-1 text-[13px] text-white/50">
-            Coupons, gift cards, and partner brands by category.
+            save min 2%
           </p>
         </div>
         <ExploreBrandScenes />
@@ -639,7 +645,7 @@ function DesktopHome({
               transition={springSnappy}
               className="mt-5 inline-flex items-center gap-2 text-[12px] font-semibold text-clay"
             >
-              Browse offers <ArrowRight size={14} />
+              Browse deals <ArrowRight size={14} />
             </MotionLink>
           </div>
         ) : (
@@ -680,6 +686,8 @@ function DesktopHome({
           </ul>
         )}
       </section>
+
+      <GoogleAdSlot placement="dashboard-home-footer" />
     </div>
   )
 }
@@ -759,7 +767,11 @@ const GoldbackHome: React.FC = () => {
     if (!isApiError(waitlist) && waitlist.data) {
       nextScore = waitlist.data.yurekaScore ?? null
       nextDecision = waitlist.data.scoreDecision ?? null
-      nextMember = waitlist.data.status || nextMember
+      nextMember = WAITLIST_REQUIRED
+        ? waitlist.data.status || nextMember
+        : currentUserStatus === 'admin'
+          ? 'admin'
+          : 'accepted'
       // Never clear a known Yu Points value with null from a flaky waitlist read.
       if (nextScore != null) setYurekaScore(nextScore)
       if (nextDecision) setScoreDecision(nextDecision)

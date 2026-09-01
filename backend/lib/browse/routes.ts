@@ -34,8 +34,18 @@ export function registerBrowseRoutes(app: Express) {
     if (!userId) return
     const url = typeof req.body?.url === 'string' ? req.body.url : ''
     const record = req.body?.record !== false
+    const storeId = typeof req.body?.storeId === 'string' ? req.body.storeId : null
+    const storeName = typeof req.body?.storeName === 'string' ? req.body.storeName : null
+    const source = typeof req.body?.source === 'string' ? req.body.source : undefined
+    const openedUrl = typeof req.body?.openedUrl === 'string' ? req.body.openedUrl : null
     try {
-      const tracked = await resolveTrackedOpen(url, userId, { record })
+      const tracked = await resolveTrackedOpen(url, userId, {
+        record,
+        storeId,
+        storeName,
+        source: source as any,
+        openedUrl,
+      })
       ok(res, tracked)
     } catch (e: any) {
       fail(res, 400, e?.message || 'Could not track this store')

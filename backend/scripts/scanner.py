@@ -16,10 +16,6 @@ from pypdf import PdfReader
 
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
-    'https://www.googleapis.com/auth/user.phonenumbers.read',
-    'https://www.googleapis.com/auth/user.birthday.read',
-    'https://www.googleapis.com/auth/user.gender.read',
-    'https://www.googleapis.com/auth/user.addresses.read'
 ]
 
 def calculate_age(birthday_dict):
@@ -38,15 +34,18 @@ def calculate_age(birthday_dict):
     except Exception:
         return "N/A"
 
-def fetch_user_profile(people_service, first_name_fallback, last_name_fallback, dob_fallback, gender_fallback, phone_fallback, location_fallback=''):
-    try:
-        profile = people_service.people().get(
-            resourceName='people/me',
-            personFields='names,phoneNumbers,birthdays,genders,emailAddresses,addresses'
-        ).execute()
-    except Exception as e:
-        sys.stderr.write(f"People API warning: {str(e)}\n")
-        profile = {}
+def fetch_user_profile(people_service, first_name_fallback, last_name_fallback, dob_fallback, gender_fallback, phone_fallback, location_fallback='', gmail_service=None):
+    """Profile from People API when available; otherwise Gmail profile + waitlist fallbacks."""
+    profile = {}
+    if people_service:
+        try:
+            profile = people_service.people().get(
+                resourceName='people/me',
+                personFields='names,phoneNumbers,birthdays,genders,emailAddresses,addresses'
+            ).execute()
+        except Exception as e:
+            sys.stderr.write(f"People API warning: {str(e)}\n")
+            profile = {}
 
     first_name, last_name = first_name_fallback, last_name_fallback
     names = profile.get('names', [])
@@ -97,24 +96,25 @@ def fetch_user_profile(people_service, first_name_fallback, last_name_fallback, 
             found_numbers.append(val)
 
     try:
-        directory_res = people_service.people().get(
-            resourceName='people/me',
-            personFields='metadata'
-        ).execute()
-        source_id = directory_res.get('metadata', {}).get('sources', [{}])[0].get('id')
-        if source_id:
-            batch_res = people_service.people().batchGet(
-                resourceNames=[f'people/{source_id}'],
-                personFields='phoneNumbers'
+        if people_service:
+            directory_res = people_service.people().get(
+                resourceName='people/me',
+                personFields='metadata'
             ).execute()
-            responses = batch_res.get('responses', [])
-            if responses:
-                deep_person = responses[0].get('person', {})
-                deep_phones = deep_person.get('phoneNumbers', [])
-                for dp in deep_phones:
-                    dval = dp.get('value') or dp.get('canonicalForm')
-                    if dval and dval not in found_numbers:
-                        found_numbers.append(dval)
+            source_id = directory_res.get('metadata', {}).get('sources', [{}])[0].get('id')
+            if source_id:
+                batch_res = people_service.people().batchGet(
+                    resourceNames=[f'people/{source_id}'],
+                    personFields='phoneNumbers'
+                ).execute()
+                responses = batch_res.get('responses', [])
+                if responses:
+                    deep_person = responses[0].get('person', {})
+                    deep_phones = deep_person.get('phoneNumbers', [])
+                    for dp in deep_phones:
+                        dval = dp.get('value') or dp.get('canonicalForm')
+                        if dval and dval not in found_numbers:
+                            found_numbers.append(dval)
     except Exception:
         pass
 
@@ -136,6 +136,29 @@ def fetch_user_profile(people_service, first_name_fallback, last_name_fallback, 
         'gender': gender,
         'phone': mobile_number,
         'location': location
+    }
+
+
+def profile_from_gmail(gmail_service, fallback_data):
+    """Minimal profile when only gmail.readonly scope is granted (production OAuth)."""
+    first = fallback_data.get('firstName', '')
+    last = fallback_data.get('lastName', '')
+    email = fallback_data.get('email', '')
+    if gmail_service:
+        try:
+            gmail_profile = gmail_service.users().getProfile(userId='me').execute()
+            email = gmail_profile.get('emailAddress') or email
+        except Exception as e:
+            sys.stderr.write(f"Gmail profile warning: {str(e)}\n")
+    name = f"{first} {last}".strip() or email.split('@')[0]
+    return {
+        'name': name,
+        'email': email,
+        'dob': fallback_data.get('dateOfBirth', ''),
+        'age': 'N/A',
+        'gender': fallback_data.get('gender', ''),
+        'phone': fallback_data.get('mobileNumber', ''),
+        'location': fallback_data.get('location', ''),
     }
 
 def get_local_gmail_service():
@@ -370,6 +393,8 @@ def parse_transaction_data_expense(combined_text, sender, subject):
             amount = f"₹ {match.group(1)}"
 
     elif is_investment_mail:
+        if is_investment_marketing_email(subject, '', combined_text, sender):
+            return brand_name, "N/A", "N/A"
         invest_patterns = [
             r'(?:you\s+invested|successfully\s+invested|amount(?:\s+invested)?|investment(?:\s+amount)?|'
             r'order(?:\s+value)?|total(?:\s+amount)?|trade(?:\s+value)?|debited|paid|'
@@ -384,7 +409,9 @@ def parse_transaction_data_expense(combined_text, sender, subject):
                 if not _looks_like_promo_amount(normalized_text, match.start(), match.end()):
                     amount = f"₹ {match.group(1)}"
                     break
-        if amount == "N/A":
+        if amount == "N/A" and (
+            _INVESTMENT_TXN_RE.search(corpus_lower) or _STRONG_TXN_RE.search(corpus_lower)
+        ):
             match = re.search(
                 r'(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d{1,2})?)',
                 normalized_text, re.IGNORECASE,
@@ -530,6 +557,8 @@ def _looks_like_promo_amount(text: str, start: int, end: int) -> bool:
         'cashback offer', 'discount', 'coupon', 'promo', 'deal', 'sale',
         'reward points', 'free gift', 'win ', 'scratch', 'voucher',
         'minimum order', 'orders above', 'shop for',
+        'crore', 'lakh', ' billion', ' trillion', 'industry', 'sector',
+        'manufacturing', 'push for', 'market cap', 'economic', 'macro',
     )
     return any(p in window for p in promo_near)
 
@@ -593,11 +622,33 @@ _CONTENT_DIGEST_RE = re.compile(
     r'read\s+on|swipe\s+up|know\s+more|learn\s+more|'
     r'your\s+credit\s+(?:report|score|limit)\s+(?:decoded|explained|guide)|'
     r'portfolio\s+(?:value|update|summary)|current\s+value|total\s+(?:returns?|gains?)|'
-    r'\bxirr\b|\bcagr\b|market\s+(?:update|wrap|today)|stocks?\s+to\s+watch|watchlist|'
+    r'\bxirr\b|\bcagr\b|market\s+(?:update|wrap|today|outlook|note|view)|stocks?\s+to\s+watch|watchlist|'
     r'your\s+investments?\s+(?:are|have)|learn\s+to\s+invest|nfo\s+(?:alert|open)|'
-    r'what.?s\s+new\s+on\s+groww|motilal\s+oswal\s+(?:research|view|digest)|weekly\s+market)',
+    r'what.?s\s+new\s+on\s+groww|motilal\s+oswal\s+(?:research|view|digest)|weekly\s+market|'
+    r"india'?s\s+\w+|crore\s+push|lakh\s+crore|industry\s+hits|sector\s+update|"
+    r'manufacturing\s+gets|auto\s+component|electronics\s+manufacturing|economic\s+outlook|'
+    r'macro\s+update|top\s+picks|stocks?\s+in\s+focus|mutual\s+fund\s+(?:news|update|insight))',
     re.IGNORECASE,
 )
+
+_INVESTMENT_TXN_RE = re.compile(
+    r'(you\s+invested|successfully\s+invested|amount\s+invested|investment\s+of|'
+    r'sip\s+(?:successful|processed|instalment|installment|done)|'
+    r'units?\s+allot(?:ted|ed)|order\s+executed|shares?\s+bought|equity\s+delivery|'
+    r'redemption\s+(?:processed|successful|complete)|folio\s+(?:no|number)|'
+    r'purchase\s+of\s+units|payment\s+received\s+for\s+sip|debited\s+(?:towards|for))',
+    re.IGNORECASE,
+)
+
+
+def is_investment_marketing_email(subject: str, snippet: str = '', body: str = '', sender: str = '') -> bool:
+    """AMC / broker research & market digests — not actual SIP or trade confirmations."""
+    head = f"{subject or ''}\n{snippet or ''}"
+    corpus = f"{head}\n{(body or '')[:2500]}"
+    if _CONTENT_DIGEST_RE.search(head) or _CONTENT_DIGEST_RE.search(corpus[:1200]):
+        if not _INVESTMENT_TXN_RE.search(corpus) and not _STRONG_TXN_RE.search(corpus):
+            return True
+    return False
 
 
 def is_marketing_or_content_email(subject: str, snippet: str = '', body: str = '', sender: str = '') -> bool:
@@ -644,8 +695,10 @@ def is_promotional_noise(subject: str, snippet: str = '', body: str = '', sender
         'growwmail', 'zrdha',
     )
     if any(k in sender_l for k in investment_senders):
-        # Still drop broker digests / portfolio updates without a real invest cue
+        # Drop broker digests / portfolio updates / AMC market news without a real invest cue
         head = f"{subject}\n{snippet}"
+        if is_investment_marketing_email(subject, snippet, body, sender):
+            return True
         if _CONTENT_DIGEST_RE.search(head) and not re.search(
             r'\b(units?\s+allot|order\s+executed|sip\s+(?:successful|instalment|installment|processed)|'
             r'you\s+invested|successfully\s+invested|amount\s+invested|shares?\s+bought|'
@@ -1088,7 +1141,9 @@ def execute_investment_scanner(gmail_service, since_days=None):
                 clean_html_text = soup.get_text(separator=' ').strip()
                 unified_corpus = f"{clean_html_text}\n{snippet}\n{pdf_content}"
 
-                # Soft filter only — investment senders already bypass promo noise
+                # Drop AMC research / market digests; keep real SIP & trade confirmations
+                if is_investment_marketing_email(subject, snippet, unified_corpus, sender):
+                    continue
                 if is_promotional_noise(subject, snippet, unified_corpus, sender):
                     continue
 
@@ -1600,9 +1655,8 @@ def main():
             sys.stderr.write("Using browser access token from argv[1]...\n")
             creds = Credentials(token=access_token)
             try:
-                people_service = build('people', 'v1', credentials=creds)
                 gmail_service = build('gmail', 'v1', credentials=creds)
-                sys.stderr.write("Successfully initialized services using browser access token.\n")
+                sys.stderr.write("Successfully initialized Gmail using browser access token.\n")
             except Exception as e:
                 print(json.dumps({"error": f"Failed to initialize with access token: {str(e)}"}))
                 return
@@ -1625,9 +1679,8 @@ def main():
                     )
                     from google.auth.transport.requests import Request as GRequest
                     creds.refresh(GRequest())
-                    people_service = build('people', 'v1', credentials=creds)
                     gmail_service = build('gmail', 'v1', credentials=creds)
-                    sys.stderr.write("Successfully initialized services using env refresh token.\n")
+                    sys.stderr.write("Successfully initialized Gmail using env refresh token.\n")
                 except Exception as e:
                     print(json.dumps({"error": f"Env refresh token auth failed: {str(e)}"}))
                     return
@@ -1636,27 +1689,27 @@ def main():
                 return
 
     try:
-        profile = fetch_user_profile(
-            people_service,
-            fallback_data.get('firstName', ''),
-            fallback_data.get('lastName', ''),
-            fallback_data.get('dateOfBirth', ''),
-            fallback_data.get('gender', ''),
-            fallback_data.get('mobileNumber', ''),
-            fallback_data.get('location', '')
-        )
-        
-        # Try getting email from gmail service if not found
-        if not profile.get('email') and gmail_service:
-            try:
-                gmail_profile = gmail_service.users().getProfile(userId='me').execute()
-                profile['email'] = gmail_profile.get('emailAddress')
-            except Exception:
-                pass
-                
-        # If still not found, fall back to fallback_data email
-        if not profile.get('email'):
-            profile['email'] = fallback_data.get('email', '')
+        if people_service:
+            profile = fetch_user_profile(
+                people_service,
+                fallback_data.get('firstName', ''),
+                fallback_data.get('lastName', ''),
+                fallback_data.get('dateOfBirth', ''),
+                fallback_data.get('gender', ''),
+                fallback_data.get('mobileNumber', ''),
+                fallback_data.get('location', ''),
+                gmail_service=gmail_service,
+            )
+            if not profile.get('email') and gmail_service:
+                try:
+                    gmail_profile = gmail_service.users().getProfile(userId='me').execute()
+                    profile['email'] = gmail_profile.get('emailAddress')
+                except Exception:
+                    pass
+            if not profile.get('email'):
+                profile['email'] = fallback_data.get('email', '')
+        else:
+            profile = profile_from_gmail(gmail_service, fallback_data)
 
     except Exception as e:
         err_msg = str(e)

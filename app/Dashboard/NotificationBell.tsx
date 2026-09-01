@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
-import { Check, X } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Check, X, MessageCircle } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useSupabase } from '@shared/SupabaseProvider'
 import Icon3d from '@shared/Icon3d'
 import { api, isApiError } from '@backend/lib/api/client'
@@ -37,6 +37,7 @@ function relativeTime(iso?: string): string {
 const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { user } = useSupabase()
   const navigate = useNavigate()
+  const location = useLocation()
   const reduceMotion = useReducedMotion()
   const [notifications, setNotifications] = useState<InboxNotification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
@@ -67,6 +68,10 @@ const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) 
   }
 
   const authHeaders = user?.id ? { 'x-user-id': user.id } : undefined
+  const chatActive =
+    location.pathname.includes('/getaway/chat') ||
+    location.search.includes('chat=') ||
+    location.pathname.includes('/ww')
 
   useEffect(() => {
     if (!user?.id && !user?.email) return
@@ -93,8 +98,8 @@ const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) 
           failures += 1
         }
         setLoading(false)
-        // Back off when API is down (502) so the console isn't spammed every 30s.
-        schedule(failures >= 2 ? 120_000 : 30_000)
+        const base = chatActive ? 10_000 : 30_000
+        schedule(failures >= 2 ? 120_000 : base)
       }
     }
 
@@ -103,7 +108,7 @@ const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) 
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [user?.id, user?.email])
+  }, [user?.id, user?.email, chatActive, location.pathname, location.search])
 
   useEffect(() => {
     if (!isOpen) return
@@ -153,9 +158,13 @@ const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) 
 
   const handleOpenItem = async (n: InboxNotification) => {
     setNotifications((prev) => prev.filter((x) => x.id !== n.id))
-    if (n.href && n.href.startsWith('/')) {
+    if (n.href) {
       setIsOpen(false)
-      navigate(n.href)
+      if (n.href.startsWith('http://') || n.href.startsWith('https://')) {
+        window.location.assign(n.href)
+      } else if (n.href.startsWith('/')) {
+        navigate(n.href)
+      }
     }
     await api.post(`/api/notifications/${n.id}/dismiss`, {}, { headers: authHeaders })
   }
@@ -237,7 +246,7 @@ const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) 
                           {loading ? 'Fetching updates' : 'Nothing new'}
                         </p>
                         <p className="mt-1.5 max-w-[16rem] text-[12.5px] leading-relaxed text-white/40">
-                          Approvals, Goldback, and product notes land here when they arrive.
+                          Approvals, Goldback, trip group chat, and product notes land here.
                         </p>
                       </div>
                     ) : (
@@ -254,7 +263,9 @@ const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) 
                           },
                         }}
                       >
-                        {notifications.map((n) => (
+                        {notifications.map((n) => {
+                          const isChat = /group message|trip chat/i.test(n.title || '')
+                          return (
                           <motion.li
                             key={n.id}
                             variants={{
@@ -284,11 +295,21 @@ const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) 
                               </button>
                               <div className="flex gap-3 pr-7">
                                 <div
-                                  className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${
-                                    n.readAt ? 'bg-white/18' : 'bg-clay'
+                                  className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+                                    isChat ? 'bg-clay/15 text-clay' : 'bg-transparent'
                                   }`}
-                                  aria-hidden
-                                />
+                                >
+                                  {isChat ? (
+                                    <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+                                  ) : (
+                                    <span
+                                      className={`h-2 w-2 rounded-full ${
+                                        n.readAt ? 'bg-white/18' : 'bg-clay'
+                                      }`}
+                                      aria-hidden
+                                    />
+                                  )}
+                                </div>
                                 <div className="min-w-0 flex-1">
                                   <div className="flex items-baseline justify-between gap-2">
                                     <h4 className="text-[13.5px] font-semibold tracking-[-0.015em] text-white">
@@ -308,7 +329,8 @@ const NotificationBell: React.FC<{ className?: string }> = ({ className = '' }) 
                               )}
                             </div>
                           </motion.li>
-                        ))}
+                          )
+                        })}
                       </motion.ul>
                     )}
                   </div>

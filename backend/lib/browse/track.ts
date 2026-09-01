@@ -3,6 +3,7 @@ import { listOffers as listGoldbackOffers, recordClick } from '../goldback/store
 import { browseHost, isAffiliateRedirectUrl, sanitizeBrowseUrl, stampAffiliateSubId } from '../../../shared/inAppBrowse.js'
 import { SUPER_BROWSE_STORES } from '../../../shared/superBrowseStores.js'
 import { listSuperBrowseStores } from '../superBrowse/store.js'
+import { recordBrowseClick, type BrowseClickSource } from './store.js'
 
 export type TrackedOpen = {
   openUrl: string
@@ -10,6 +11,14 @@ export type TrackedOpen = {
   host: string
   affiliate: boolean
   goldbackOfferId: string | null
+}
+
+export type ResolveTrackedOpenOpts = {
+  record?: boolean
+  storeId?: string | null
+  storeName?: string | null
+  source?: BrowseClickSource
+  openedUrl?: string | null
 }
 
 function hostMatches(offerUrl: string, destHost: string): boolean {
@@ -24,7 +33,7 @@ function hostMatches(offerUrl: string, destHost: string): boolean {
 export async function resolveTrackedOpen(
   rawUrl: string,
   userId: string,
-  opts?: { record?: boolean },
+  opts?: ResolveTrackedOpenOpts,
 ): Promise<TrackedOpen> {
   const destUrl = sanitizeBrowseUrl(rawUrl)
   if (!destUrl) {
@@ -69,6 +78,21 @@ export async function resolveTrackedOpen(
     }
   } catch {
     /* goldback optional */
+  }
+
+  if (opts?.record !== false) {
+    const openedRaw = sanitizeBrowseUrl(opts?.openedUrl || '') || (affiliate ? openUrl : destUrl)
+    void recordBrowseClick({
+      userId,
+      storeId: opts?.storeId ?? null,
+      storeName: opts?.storeName ?? null,
+      destUrl,
+      openedUrl: openedRaw || destUrl,
+      host,
+      affiliate: Boolean(isAffiliateRedirectUrl(openedRaw || openUrl)),
+      goldbackOfferId,
+      source: opts?.source,
+    }).catch((e) => console.warn('[browse] record failed:', (e as Error)?.message || e))
   }
 
   return { openUrl, destUrl, host, affiliate, goldbackOfferId }

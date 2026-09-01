@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { Navigate } from 'react-router-dom'
-import { Loader2, LogOut, Copy, Check, UserPlus, Trash2, Upload, ImagePlus, Banknote, Search, ChevronDown } from 'lucide-react'
+import { Navigate, useSearchParams } from 'react-router-dom'
+import { Loader2, LogOut, Copy, Check, UserPlus, Trash2, Upload, ImagePlus, Banknote, Search, ChevronDown, MessageCircle, Mail, Megaphone } from 'lucide-react'
 import { motion, AnimatePresence, LayoutGroup } from 'motion/react'
 import { useSupabase } from '@shared/SupabaseProvider'
 import { signOutGmail } from '@shared/auth'
@@ -9,6 +9,8 @@ import { wwApi, type WwAnalytics, type WwInstallment, type WwMember, type WwMemb
 import type { WwPlanInstallmentTemplate } from '@backend/lib/wanderworld/types'
 import { WwLogo } from './wwBrand'
 import { wwLoginPath } from './wwPaths'
+import NotificationBell from '../Dashboard/NotificationBell'
+import WwTripChat from './WwTripChat'
 import {
   WwPanel,
   WwStat,
@@ -34,7 +36,7 @@ import {
   wwSearchField,
 } from './wwUi'
 
-type Tab = 'overview' | 'trips' | 'registrations' | 'members' | 'promoter'
+type Tab = 'overview' | 'trips' | 'registrations' | 'members' | 'promoter' | 'chat'
 
 function matchesAdminQuery(q: string, ...parts: Array<string | null | undefined | number>) {
   const needle = q.trim().toLowerCase()
@@ -200,6 +202,26 @@ const WwPortal: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('overview')
+  const [chatTripSlug, setChatTripSlug] = useState<string | null>(null)
+  const [announceTripId, setAnnounceTripId] = useState<string | null>(null)
+  const [announceForm, setAnnounceForm] = useState({
+    title: '',
+    body: '',
+    audience: 'booked' as 'booked' | 'unpaid' | 'promoters' | 'related',
+    sendInbox: true,
+    sendEmail: true,
+  })
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    const chat = searchParams.get('chat')
+    if (!chat) return
+    setTab('chat')
+    setChatTripSlug(decodeURIComponent(chat))
+    const next = new URLSearchParams(searchParams)
+    next.delete('chat')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
   const [trips, setTrips] = useState<WwTrip[]>([])
   const [analytics, setAnalytics] = useState<WwAnalytics | null>(null)
   const [regs, setRegs] = useState<
@@ -285,6 +307,8 @@ const WwPortal: React.FC = () => {
   const [lastGroupJoinUrl, setLastGroupJoinUrl] = useState<string | null>(null)
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('promoter')
+  const [inviteAllTrips, setInviteAllTrips] = useState(true)
+  const [inviteTripIds, setInviteTripIds] = useState<string[]>([])
   const [inviteInfo, setInviteInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [profileForm, setProfileForm] = useState({
@@ -297,6 +321,11 @@ const WwPortal: React.FC = () => {
   const [memberTripDrafts, setMemberTripDrafts] = useState<Record<string, string[]>>({})
 
   const isAdmin = membership?.member.role === 'owner' || membership?.member.role === 'admin'
+  const isOrgAdmin = Boolean(
+    membership &&
+      (membership.member.role === 'owner' ||
+        (membership.member.role === 'admin' && !(membership.member.assignedTripIds || []).length)),
+  )
   const { springFast, reduce } = useWwMotion()
 
   const loadMe = useCallback(async () => {
@@ -331,7 +360,9 @@ const WwPortal: React.FC = () => {
       wwApi.adminTrips(userId),
       wwApi.analytics(userId),
       wwApi.registrations(userId),
-      wwApi.members(userId),
+      isOrgAdmin
+        ? wwApi.members(userId)
+        : Promise.resolve({ data: null, status: 200 } as { data: { members: WwMember[] } | null; status: number }),
     ])
     if (t.data) setTrips(t.data.trips)
     if (a.data) setAnalytics(a.data)
@@ -344,7 +375,7 @@ const WwPortal: React.FC = () => {
       }
       setMemberTripDrafts(drafts)
     }
-  }, [userId, isAdmin])
+  }, [userId, isAdmin, isOrgAdmin])
 
   const refreshPromoter = useCallback(async () => {
     if (!userId) return
@@ -603,11 +634,72 @@ const WwPortal: React.FC = () => {
     if (isAdmin) await refreshAdmin()
   }
 
+  const resendGroupInvite = async (registrationId: string) => {
+    if (!userId) return
+    setBusy(true)
+    setError(null)
+    const res = await wwApi.notifyGroupBooking(userId, registrationId)
+    setBusy(false)
+    if (res.error) setError(res.error)
+    else setInviteInfo('Group invite resent — inbox notification and email sent to lead buyer.')
+  }
+
+  const openAnnounce = (trip: WwTrip) => {
+    setAnnounceTripId(trip.id)
+    setAnnounceForm({
+      title: `Update — ${trip.title}`,
+      body: '',
+      audience: 'booked',
+      sendInbox: true,
+      sendEmail: true,
+    })
+  }
+
+  const sendAnnounce = async (tripId: string) => {
+    if (!userId) return
+    const message = announceForm.body.trim()
+    if (!message) {
+      setError('Write an announcement message first')
+      return
+    }
+    if (!announceForm.sendInbox && !announceForm.sendEmail) {
+      setError('Turn on inbox and/or email')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    const res = await wwApi.announceTrip(userId, tripId, {
+      title: announceForm.title.trim() || undefined,
+      body: message,
+      audience: announceForm.audience,
+      sendInbox: announceForm.sendInbox,
+      sendEmail: announceForm.sendEmail,
+    })
+    setBusy(false)
+    if (res.error) {
+      setError(res.error)
+      return
+    }
+    setAnnounceTripId(null)
+    setInviteInfo(
+      `Announcement sent to ${res.data?.sent || 0} people (${res.data?.audience || announceForm.audience}) via ${(res.data?.channels || []).join(' + ') || 'inbox/email'}.`,
+    )
+  }
+
   useEffect(() => {
     if (!membership) return
     if (isAdmin) void refreshAdmin()
     void refreshPromoter()
   }, [membership, isAdmin, refreshAdmin, refreshPromoter])
+
+  useEffect(() => {
+    if (tab === 'members' && !isOrgAdmin) setTab(isAdmin ? 'overview' : 'promoter')
+  }, [tab, isOrgAdmin, isAdmin])
+
+  const chatStarterTrips = useMemo(() => {
+    if (isAdmin) return trips.filter((t) => t.status === 'published')
+    return groupTrips
+  }, [isAdmin, trips, groupTrips])
 
   const tabs = useMemo(() => {
     if (isAdmin) {
@@ -615,12 +707,16 @@ const WwPortal: React.FC = () => {
         { id: 'overview' as Tab, label: 'Overview' },
         { id: 'trips' as Tab, label: 'Trips' },
         { id: 'registrations' as Tab, label: 'Registrations' },
-        { id: 'members' as Tab, label: 'Members' },
+        ...(isOrgAdmin ? [{ id: 'members' as Tab, label: 'Members' }] : []),
+        { id: 'chat' as Tab, label: 'Chat' },
         { id: 'promoter' as Tab, label: 'My link' },
       ]
     }
-    return [{ id: 'promoter' as Tab, label: 'Dashboard' }]
-  }, [isAdmin])
+    return [
+      { id: 'promoter' as Tab, label: 'Dashboard' },
+      { id: 'chat' as Tab, label: 'Chat' },
+    ]
+  }, [isAdmin, isOrgAdmin])
 
   const searchPlaceholder =
     tab === 'trips'
@@ -631,7 +727,9 @@ const WwPortal: React.FC = () => {
           ? 'Search members by name, email, or ref…'
           : tab === 'promoter'
             ? 'Search links, bookings, or installments…'
-            : 'Search overview tables…'
+            : tab === 'chat'
+              ? 'Search trip chats…'
+              : 'Search overview tables…'
 
   const filteredTrips = useMemo(
     () =>
@@ -988,20 +1086,49 @@ const WwPortal: React.FC = () => {
     setBusy(true)
     setError(null)
     setInviteInfo(null)
-    const res = await wwApi.inviteMember(userId, { email: inviteEmail, role: inviteRole })
+    const tripIds =
+      inviteRole === 'owner' || inviteAllTrips ? [] : inviteTripIds
+    if (inviteRole !== 'owner' && !inviteAllTrips && tripIds.length === 0) {
+      setError('Pick at least one trip, or choose All trips')
+      setBusy(false)
+      return
+    }
+    const res = await wwApi.inviteMember(userId, { email: inviteEmail, role: inviteRole, tripIds })
     setBusy(false)
     if (res.error) {
       setError(res.error)
       return
     }
     setInviteEmail('')
+    setInviteAllTrips(true)
+    setInviteTripIds([])
+    const access =
+      inviteRole === 'owner' || tripIds.length === 0
+        ? 'all trips'
+        : `${tripIds.length} trip${tripIds.length === 1 ? '' : 's'}`
     setInviteInfo(
       res.data?.emailed
-        ? `Invited ${res.data.member.email} as ${res.data.member.role}. Email sent.`
-        : `Invited ${res.data?.member.email} as ${res.data?.member.role}. (Email may not have sent. they can still sign in at /ww/login with this email.)`,
+        ? `Invited ${res.data.member.email} as ${res.data.member.role} (${access}). Email sent.`
+        : `Invited ${res.data?.member.email} as ${res.data?.member.role} (${access}). (Email may not have sent. they can still sign in at /ww/login with this email.)`,
     )
     setTab('members')
     await refreshAdmin()
+  }
+
+  const saveMemberRole = async (memberId: string, role: string) => {
+    if (!userId) return
+    setBusy(true)
+    setError(null)
+    const tripIds = role === 'owner' ? [] : memberTripDrafts[memberId] || []
+    const res = await wwApi.updateMemberRole(userId, memberId, { role, tripIds })
+    setBusy(false)
+    if (res.error) {
+      setError(res.error)
+      return
+    }
+    setInviteInfo(`Updated role to ${role}`)
+    await refreshAdmin()
+    await refreshPromoter()
   }
 
   const removeMember = async (id: string, email: string) => {
@@ -1043,7 +1170,7 @@ const WwPortal: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            {isAdmin && (
+            {isOrgAdmin && (
               <button
                 type="button"
                 onClick={() => {
@@ -1056,7 +1183,11 @@ const WwPortal: React.FC = () => {
                 <span className="hidden sm:inline">Invite</span>
               </button>
             )}
-            <span className={`hidden sm:inline ${wwLabel}`}>{membership.member.role}</span>
+            <NotificationBell />
+            <span className={`hidden sm:inline ${wwLabel}`}>
+              {membership.member.role}
+              {isAdmin && !isOrgAdmin ? ' · assigned trips' : ''}
+            </span>
             <button
               type="button"
               onClick={() => signOutGmail().then(() => (window.location.href = wwLoginPath()))}
@@ -1609,6 +1740,18 @@ const WwPortal: React.FC = () => {
                     >
                       {editingGroupTripId === trip.id ? 'Close group' : 'Group booking'}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        announceTripId === trip.id
+                          ? setAnnounceTripId(null)
+                          : openAnnounce(trip)
+                      }
+                      className={`${wwBtnGhost} gap-1.5`}
+                    >
+                      <Megaphone className="h-3.5 w-3.5" />
+                      {announceTripId === trip.id ? 'Close announce' : 'Announce'}
+                    </button>
                     <a
                       href={appUrl(`/dashboard/getaway/${trip.slug}`)}
                       className={wwBtnGhost}
@@ -1624,6 +1767,84 @@ const WwPortal: React.FC = () => {
                       Delete
                     </button>
                   </div>
+
+                  {announceTripId === trip.id ? (
+                    <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
+                      <p className={wwLabel}>Email + inbox announcement</p>
+                      <p className="text-[12px] text-white/40">
+                        Sends to booked travelers (and related people if you choose). Uses branded email and the Yureka notification bell.
+                      </p>
+                      <input
+                        className={wwField}
+                        placeholder="Subject / headline"
+                        value={announceForm.title}
+                        onChange={(e) =>
+                          setAnnounceForm((f) => ({ ...f, title: e.target.value }))
+                        }
+                      />
+                      <textarea
+                        className={`${wwField} min-h-[100px]`}
+                        placeholder="Message body — itinerary change, meetup time, packing list…"
+                        value={announceForm.body}
+                        onChange={(e) =>
+                          setAnnounceForm((f) => ({ ...f, body: e.target.value }))
+                        }
+                      />
+                      <label className="block">
+                        <span className={wwLabel}>Audience</span>
+                        <select
+                          className={wwField}
+                          value={announceForm.audience}
+                          onChange={(e) =>
+                            setAnnounceForm((f) => ({
+                              ...f,
+                              audience: e.target.value as typeof f.audience,
+                            }))
+                          }
+                        >
+                          <option value="booked">All booked on this trip</option>
+                          <option value="unpaid">Unpaid / balance due</option>
+                          <option value="promoters">Promoters & staff on trip</option>
+                          <option value="related">Booked + promoters (related)</option>
+                        </select>
+                      </label>
+                      <div className="flex flex-wrap gap-4 text-[12px] text-white/65">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={announceForm.sendEmail}
+                            onChange={(e) =>
+                              setAnnounceForm((f) => ({ ...f, sendEmail: e.target.checked }))
+                            }
+                          />
+                          Email
+                        </label>
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={announceForm.sendInbox}
+                            onChange={(e) =>
+                              setAnnounceForm((f) => ({ ...f, sendInbox: e.target.checked }))
+                            }
+                          />
+                          In-app inbox
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => void sendAnnounce(trip.id)}
+                        className={`${wwBtnPrimary} gap-2`}
+                      >
+                        {busy ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Mail className="h-3.5 w-3.5" />
+                        )}
+                        Send announcement
+                      </button>
+                    </div>
+                  ) : null}
 
                   {editingDetailsTripId === trip.id ? (
                     <div className="mt-4 space-y-3 border-t border-white/[0.06] pt-4">
@@ -2003,14 +2224,25 @@ const WwPortal: React.FC = () => {
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {registration.isGroup && joinHref ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => void copy(joinHref)}
-                                    className={wwBtnGhost}
-                                  >
-                                    <Copy className="h-3.5 w-3.5" />
-                                    Join link
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => void copy(joinHref)}
+                                      className={wwBtnGhost}
+                                    >
+                                      <Copy className="h-3.5 w-3.5" />
+                                      Join link
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={busy}
+                                      onClick={() => void resendGroupInvite(registration.id)}
+                                      className={`${wwBtnGhost} gap-1.5`}
+                                    >
+                                      <Mail className="h-3.5 w-3.5" />
+                                      Resend invite
+                                    </button>
+                                  </>
                                 ) : null}
                                 {!cancelled ? (
                                   <button
@@ -2084,11 +2316,11 @@ const WwPortal: React.FC = () => {
           </WwTabPanel>
         )}
 
-        {tab === 'members' && (
+        {tab === 'members' && isOrgAdmin && (
           <div className="space-y-5">
             <WwPageHeading
               title="Members"
-              subtitle="Invite owners, admins, and promoters. Club admin can also invite from Yureka admin → WanderWorld."
+              subtitle="Invite the team and give admin or promoter access to all trips, or only specific ones."
             />
           <div className="grid gap-8 lg:grid-cols-[1fr_1fr]">
             <form onSubmit={invite} className={`${wwSurfacePad} space-y-3`}>
@@ -2113,12 +2345,78 @@ const WwPortal: React.FC = () => {
               <select
                 className={wwField}
                 value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  setInviteRole(next)
+                  if (next === 'owner') {
+                    setInviteAllTrips(true)
+                    setInviteTripIds([])
+                  }
+                }}
               >
                 <option value="promoter">Promoter</option>
                 <option value="admin">Admin</option>
                 {membership.member.role === 'owner' && <option value="owner">Owner</option>}
               </select>
+              {inviteRole !== 'owner' && (
+                <div className="space-y-2">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">Trip access</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInviteAllTrips(true)
+                        setInviteTripIds([])
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-transform duration-100 active:scale-[0.97] ${
+                        inviteAllTrips ? 'bg-clay/90 text-black' : 'bg-white/[0.08] text-white/60'
+                      }`}
+                    >
+                      All trips
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setInviteAllTrips(false)}
+                      className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-transform duration-100 active:scale-[0.97] ${
+                        !inviteAllTrips ? 'bg-clay/90 text-black' : 'bg-white/[0.08] text-white/60'
+                      }`}
+                    >
+                      Specific trips
+                    </button>
+                  </div>
+                  {!inviteAllTrips && (
+                    <div className="flex flex-wrap gap-2">
+                      {trips.map((t) => {
+                        const on = inviteTripIds.includes(t.id)
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() =>
+                              setInviteTripIds((cur) =>
+                                on ? cur.filter((id) => id !== t.id) : [...cur, t.id],
+                              )
+                            }
+                            className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-transform duration-100 active:scale-[0.97] ${
+                              on ? 'bg-clay/90 text-black' : 'bg-white/[0.08] text-white/60'
+                            }`}
+                          >
+                            {t.title}
+                          </button>
+                        )
+                      })}
+                      {trips.length === 0 && (
+                        <span className="text-xs text-white/35">Create a trip first</span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-white/40">
+                    {inviteRole === 'admin'
+                      ? 'All trips = org admin (invite and assign roles). Specific trips = manage only those trips.'
+                      : 'None selected under specific trips is treated as all trips.'}
+                  </p>
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={busy}
@@ -2153,7 +2451,23 @@ const WwPortal: React.FC = () => {
                             <div className="text-xs text-white/40">{m.email}</div>
                           ) : null}
                           <div className="mt-1 flex flex-wrap items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-white/40">
-                            <span>{m.role}</span>
+                            {m.id === membership.member.id ||
+                            (m.role === 'owner' && membership.member.role !== 'owner') ? (
+                              <span>{m.role}</span>
+                            ) : (
+                              <select
+                                className="rounded-lg border border-white/10 bg-white/[0.08] px-2 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-white/80"
+                                value={m.role}
+                                disabled={busy}
+                                onChange={(e) => void saveMemberRole(m.id, e.target.value)}
+                              >
+                                <option value="promoter">Promoter</option>
+                                <option value="admin">Admin</option>
+                                {membership.member.role === 'owner' && (
+                                  <option value="owner">Owner</option>
+                                )}
+                              </select>
+                            )}
                             <span>·</span>
                             <span>{m.joinedAt ? 'Joined' : 'Pending'}</span>
                             {promo?.code ? (
@@ -2210,15 +2524,40 @@ const WwPortal: React.FC = () => {
                           Set all-trips ref
                         </button>
                       </div>
-                      {m.role === 'promoter' && (
+                      {m.role === 'owner' ? (
+                        <p className="border-t border-white/[0.06] pt-3 text-xs text-white/40">
+                          Owner access: all trips
+                        </p>
+                      ) : m.id === membership.member.id ? (
+                        <p className="border-t border-white/[0.06] pt-3 text-xs text-white/40">
+                          {(m.assignedTripIds || []).length
+                            ? 'Your trip access is assigned by another org admin.'
+                            : 'You have access to all trips.'}
+                        </p>
+                      ) : (
                         <div className="space-y-2 border-t border-white/[0.06] pt-3">
                           <p className="text-[11px] uppercase tracking-[0.14em] text-white/40">
                             Assigned trips
                             <span className="ml-2 normal-case tracking-normal text-white/30">
-                              (none = all trips)
+                              {m.role === 'admin'
+                                ? '(none = org admin, all trips)'
+                                : '(none = all trips)'}
                             </span>
                           </p>
                           <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setMemberTripDrafts((prev) => ({ ...prev, [m.id]: [] }))
+                              }
+                              className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-transform duration-100 active:scale-[0.97] ${
+                                tripDraft.length === 0
+                                  ? 'bg-clay/90 text-black'
+                                  : 'bg-white/[0.08] text-white/60'
+                              }`}
+                            >
+                              All trips
+                            </button>
                             {trips.map((t) => {
                               const on = tripDraft.includes(t.id)
                               return (
@@ -3159,6 +3498,45 @@ const WwPortal: React.FC = () => {
               </div>
             </div>
           </div>
+        )}
+
+        {tab === 'chat' && userId && (
+          <WwTabPanel key="chat" className="space-y-4">
+            <WwPageHeading
+              title="Trip chat"
+              subtitle="Pick a trip to message your group. Travelers get inbox notifications — no WhatsApp needed."
+            />
+            <WwTripChat
+              userId={userId}
+              userEmail={user.email}
+              userName={user.user_metadata?.full_name || membership?.member.displayName}
+              tripRef={chatTripSlug}
+              chatBasePath="/chat"
+              variant="portal"
+              onSelectTrip={(slug) => setChatTripSlug(slug)}
+              onBack={chatTripSlug ? () => setChatTripSlug(null) : undefined}
+            />
+            {!chatTripSlug && chatStarterTrips.length > 0 ? (
+              <div className={`${wwSurface} p-4`}>
+                <p className={wwLabel}>Start chat on a trip</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {chatStarterTrips
+                    .filter((t) => matchesAdminQuery(adminQuery, t.title, t.slug))
+                    .map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setChatTripSlug(t.slug)}
+                        className={`${wwChip} inline-flex items-center gap-1.5 bg-white/[0.06] text-white/70 hover:text-white`}
+                      >
+                        <MessageCircle className="h-3 w-3" />
+                        {t.title}
+                      </button>
+                    ))}
+                </div>
+              </div>
+            ) : null}
+          </WwTabPanel>
         )}
       </main>
     </div>

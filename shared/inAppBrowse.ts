@@ -114,6 +114,14 @@ function withWebSource(u: URL) {
   return u
 }
 
+/** True for apex domains (flipkart.com), not subdomains (shop.mango.com, in.bookmyshow.com). */
+function isApexRetailHost(host: string): boolean {
+  const parts = host.split('.').filter(Boolean)
+  if (parts.length === 2) return true
+  if (parts.length === 3 && ['co', 'com', 'org', 'net'].includes(parts[1])) return true
+  return false
+}
+
 function stripAppDeepPath(u: URL) {
   const path = u.pathname || '/'
   if (
@@ -263,12 +271,12 @@ export function mobileWebBrowseUrl(raw: string | null | undefined): string | nul
       return withWebSource(u).toString()
     }
 
-    // Generic CueLinks merchant: force www + strip app deep links + web markers.
-    if (!u.hostname.startsWith('www.') && host.split('.').length <= 3) {
+    // Known merchants: normalize host + web markers. Everyone else: keep URL as-is.
+    if (isApexRetailHost(host) && !u.hostname.startsWith('www.')) {
       u.hostname = `www.${host}`
     }
     stripAppDeepPath(u)
-    return withWebSource(u).toString()
+    return u.toString()
   } catch {
     return safe
   }

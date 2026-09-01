@@ -30,7 +30,7 @@ const PrivacyPolicy: React.FC = () => {
                         </p>
                         <div className="text-center md:text-right">
                             <p className="text-[10px] uppercase tracking-widest font-bold text-white/40">Last Updated</p>
-                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">19th August 2026</p>
+                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">26th August 2026</p>
                         </div>
                     </div>
                 </div>
@@ -67,7 +67,7 @@ const PrivacyPolicy: React.FC = () => {
                         </li>
                         <li className="pl-6 relative">
                             <span className="absolute left-0 top-1 text-clay font-bold">&bull;</span>
-                            <strong className="text-white tracking-tight uppercase text-sm mr-2">Gmail Data (Optional, Explicit Consent):</strong> If you choose to connect Gmail for spending insights or Yureka Score, we request read-only access to your Gmail inbox solely to identify purchase, bill, and payment-related messages. We do not send email as you, modify your mail, or use inbox content for advertising.
+                            <strong className="text-white tracking-tight uppercase text-sm mr-2">Gmail Data (Optional, Explicit Consent):</strong> If you choose to connect Gmail for spending insights or an in-product Yureka Score, we request read-only access solely to identify purchase, bill, and payment-related messages. We do not read personal emails or other personal inbox content in the app. The product never displays raw messages. Nobody at Yureka opens your mail. We do not send email as you, modify your mail, sell inbox content, use it for advertising, or share it with lenders.
                         </li>
                     </ul>
                     <p className="italic text-base text-white/40 border-l-2 border-clay/30 pl-4 mt-6">
@@ -91,12 +91,15 @@ const PrivacyPolicy: React.FC = () => {
                 <section className="space-y-6">
                     <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Google / Gmail Access</h2>
                     <p>
-                        Yureka uses Google OAuth for sign-in on <span className="text-white font-bold">app.yureka.one</span>. Separately, and only when you opt in, we may request Gmail read-only permission to analyse transaction and billing emails for spend insights, waitlist scoring, and related product features.
+                        Yureka uses Google OAuth for sign-in on <span className="text-white font-bold">app.yureka.one</span> (and related product hosts). Sign-in requests only basic profile scopes (name and email). Separately, and only when you opt in with a second consent, we may request the restricted <span className="text-white">gmail.readonly</span> scope to analyse transaction and billing emails for spend insights, bill due dates, optional extra planning inboxes, and an optional in-product waitlist score.
                     </p>
                     <ul className="list-disc pl-8 space-y-4 text-white/70">
-                        <li>Gmail access is optional. You can use core account features without granting inbox access.</li>
-                        <li>We process only what is needed to extract merchant, amount, date, and similar transaction metadata from relevant messages.</li>
-                        <li>We do not sell your Gmail content. Access tokens are used to run analysis and are not used to send mail on your behalf.</li>
+                        <li>Gmail inbox access is optional. You can create an account and use core features without granting inbox access.</li>
+                        <li>We process only what is needed to extract merchant, amount, date, and similar transaction metadata from relevant purchase and bill messages. We do not read personal emails (conversations, photos, attachments unrelated to bills) in the app, and we do not display raw inbox content. We do not use Gmail to send or modify mail.</li>
+                        <li>Yureka&apos;s use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" className="text-clay underline" rel="noopener noreferrer" target="_blank">Google API Services User Data Policy</a>, including the Limited Use requirements.</li>
+                        <li>Gmail data is not sold. It is not used for advertising, retargeting, or personalized ads. It is not used to train generalized AI/ML models. It is not transferred except as needed to provide the Gmail-powered features you requested (including our processors that host the product).</li>
+                        <li>Gmail data is not used to determine credit-worthiness for third-party lending. Any Yureka Score from Gmail is shown only to you inside Yureka and is not a credit report.</li>
+                        <li>Humans at Yureka do not read your Gmail. Automated scanning extracts spend fields only. Human access would occur only with your permission, for security/legal reasons, or as otherwise allowed by Google&apos;s Limited Use policy.</li>
                         <li>You may revoke Google access at any time in your Google Account permissions, and/or email <a href="mailto:support@yureka.one" className="text-clay underline">support@yureka.one</a> to request deletion of derived spending data.</li>
                     </ul>
                 </section>
@@ -107,7 +110,7 @@ const PrivacyPolicy: React.FC = () => {
                     <ul className="list-disc pl-8 space-y-4 text-white/70">
                         <li>Providing, personalising, and improving our services to meet your needs.</li>
                         <li>Processing transactions and delivering requested services efficiently.</li>
-                        <li>Communicating with you about your account, updates, and to send you promotional, marketing, and advertising content related to our services, products, and offerings. This content may be delivered via various channels, including email, SMS messages, WhatsApp messages, and RCS messages.</li>
+                        <li>Communicating with you about your account, updates, and (for non-Gmail data you provided) promotional, marketing, and advertising content related to our services. This content may be delivered via various channels, including email, SMS messages, WhatsApp messages, and RCS messages. Information received from Gmail APIs is never used for advertising.</li>
                         <li>Detecting and preventing fraud, abuse, or security incidents to ensure a safe environment for all users.</li>
                         <li>Complying with legal obligations and enforcing our policies effectively.</li>
                     </ul>
@@ -124,7 +127,7 @@ const PrivacyPolicy: React.FC = () => {
                     <p>Yureka.One may disclose your information to:</p>
                     <ul className="list-disc pl-8 space-y-4 text-white/70">
                         <li>Third-party service providers who assist us in delivering services, maintaining our platform, or analysing user data.</li>
-                        <li>Partners or affiliates for the provision of specific services, promotions, or joint ventures.</li>
+                        <li>Partners or affiliates for the provision of specific services, promotions, or joint ventures. This does not include Gmail inbox content or derived Gmail transaction data for advertising or lending.</li>
                         <li>Regulatory authorities, law enforcement agencies, or legal entities when required by law or to protect our rights and interests.</li>
                     </ul>
                     <p className="font-bold underline text-clay">We do not sell or lease your information to third parties for marketing purposes.</p>

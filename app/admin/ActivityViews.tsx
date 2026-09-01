@@ -37,6 +37,7 @@ const KIND_STYLE: Record<string, string> = {
   goldback: 'text-amber-200 bg-amber-400/10 border-amber-400/20',
   gift: 'text-sky-200 bg-sky-400/10 border-sky-400/20',
   click: 'text-violet-200 bg-violet-400/10 border-violet-400/20',
+  browse: 'text-fuchsia-200 bg-fuchsia-400/10 border-fuchsia-400/20',
   notification: 'text-white/70 bg-white/5 border-white/10',
 }
 
@@ -206,13 +207,15 @@ export function OverviewTab({
     { label: 'Goldback earned', value: kpis ? formatPaise(kpis.goldbackEarnedPaise) : '·' },
     { label: 'Gift GMV', value: kpis ? formatInr(kpis.giftPaidInr) : '·' },
     { label: 'Offer clicks', value: kpis ? String(kpis.offerClicks) : '·' },
+    { label: 'Browse clicks', value: kpis ? String(kpis.browseClicks) : '·' },
+    { label: 'CueLinks opens', value: kpis ? String(kpis.browseAffiliateClicks) : '·' },
   ]
 
   return (
     <section className="space-y-6">
       <PageHeader
         title="Overview"
-        subtitle={`Live activity across waitlist, Goldback, gift cards, and offer clicks${data?.generatedAt ? ` · updated ${timeAgo(data.generatedAt)}` : ''}`}
+        subtitle={`Live activity across waitlist, Goldback, gift cards, offer clicks, and Super Browse${data?.generatedAt ? ` · updated ${timeAgo(data.generatedAt)}` : ''}`}
         actions={
           <button
             type="button"
@@ -241,7 +244,7 @@ export function OverviewTab({
       <div className="grid lg:grid-cols-2 gap-4">
         <ChartCard
           title="Daily activity (30 days)"
-          caption="Source: waitlist joins, Goldback earns, gift-card orders, offer clicks · UTC days"
+          caption="Source: waitlist joins, Goldback earns, gift-card orders, offer clicks, Super Browse · UTC days"
         >
           <D3MultiLineChart
             data={data?.series || []}
@@ -249,14 +252,16 @@ export function OverviewTab({
               { key: 'waitlist', label: 'Waitlist', color: '#34d399' },
               { key: 'goldback', label: 'Goldback', color: '#fbbf24' },
               { key: 'gifts', label: 'Gift cards', color: '#60a5fa' },
-              { key: 'clicks', label: 'Clicks', color: '#a78bfa' },
+              { key: 'clicks', label: 'Offer clicks', color: '#a78bfa' },
+              { key: 'browseClicks', label: 'Browse', color: '#e879f9' },
             ]}
           />
           <div className="flex flex-wrap gap-3 mt-2 text-[10px] uppercase tracking-widest text-white/40">
             <span className="text-[#34d399]">Waitlist</span>
             <span className="text-[#fbbf24]">Goldback</span>
             <span className="text-[#60a5fa]">Gift cards</span>
-            <span className="text-[#a78bfa]">Clicks</span>
+            <span className="text-[#a78bfa]">Offer clicks</span>
+            <span className="text-[#e879f9]">Browse</span>
           </div>
         </ChartCard>
 
@@ -284,7 +289,48 @@ export function OverviewTab({
             valueLabel="Members"
           />
         </ChartCard>
+
+        <ChartCard title="Top Super Browse stores" caption="By click count · all sources">
+          <D3BarChart
+            data={(data?.browseByStore || []).map((d) => ({ label: d.label, value: d.count }))}
+            valueLabel="Clicks"
+            color="#e879f9"
+          />
+        </ChartCard>
       </div>
+
+      {(data?.recentBrowseClicks?.length || 0) > 0 && (
+        <Surface className="overflow-hidden">
+          <div className="border-b border-white/[0.08] px-4 py-3">
+            <h3 className="text-[15px] font-semibold text-white">Recent Super Browse clicks</h3>
+            <p className="text-[12px] text-white/40 mt-0.5">Merchant vs CueLinks opens with store, user, and source</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-[12px]">
+              <thead className="text-white/40 uppercase tracking-wider text-[10px]">
+                <tr className="border-b border-white/[0.06]">
+                  <th className="px-4 py-2.5 font-medium">When</th>
+                  <th className="px-4 py-2.5 font-medium">Store</th>
+                  <th className="px-4 py-2.5 font-medium">User</th>
+                  <th className="px-4 py-2.5 font-medium">Source</th>
+                  <th className="px-4 py-2.5 font-medium">Open type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data!.recentBrowseClicks.slice(0, 25).map((row) => (
+                  <tr key={row.id} className="border-b border-white/[0.04] text-white/75">
+                    <td className="px-4 py-2.5 whitespace-nowrap">{timeAgo(row.at)}</td>
+                    <td className="px-4 py-2.5">{row.storeName || row.host}</td>
+                    <td className="px-4 py-2.5 font-mono text-[11px] text-white/50">{row.userId.slice(0, 8)}…</td>
+                    <td className="px-4 py-2.5">{row.source}</td>
+                    <td className="px-4 py-2.5">{row.affiliate ? 'CueLinks' : 'Merchant'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Surface>
+      )}
 
       <div>
         <h3 className="text-[13px] font-medium text-white/40 mb-3">Latest activity</h3>

@@ -217,7 +217,7 @@ const AddToHomeScreen: React.FC<Props> = ({ forceOpen = false, onCloseForced, mo
             transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
             className={`fixed z-[90] left-3 right-3 md:left-auto md:right-6 md:w-[22rem] md:bottom-6 ${
               liftForTabBar
-                ? 'bottom-[calc(5.25rem+env(safe-area-inset-bottom,0px))]'
+                ? 'bottom-[calc(6rem+env(safe-area-inset-bottom,0px))]'
                 : 'bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))]'
             }`}
           >

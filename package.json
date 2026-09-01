@@ -10,7 +10,14 @@
     "lint": "tsc --noEmit",
     "preview": "vite preview",
     "deploy:ec2": "./deploy-ec2.sh",
-    "ledger:backfill": "node backend/scripts/backfill-ledger-cache.mjs"
+    "ledger:backfill": "node backend/scripts/backfill-ledger-cache.mjs",
+    "data:backfill": "node backend/scripts/backfill-from-ec2-data.mjs",
+    "risc:register": "tsx backend/scripts/risc-register.ts",
+    "super-browse:import": "node backend/scripts/import-super-browse-xlsx.mjs",
+    "supabase:projects": "supabase projects list",
+    "supabase:link": "supabase link --project-ref sfdqxpybtmsfbjppoydh",
+    "supabase:push": "supabase db push",
+    "supabase:status": "supabase migration list --linked"
   },
   "dependencies": {
     "@radix-ui/react-popover": "^1.1.23",
@@ -29,6 +36,7 @@
     "express": "^5.2.1",
     "firebase": "^12.17.1",
     "framer-motion": "^12.40.0",
+    "jose": "^6.2.10",
     "lucide-react": "^0.563.0",
     "motion": "^12.38.0",
     "nodemailer": "^8.0.4",
@@ -56,6 +64,7 @@
     "playwright": "^1.61.1",
     "postcss": "^8.5.12",
     "sharp": "^0.35.2",
+    "supabase": "2.116.0",
     "tailwindcss": "^3.4.17",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"

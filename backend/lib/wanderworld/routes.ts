@@ -53,10 +53,14 @@ import {
   patchInstallment,
   promoterStats,
   recordPromoterClick,
+  registrationsForIdentity,
   registrationsForUser,
   releaseGroupShare,
   resolvePromoterCode,
+  setMemberRole,
   setMemberTripAssignments,
+  isWwOrgAdmin,
+  isWwTripAdmin,
   updateMemberProfile,
   updatePromoterLinkCode,
   updateRegistrationDetails,
@@ -64,7 +68,11 @@ import {
   userCanPayInstallment,
   updateTrip,
   wwBackendMode,
+  getPromoterMemberForRegistration,
 } from './store.js'
+import { communicateWwEvent, notifyWwPaymentSuccess } from './communicate.js'
+import { claimWwWebhookEvent } from './webhookEvents.js'
+import { listChatThreadsForUser, listTripMessages, postTripMessage, userHasTripChatAccess } from './chat.js'
 
 function ok<T>(res: Response, data: T, status = 200) {
   res.status(status).json({ data, status, timestamp: new Date().toISOString() })
@@ -112,6 +120,14 @@ function currentMember(memberships: Awaited<ReturnType<typeof membershipsForIden
 
 function canManage(role: WwMemberRole) {
   return role === 'owner' || role === 'admin'
+}
+
+function requireOrgAdmin(member: { role: WwMemberRole; assignedTripIds?: string[] } | null) {
+  return Boolean(member && isWwOrgAdmin(member as any))
+}
+
+function requireTripAdmin(member: { role: WwMemberRole } | null) {
+  return Boolean(member && isWwTripAdmin(member as any))
 }
 
 /** Normalize admin-edited installment rows; percents may be 0 to 100 or 0 to 1. */
@@ -184,7 +200,135 @@ function groupJoinUrl(joinCode: string) {
   return `${origin}/dashboard/getaway/group/${encodeURIComponent(joinCode)}`
 }
 
-const claimedWebhookEvents = new Set<string>()
+async function fireWwPaymentComms(registrationId: string, installmentId: string) {
+  const reg = await getRegistration(registrationId)
+  if (!reg) return
+  const inst = await getInstallment(installmentId)
+  if (!inst) return
+  const trip = await getTrip(reg.tripId)
+  if (!trip) return
+  const promoter = await getPromoterMemberForRegistration(reg)
+  await notifyWwPaymentSuccess({
+    registration: reg,
+    installment: inst,
+    trip,
+    promoterEmail: promoter?.email ?? null,
+    promoterUserId: promoter?.userId ?? null,
+  })
+}
+
+async function notifyTripRegistrants(trip: Awaited<ReturnType<typeof getTrip>>, note: string) {
+  if (!trip) return
+  await announceToTripAudience({
+    trip,
+    title: `Trip update — ${trip.title}`,
+    body: note,
+    audience: 'booked',
+    channels: ['inbox', 'email'],
+    event: 'trip_updated',
+  })
+}
+
+export type WwAnnounceAudience = 'booked' | 'unpaid' | 'promoters' | 'related'
+
+async function collectTripAnnounceRecipients(
+  tripId: string,
+  audience: WwAnnounceAudience,
+): Promise<{ userId: string; email: string | null; isStaff: boolean }[]> {
+  const rows = await listRegistrations({ tripId })
+  const map = new Map<string, { userId: string; email: string | null; isStaff: boolean }>()
+
+  const add = (uid: string, email: string | null | undefined, isStaff: boolean) => {
+    const em = String(email || '').trim().toLowerCase()
+    let id = String(uid || '').trim()
+    if (id.startsWith('group:')) id = em
+    if (!id && em) id = em
+    if (!id) return
+    const key = em || id
+    if (map.has(key)) return
+    map.set(key, { userId: id, email: em.includes('@') ? em : null, isStaff })
+  }
+
+  const includeBooked = audience === 'booked' || audience === 'related' || audience === 'unpaid'
+  const includePromoters = audience === 'promoters' || audience === 'related'
+
+  if (includeBooked) {
+    for (const row of rows) {
+      const reg = row.registration
+      if (reg.status === 'cancelled') continue
+      if (audience === 'unpaid') {
+        if (reg.status === 'paid') continue
+        const hasDue = row.installments.some((i) => i.status === 'due' || i.status === 'overdue')
+        if (!hasDue && reg.amountPaidInr >= reg.amountDueInr) continue
+      }
+      add(reg.userId, reg.buyerEmail, false)
+      for (const inst of row.installments) {
+        if (inst.claimedByUserId || inst.claimedByEmail) {
+          add(inst.claimedByUserId || inst.claimedByEmail || '', inst.claimedByEmail, false)
+        }
+      }
+    }
+  }
+
+  if (includePromoters) {
+    const members = await listMembers()
+    const links = await listPromoterLinks()
+    const tripLinkMemberIds = new Set(
+      links.filter((l) => !l.tripId || l.tripId === tripId).map((l) => l.memberId),
+    )
+    for (const m of members) {
+      if (m.role !== 'promoter' && m.role !== 'admin' && m.role !== 'owner') continue
+      if (!memberCanAccessTrip(m, tripId) && !tripLinkMemberIds.has(m.id)) continue
+      add(m.userId || m.email, m.email, true)
+    }
+  }
+
+  return [...map.values()]
+}
+
+async function announceToTripAudience(opts: {
+  trip: NonNullable<Awaited<ReturnType<typeof getTrip>>>
+  title: string
+  body: string
+  audience: WwAnnounceAudience
+  channels?: ('inbox' | 'email')[]
+  event?: 'trip_updated' | 'trip_announcement'
+}): Promise<{ sent: number; recipients: number }> {
+  const recipients = await collectTripAnnounceRecipients(opts.trip.id, opts.audience)
+  const announcementId = `${Date.now().toString(36)}`
+  let sent = 0
+  await Promise.all(
+    recipients.map(async (r) => {
+      await communicateWwEvent({
+        event: opts.event || 'trip_announcement',
+        userId: r.userId,
+        email: r.email,
+        payload: {
+          trip: opts.trip,
+          updateNote: opts.body,
+          announcementTitle: opts.title,
+          chatMessageId: announcementId,
+          isStaffRecipient: r.isStaff,
+        },
+        channels: opts.channels || ['inbox', 'email'],
+      })
+      sent += 1
+    }),
+  )
+  return { sent, recipients: recipients.length }
+}
+
+async function fireRegistrationCancelled(registrationId: string) {
+  const reg = await getRegistration(registrationId)
+  if (!reg) return
+  const trip = await getTrip(reg.tripId)
+  void communicateWwEvent({
+    event: 'registration_cancelled',
+    userId: reg.userId,
+    email: reg.buyerEmail,
+    payload: { registration: reg, trip: trip || undefined },
+  })
+}
 
 export function registerWanderworldRoutes(app: Express) {
   app.get('/api/wanderworld/health', (_req, res) => {
@@ -226,11 +370,66 @@ export function registerWanderworldRoutes(app: Express) {
     }
   })
 
+  app.get('/api/wanderworld/chat/threads', async (req, res) => {
+    try {
+      const userId = await requireUserId(req, res)
+      if (!userId) return
+      const email = resolveRequestEmail(req)
+      const threads = await listChatThreadsForUser({ userId, email })
+      ok(res, { threads })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to list chat threads')
+    }
+  })
+
+  app.get('/api/wanderworld/chat/trips/:tripId/messages', async (req, res) => {
+    try {
+      const userId = await requireUserId(req, res)
+      if (!userId) return
+      const tripRef = String(req.params.tripId || '')
+      const email = resolveRequestEmail(req)
+      const trip = await getTrip(tripRef)
+      if (!trip) return fail(res, 404, 'Trip not found')
+      const access = await userHasTripChatAccess({ userId, email, tripId: trip.id })
+      if (!access.allowed) return fail(res, 403, 'Forbidden')
+      const since = String(req.query.since || '').trim() || undefined
+      const messages = await listTripMessages(trip.id, { since })
+      ok(res, { trip: { id: trip.id, title: trip.title, slug: trip.slug }, messages })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to load messages')
+    }
+  })
+
+  app.post('/api/wanderworld/chat/trips/:tripId/messages', async (req, res) => {
+    try {
+      const userId = await requireUserId(req, res)
+      if (!userId) return
+      const tripRef = String(req.params.tripId || '')
+      const email = resolveRequestEmail(req)
+      const trip = await getTrip(tripRef)
+      if (!trip) return fail(res, 404, 'Trip not found')
+      const body = String(req.body?.body || '').trim()
+      const name = String(req.body?.name || req.body?.authorName || '').trim()
+      const result = await postTripMessage({
+        userId,
+        email,
+        name: name || undefined,
+        tripId: trip.id,
+        body,
+      })
+      if ('error' in result) return fail(res, 400, result.error)
+      ok(res, { message: result }, 201)
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to send message')
+    }
+  })
+
   app.get('/api/wanderworld/my/bookings', async (req, res) => {
     try {
       const userId = await requireUserId(req, res)
       if (!userId) return
-      const bookings = await registrationsForUser(userId)
+      const email = resolveRequestEmail(req)
+      const bookings = await registrationsForIdentity({ userId, email })
       ok(res, { bookings })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to load bookings')
@@ -441,6 +640,13 @@ export function registerWanderworldRoutes(app: Express) {
       })
       await patchInstallment(firstDue.id, { razorpayOrderId: rzp.id })
 
+      void communicateWwEvent({
+        event: 'booking_created',
+        userId,
+        email,
+        payload: { registration: created.registration, trip },
+      })
+
       ok(
         res,
         {
@@ -511,6 +717,7 @@ export function registerWanderworldRoutes(app: Express) {
         razorpayPaymentId,
       })
       if (!result) return fail(res, 500, 'Failed to record payment')
+      void fireWwPaymentComms(result.registration.id, result.installment.id)
       ok(res, {
         registration: result.registration,
         installment: result.installment,
@@ -581,8 +788,8 @@ export function registerWanderworldRoutes(app: Express) {
       }
       const event = req.body || {}
       const eventId = String(event.event_id || event.id || `${event.event}-${Date.now()}`)
-      if (claimedWebhookEvents.has(eventId)) return ok(res, { duplicate: true })
-      claimedWebhookEvents.add(eventId)
+      const claimed = await claimWwWebhookEvent(eventId, String(event.event || 'razorpay'), event)
+      if (!claimed) return ok(res, { duplicate: true })
 
       const paymentEntity = event.payload?.payment?.entity
       const orderId = String(paymentEntity?.order_id || '')
@@ -590,11 +797,12 @@ export function registerWanderworldRoutes(app: Express) {
       if (event.event === 'payment.captured' && orderId && paymentId) {
         const installment = await findInstallmentByRazorpayOrder(orderId)
         if (installment && installment.status !== 'paid') {
-          await markInstallmentPaid({
+          const paid = await markInstallmentPaid({
             installmentId: installment.id,
             razorpayOrderId: orderId,
             razorpayPaymentId: paymentId,
           })
+          if (paid) void fireWwPaymentComms(paid.registration.id, paid.installment.id)
         }
       }
       ok(res, { received: true })
@@ -622,8 +830,10 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
-      const trips = await listTrips({ status: 'all' })
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
+      const trips = (await listTrips({ status: 'all' })).filter((t) =>
+        memberCanAccessTrip(current.member, t.id),
+      )
       ok(res, { trips })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to list trips')
@@ -639,7 +849,7 @@ export function registerWanderworldRoutes(app: Express) {
         if (!userId) return
         const { memberships } = await resolveMemberships(req)
         const current = currentMember(memberships)
-        if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+        if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
         const filename = String(req.header('x-filename') || req.query.filename || 'cover.jpg')
         const contentType = String(req.header('x-content-type') || req.header('content-type') || 'image/jpeg')
           .split(';')[0]
@@ -670,7 +880,7 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const title = String(req.body?.title || '').trim()
       if (!title) return fail(res, 400, 'Title required')
       let planTemplate: WwPlanInstallmentTemplate[] | undefined
@@ -691,6 +901,10 @@ export function registerWanderworldRoutes(app: Express) {
         paymentPlansEnabled: Boolean(req.body?.paymentPlansEnabled),
         planTemplate,
       })
+      const scoped = current.member.assignedTripIds || []
+      if (current.member.role === 'admin' && scoped.length) {
+        await setMemberTripAssignments(current.member.id, [...scoped, trip.id])
+      }
       ok(res, { trip }, 201)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to create trip')
@@ -703,7 +917,10 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
+      const existing = await getTrip(String(req.params.id))
+      if (!existing) return fail(res, 404, 'Trip not found')
+      if (!memberCanAccessTrip(current.member, existing.id)) return fail(res, 403, 'Forbidden')
       const patch: Record<string, unknown> = {}
       for (const key of [
         'title',
@@ -735,9 +952,68 @@ export function registerWanderworldRoutes(app: Express) {
       }
       const trip = await updateTrip(String(req.params.id), patch as any)
       if (!trip) return fail(res, 404, 'Trip not found')
+      const updateNote = String(req.body?.updateNote || req.body?.notifyMessage || '').trim()
+      if (updateNote || req.body?.notifyRegistrants === true) {
+        void notifyTripRegistrants(
+          trip,
+          updateNote || 'Trip details were updated. Open Getaway to review.',
+        )
+      }
       ok(res, { trip })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to update trip')
+    }
+  })
+
+  app.post('/api/wanderworld/admin/trips/:id/announce', async (req, res) => {
+    try {
+      const userId = await requireUserId(req, res)
+      if (!userId) return
+      const { memberships } = await resolveMemberships(req)
+      const current = currentMember(memberships)
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
+      const trip = await getTrip(String(req.params.id || ''))
+      if (!trip) return fail(res, 404, 'Trip not found')
+      if (!memberCanAccessTrip(current.member, trip.id)) return fail(res, 403, 'Forbidden')
+
+      const body = String(req.body?.body || req.body?.message || '').trim()
+      if (!body) return fail(res, 400, 'Announcement message required')
+      if (body.length > 4000) return fail(res, 400, 'Message too long (max 4000 characters)')
+
+      const title = String(req.body?.title || '').trim() || `Announcement — ${trip.title}`
+      const rawAudience = String(req.body?.audience || 'booked').trim().toLowerCase()
+      const audience: WwAnnounceAudience =
+        rawAudience === 'unpaid' || rawAudience === 'promoters' || rawAudience === 'related'
+          ? rawAudience
+          : 'booked'
+
+      const channels: ('inbox' | 'email')[] = []
+      const sendInbox = req.body?.sendInbox !== false
+      const sendEmail = req.body?.sendEmail !== false
+      if (sendInbox) channels.push('inbox')
+      if (sendEmail) channels.push('email')
+      if (!channels.length) return fail(res, 400, 'Enable inbox and/or email')
+
+      const result = await announceToTripAudience({
+        trip,
+        title,
+        body,
+        audience,
+        channels,
+        event: 'trip_announcement',
+      })
+      if (!result.recipients) {
+        return fail(res, 400, 'No recipients for this audience on this trip')
+      }
+      ok(res, {
+        ...result,
+        tripId: trip.id,
+        tripTitle: trip.title,
+        audience,
+        channels,
+      })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to send announcement')
     }
   })
 
@@ -747,11 +1023,12 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const id = String(req.params.id || '')
       if (!id) return fail(res, 400, 'Trip id required')
       const trip = await getTrip(id)
       if (!trip) return fail(res, 404, 'Trip not found')
+      if (!memberCanAccessTrip(current.member, trip.id)) return fail(res, 403, 'Forbidden')
       const okDel = await deleteTrip(id)
       if (!okDel) return fail(res, 404, 'Trip not found')
       ok(res, { deleted: true })
@@ -766,13 +1043,16 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const rows = await listRegistrations({
         tripId: String(req.query.tripId || '') || undefined,
         promoterCode: String(req.query.promoterCode || '') || undefined,
       })
+      const scoped = rows.filter(
+        (row) => !row.trip || memberCanAccessTrip(current.member, row.trip.id),
+      )
       const enriched = []
-      for (const row of rows) {
+      for (const row of scoped) {
         let joinCode = row.registration.joinCode || null
         if (row.registration.isGroup && !joinCode) {
           joinCode = await ensureGroupJoinCode(row.registration.id)
@@ -798,14 +1078,18 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const id = String(req.params.id || '')
       if (!id) return fail(res, 400, 'Registration id required')
+      const existingReg = await getRegistration(id)
+      if (!existingReg) return fail(res, 404, 'Registration not found')
+      if (!memberOwnsRegistration(current.member, existingReg)) return fail(res, 403, 'Forbidden')
       const result = await cancelRegistration(id)
       if ('error' in result) {
         if (result.error === 'already_cancelled') return fail(res, 409, 'Already cancelled')
         return fail(res, 404, 'Registration not found')
       }
+      void fireRegistrationCancelled(result.registration.id)
       ok(res, result)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to cancel registration')
@@ -818,7 +1102,7 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const installmentId = String(req.params.id || '')
       if (!installmentId) return fail(res, 400, 'Installment id required')
       const installment = await getInstallment(installmentId)
@@ -827,12 +1111,26 @@ export function registerWanderworldRoutes(app: Express) {
       const reg = await getRegistration(installment.registrationId)
       if (!reg) return fail(res, 404, 'Registration not found')
       if (reg.status === 'cancelled') return fail(res, 409, 'Registration cancelled')
+      if (!memberOwnsRegistration(current.member, reg)) return fail(res, 403, 'Forbidden')
       const result = await markInstallmentCashByPromoter({
         installmentId,
         memberId: current.member.id,
         note: String(req.body?.note || '').trim() || 'Admin cash',
       })
       if ('error' in result) return fail(res, 400, result.error)
+      const trip = await getTrip(result.registration.tripId)
+      void fireWwPaymentComms(result.registration.id, result.installment.id)
+      void communicateWwEvent({
+        event: 'cash_recorded',
+        userId: current.member.userId || current.member.email,
+        email: current.member.email,
+        payload: {
+          registration: result.registration,
+          installment: result.installment,
+          trip: trip || undefined,
+          cashNote: String(req.body?.note || '').trim() || 'Admin cash',
+        },
+      })
       ok(res, {
         registration: result.registration,
         installment: result.installment,
@@ -849,7 +1147,7 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireTripAdmin(current.member)) return fail(res, 403, 'Forbidden')
       ok(res, await analyticsOverview())
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to load analytics')
@@ -862,7 +1160,7 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireOrgAdmin(current.member)) return fail(res, 403, 'Forbidden')
       ok(res, { members: await listMembers() })
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to list members')
@@ -875,7 +1173,7 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireOrgAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const email = String(req.body?.email || '').trim()
       const role = String(req.body?.role || 'promoter')
       if (!email) return fail(res, 400, 'Email required')
@@ -883,7 +1181,11 @@ export function registerWanderworldRoutes(app: Express) {
       if (role === 'owner' && current.member.role !== 'owner') {
         return fail(res, 403, 'Only owner can invite owners')
       }
-      const member = await inviteMember({ email, role })
+      const tripIds = Array.isArray(req.body?.tripIds)
+        ? req.body.tripIds.map((x: unknown) => String(x))
+        : undefined
+      const member = await inviteMember({ email, role, tripIds })
+      if (tripIds?.length) await setMemberTripAssignments(member.id, tripIds)
       if (role === 'promoter' || role === 'admin' || role === 'owner') {
         await ensurePromoterLink(member.id, null)
       }
@@ -911,7 +1213,7 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireOrgAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const id = String(req.params.id || '')
       if (!id) return fail(res, 400, 'Member id required')
       if (id === current.member.id) return fail(res, 400, 'Cannot remove yourself')
@@ -1079,6 +1381,19 @@ export function registerWanderworldRoutes(app: Express) {
         note,
       })
       if ('error' in result) return fail(res, 400, result.error)
+      const trip = await getTrip(result.registration.tripId)
+      void fireWwPaymentComms(result.registration.id, result.installment.id)
+      void communicateWwEvent({
+        event: 'cash_recorded',
+        userId: current.member.userId || current.member.email,
+        email: current.member.email,
+        payload: {
+          registration: result.registration,
+          installment: result.installment,
+          trip: trip || undefined,
+          cashNote: note,
+        },
+      })
       ok(res, result)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to record cash collection')
@@ -1154,6 +1469,17 @@ export function registerWanderworldRoutes(app: Express) {
         return fail(res, 404, 'Trip not found')
       }
 
+      void communicateWwEvent({
+        event: 'group_invite',
+        email: buyerEmail,
+        payload: {
+          registration: created.registration,
+          trip: created.trip,
+          joinCode: created.registration.joinCode || undefined,
+          joinUrl: groupJoinUrl(created.registration.joinCode || ''),
+        },
+      })
+
       ok(
         res,
         {
@@ -1176,6 +1502,34 @@ export function registerWanderworldRoutes(app: Express) {
     }
   })
 
+  app.post('/api/wanderworld/promoter/group-booking/:id/notify', async (req, res) => {
+    try {
+      const userId = await requireUserId(req, res)
+      if (!userId) return
+      const { memberships } = await resolveMemberships(req)
+      const current = currentMember(memberships)
+      if (!current) return fail(res, 403, 'No WanderWorld invitation')
+      const reg = await getRegistration(String(req.params.id || ''))
+      if (!reg || !reg.isGroup || !reg.joinCode) return fail(res, 404, 'Group booking not found')
+      const trip = await getTrip(reg.tripId)
+      if (!trip) return fail(res, 404, 'Trip not found')
+      if (!memberOwnsRegistration(current.member, reg)) return fail(res, 403, 'Forbidden')
+      await communicateWwEvent({
+        event: 'group_invite',
+        email: reg.buyerEmail,
+        payload: {
+          registration: reg,
+          trip,
+          joinCode: reg.joinCode,
+          joinUrl: groupJoinUrl(reg.joinCode),
+        },
+      })
+      ok(res, { sent: true, joinUrl: groupJoinUrl(reg.joinCode) })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to send group invite')
+    }
+  })
+
   app.post('/api/wanderworld/promoter/registrations/:id/cancel', async (req, res) => {
     try {
       const userId = await requireUserId(req, res)
@@ -1195,6 +1549,7 @@ export function registerWanderworldRoutes(app: Express) {
         if (result.error === 'already_cancelled') return fail(res, 409, 'Already cancelled')
         return fail(res, 404, 'Registration not found')
       }
+      void fireRegistrationCancelled(result.registration.id)
       ok(res, result)
     } catch (e: any) {
       fail(res, 500, e?.message || 'Failed to cancel registration')
@@ -1345,15 +1700,56 @@ export function registerWanderworldRoutes(app: Express) {
     }
   })
 
+  app.patch('/api/wanderworld/admin/members/:id/role', async (req, res) => {
+    try {
+      const userId = await requireUserId(req, res)
+      if (!userId) return
+      const { memberships } = await resolveMemberships(req)
+      const current = currentMember(memberships)
+      if (!current || !requireOrgAdmin(current.member)) return fail(res, 403, 'Forbidden')
+      const id = String(req.params.id || '')
+      if (!id) return fail(res, 400, 'Member id required')
+      if (id === current.member.id) return fail(res, 400, 'Cannot change your own role')
+      const role = String(req.body?.role || '')
+      if (!isWwRole(role)) return fail(res, 400, 'Invalid role')
+      if (role === 'owner' && current.member.role !== 'owner') {
+        return fail(res, 403, 'Only owner can grant owner')
+      }
+      const target = (await listMembers()).find((m) => m.id === id)
+      if (!target) return fail(res, 404, 'Member not found')
+      if (target.role === 'owner' && current.member.role !== 'owner') {
+        return fail(res, 403, 'Only owner can change owners')
+      }
+      const member = await setMemberRole(id, role)
+      if (!member) return fail(res, 400, 'Could not change role (need at least one owner)')
+      const tripIds = Array.isArray(req.body?.tripIds)
+        ? req.body.tripIds.map((x: unknown) => String(x))
+        : undefined
+      if (tripIds && (role === 'admin' || role === 'promoter')) {
+        const updated = await setMemberTripAssignments(id, tripIds)
+        return ok(res, { member: updated || member })
+      }
+      if (role === 'owner') {
+        await setMemberTripAssignments(id, [])
+      }
+      ok(res, { member })
+    } catch (e: any) {
+      fail(res, 500, e?.message || 'Failed to update role')
+    }
+  })
+
   app.patch('/api/wanderworld/admin/members/:id/trips', async (req, res) => {
     try {
       const userId = await requireUserId(req, res)
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireOrgAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const id = String(req.params.id || '')
       if (!id) return fail(res, 400, 'Member id required')
+      const target = (await listMembers()).find((m) => m.id === id)
+      if (!target) return fail(res, 404, 'Member not found')
+      if (target.role === 'owner') return fail(res, 400, 'Owners always have all trips')
       const tripIds = Array.isArray(req.body?.tripIds)
         ? req.body.tripIds.map((x: unknown) => String(x))
         : []
@@ -1371,7 +1767,7 @@ export function registerWanderworldRoutes(app: Express) {
       if (!userId) return
       const { memberships } = await resolveMemberships(req)
       const current = currentMember(memberships)
-      if (!current || !canManage(current.member.role)) return fail(res, 403, 'Forbidden')
+      if (!current || !requireOrgAdmin(current.member)) return fail(res, 403, 'Forbidden')
       const id = String(req.params.id || '')
       if (!id) return fail(res, 400, 'Member id required')
       const member = await updateMemberProfile(id, {

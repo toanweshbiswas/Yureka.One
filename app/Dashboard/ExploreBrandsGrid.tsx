@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'motion/react'
 import { SUPER_BROWSE_STORES, fetchSuperBrowseStores, type SuperBrowseStore } from '@shared/superBrowseStores'
 import { BrandLogo } from '@shared/BrandLogo'
-import { openStoreBrowse, prefetchSuperBrowseLinks, type TrackedOpen } from '@shared/trackedBrowse'
+import { openStoreBrowse, prefetchStoreLinks, type TrackedOpen } from '@shared/trackedBrowse'
 import { onCatalogUpdate } from '@shared/catalogSync'
 import { useSupabase } from '@shared/SupabaseProvider'
 
@@ -19,7 +19,7 @@ type Props = {
 }
 
 /**
- * Explore brands. Apple-style app-icon grid.
+ * Everyday Brands grid. Apple-style app-icon layout.
  * Press feedback on pointer-down (whileTap), critically damped springs,
  * translucent material chrome, size-specific type tracking.
  */
@@ -45,35 +45,31 @@ export default function ExploreBrandsGrid({ limit = 8, compact = false, classNam
     }
   }, [])
 
+  const visible = useMemo(() => stores.slice(0, limit), [stores, limit])
+
   useEffect(() => {
-    if (!userId) return
+    if (!userId || !visible.length) return
     let cancelled = false
-    const load = () => {
-      void prefetchSuperBrowseLinks(userId).then((links) => {
-        if (!cancelled) setTrackedLinks(links)
-      })
-    }
-    load()
-    const stop = onCatalogUpdate(() => load())
+    void prefetchStoreLinks(userId, visible).then((links) => {
+      if (!cancelled) setTrackedLinks(links)
+    })
     return () => {
       cancelled = true
-      stop()
     }
-  }, [userId])
+  }, [userId, visible])
 
   const openStore = (store: SuperBrowseStore) => {
-    const known = trackedLinks[store.id]
-    const cue = known?.affiliate ? known.openUrl : undefined
+    const cue = trackedLinks[store.id]?.affiliate ? trackedLinks[store.id].openUrl : undefined
     void openStoreBrowse(store.url, userId, {
       title: store.name,
       returnTo: '/dashboard/home#explore-brands',
       forceExternal: true,
       knownOpenUrl: cue,
-      preferWeb: !cue,
+      storeId: store.id,
+      storeName: store.name,
+      source: 'explore',
     })
   }
-
-  const visible = stores.slice(0, limit)
 
   return (
     <div className={className}>
@@ -86,10 +82,10 @@ export default function ExploreBrandsGrid({ limit = 8, compact = false, classNam
                 : 'text-[11px] font-semibold uppercase tracking-[0.18em] text-white/40'
             }
           >
-            Explore brands
+            Everyday Brands
           </p>
           <p className="mt-1 text-[13px] leading-snug tracking-[-0.01em] text-white/50">
-            Tap a store to shop with Goldback
+            Assured Savings
           </p>
         </div>
         <MotionLink

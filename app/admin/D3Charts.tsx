@@ -24,8 +24,8 @@ export function D3MultiLineChart({
   series,
   height = 240,
 }: {
-  data: Array<{ date: string; waitlist: number; goldback: number; gifts: number; clicks: number }>
-  series: { key: 'waitlist' | 'goldback' | 'gifts' | 'clicks'; label: string; color: string }[]
+  data: Array<{ date: string; waitlist: number; goldback: number; gifts: number; clicks: number; browseClicks?: number }>
+  series: { key: 'waitlist' | 'goldback' | 'gifts' | 'clicks' | 'browseClicks'; label: string; color: string }[]
   height?: number
 }) {
   const wrapRef = useRef<HTMLDivElement>(null)

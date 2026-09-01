@@ -527,6 +527,309 @@ export async function sendDeletionRejectedEmail(opts: {
   })
 }
 
+function wwEmailBlock(body: string) {
+  return `<p style="color:#444;line-height:1.55">${body}</p>`
+}
+
+export async function sendWwBookingCreatedEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  bookingsUrl: string
+}) {
+  const { html } = brandedEmail({
+    preheader: `Your ${opts.tripTitle} booking is ready`,
+    heading: 'Booking started',
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`Your WanderWorld booking for <strong>${opts.tripTitle}</strong> is created. Complete payment from My bookings to confirm your seat.`)}
+    `,
+    ctaLabel: 'Open My bookings',
+    ctaUrl: opts.bookingsUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Booking started — ${opts.tripTitle}`,
+    text: `Hi ${opts.name},\n\nYour booking for ${opts.tripTitle} is created. Pay from: ${opts.bookingsUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwPaymentReceivedEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  label: string
+  amountInr: number
+  fullyPaid: boolean
+  bookingsUrl: string
+}) {
+  const amt = `₹${opts.amountInr.toLocaleString('en-IN')}`
+  const { html } = brandedEmail({
+    preheader: `${amt} received for ${opts.tripTitle}`,
+    heading: opts.fullyPaid ? 'Trip fully paid' : 'Payment received',
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`We received <strong>${amt}</strong> for <strong>${opts.label}</strong> on <strong>${opts.tripTitle}</strong>.${opts.fullyPaid ? ' Your trip is fully paid.' : ' Remaining installments can be paid from My bookings.'}`)}
+    `,
+    ctaLabel: 'View booking',
+    ctaUrl: opts.bookingsUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `${opts.fullyPaid ? 'Fully paid' : 'Payment received'} — ${opts.tripTitle}`,
+    text: `Hi ${opts.name},\n\n${amt} received for ${opts.label} on ${opts.tripTitle}.\n\n${opts.bookingsUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwInstallmentDueEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  label: string
+  amountInr: number
+  dueAt: string
+  bookingsUrl: string
+}) {
+  const due = opts.dueAt.slice(0, 10)
+  const { html } = brandedEmail({
+    preheader: `Payment due ${due} for ${opts.tripTitle}`,
+    heading: 'Payment due soon',
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`Your <strong>${opts.label}</strong> of <strong>₹${opts.amountInr.toLocaleString('en-IN')}</strong> for <strong>${opts.tripTitle}</strong> is due on <strong>${due}</strong>.`)}
+    `,
+    ctaLabel: 'Pay now',
+    ctaUrl: opts.bookingsUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Payment due soon — ${opts.tripTitle}`,
+    text: `Hi ${opts.name},\n\n${opts.label} of ₹${opts.amountInr} due ${due} for ${opts.tripTitle}.\n\n${opts.bookingsUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwInstallmentOverdueEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  label: string
+  amountInr: number
+  bookingsUrl: string
+}) {
+  const { html } = brandedEmail({
+    preheader: `Overdue payment for ${opts.tripTitle}`,
+    heading: 'Payment overdue',
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`Your <strong>${opts.label}</strong> of <strong>₹${opts.amountInr.toLocaleString('en-IN')}</strong> for <strong>${opts.tripTitle}</strong> is overdue. Please pay to keep your seat.`)}
+    `,
+    ctaLabel: 'Pay now',
+    ctaUrl: opts.bookingsUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Payment overdue — ${opts.tripTitle}`,
+    text: `Hi ${opts.name},\n\nOverdue: ${opts.label} ₹${opts.amountInr} for ${opts.tripTitle}.\n\n${opts.bookingsUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwGroupInviteEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  joinUrl: string
+  groupSize?: number
+}) {
+  const sizeNote = opts.groupSize ? ` for ${opts.groupSize} travelers` : ''
+  const { html } = brandedEmail({
+    preheader: `Join the group trip — ${opts.tripTitle}`,
+    heading: 'Group trip invite',
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`You're invited to join a group booking${sizeNote} for <strong>${opts.tripTitle}</strong>. Claim your seat and pay your share via Yureka.`)}
+    `,
+    ctaLabel: 'Join group',
+    ctaUrl: opts.joinUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Group invite — ${opts.tripTitle}`,
+    text: `Hi ${opts.name},\n\nJoin your group trip: ${opts.joinUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwRegistrationCancelledEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  getawayUrl: string
+}) {
+  const { html } = brandedEmail({
+    preheader: `Booking cancelled — ${opts.tripTitle}`,
+    heading: 'Booking cancelled',
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`Your WanderWorld booking for <strong>${opts.tripTitle}</strong> was cancelled. Reply to this email if you have questions.`)}
+    `,
+    ctaLabel: 'Browse trips',
+    ctaUrl: opts.getawayUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Booking cancelled — ${opts.tripTitle}`,
+    text: `Hi ${opts.name},\n\nYour booking for ${opts.tripTitle} was cancelled.\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwTripUpdatedEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  note: string
+  tripUrl: string
+}) {
+  const { html } = brandedEmail({
+    preheader: `Update for ${opts.tripTitle}`,
+    heading: 'Trip update',
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`<strong>${opts.tripTitle}</strong> was updated: ${opts.note}`)}
+    `,
+    ctaLabel: 'View trip',
+    ctaUrl: opts.tripUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Trip update — ${opts.tripTitle}`,
+    text: `Hi ${opts.name},\n\n${opts.tripTitle}: ${opts.note}\n\n${opts.tripUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwPromoterAttributionEmail(opts: {
+  to: string
+  buyerName: string
+  tripTitle: string
+  amountInr: number
+  portalUrl: string
+}) {
+  const { html } = brandedEmail({
+    preheader: `New booking on ${opts.tripTitle}`,
+    heading: 'New referral booking',
+    bodyHtml: `
+      ${wwEmailBlock(`<strong>${opts.buyerName}</strong> paid <strong>₹${opts.amountInr.toLocaleString('en-IN')}</strong> on <strong>${opts.tripTitle}</strong> via your referral link.`)}
+    `,
+    ctaLabel: 'Open promoter desk',
+    ctaUrl: opts.portalUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `New booking — ${opts.tripTitle}`,
+    text: `${opts.buyerName} paid ₹${opts.amountInr} on ${opts.tripTitle} via your link.\n\n${opts.portalUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwCashRecordedEmail(opts: {
+  to: string
+  buyerName: string
+  tripTitle: string
+  amountInr: number
+  note?: string | null
+  portalUrl: string
+}) {
+  const note = opts.note ? `<br/>Note: ${opts.note}` : ''
+  const { html } = brandedEmail({
+    preheader: `Cash recorded for ${opts.tripTitle}`,
+    heading: 'Cash payment recorded',
+    bodyHtml: `
+      ${wwEmailBlock(`₹${opts.amountInr.toLocaleString('en-IN')} cash recorded for <strong>${opts.buyerName}</strong> on <strong>${opts.tripTitle}</strong>.${note}`)}
+    `,
+    ctaLabel: 'Open portal',
+    ctaUrl: opts.portalUrl,
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `Cash recorded — ${opts.tripTitle}`,
+    text: `Cash ₹${opts.amountInr} recorded for ${opts.buyerName} on ${opts.tripTitle}.\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwTripAnnouncementEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  headline: string
+  body: string
+  ctaUrl: string
+  ctaLabel?: string
+}) {
+  const { html } = brandedEmail({
+    preheader: opts.headline.slice(0, 90),
+    heading: opts.headline.slice(0, 80),
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`Update for <strong>${opts.tripTitle}</strong>:`)}
+      ${wwEmailBlock(opts.body.replace(/\n/g, '<br/>'))}
+    `,
+    ctaLabel: opts.ctaLabel || 'View trip',
+    ctaUrl: opts.ctaUrl,
+    footerNote: 'You received this because you are booked on this WanderWorld trip or help run it.',
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `${opts.headline} — ${opts.tripTitle}`.slice(0, 120),
+    text: `Hi ${opts.name},\n\n${opts.headline}\n\n${opts.body}\n\nTrip: ${opts.tripTitle}\n${opts.ctaUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
+export async function sendWwChatMessageEmail(opts: {
+  to: string
+  name: string
+  tripTitle: string
+  senderName: string
+  preview: string
+  chatUrl: string
+}) {
+  const { html } = brandedEmail({
+    preheader: `${opts.senderName} messaged your ${opts.tripTitle} group`,
+    heading: 'New group chat message',
+    bodyHtml: `
+      ${wwEmailBlock(`Hi ${opts.name},`)}
+      ${wwEmailBlock(`<strong>${opts.senderName}</strong> posted in <strong>${opts.tripTitle}</strong> group chat:`)}
+      ${wwEmailBlock(`“${opts.preview.replace(/"/g, '&quot;')}”`)}
+    `,
+    ctaLabel: 'Open group chat',
+    ctaUrl: opts.chatUrl,
+    footerNote: 'Reply in Yureka — your group chat stays on-platform, not WhatsApp.',
+  })
+  return sendMail({
+    to: opts.to,
+    subject: `New message — ${opts.tripTitle} group chat`,
+    text: `Hi ${opts.name},\n\n${opts.senderName} wrote in ${opts.tripTitle} group chat:\n${opts.preview}\n\nOpen chat: ${opts.chatUrl}\n\nTeam Yureka`,
+    html,
+    replyTo: 'support@yureka.one',
+  })
+}
+
 export async function sendDeletionPurgedEmail(opts: { to: string; fullName?: string | null }) {
   const name = firstName(opts.fullName)
   const { html } = brandedEmail({

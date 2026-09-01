@@ -1,13 +1,11 @@
 import React from 'react'
-import Navbar from '@landing/home-v2/Navbar'
-import Footer from '@landing/home-v2/Footer'
-import GiftingSection from '@landing/home-v2/GiftingSection'
+import { GiftingSection, LandingShell } from '@landing/home'
 import SEO from '@shared/SEO'
 import { staticPageMeta } from '@backend/lib/seo/pageMeta'
 import { breadcrumbSchema } from '@backend/lib/seo/structuredData'
 
 const GiftingPage: React.FC = () => (
-  <div className="min-h-dvh bg-black text-white">
+  <>
     <SEO
       {...staticPageMeta['/gift']}
       schema={[
@@ -17,12 +15,10 @@ const GiftingPage: React.FC = () => (
         ]),
       ]}
     />
-    <Navbar />
-    <main className="pt-16">
+    <LandingShell mainClassName="pt-16">
       <GiftingSection />
-    </main>
-    <Footer />
-  </div>
+    </LandingShell>
+  </>
 )
 
 export default GiftingPage

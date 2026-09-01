@@ -19,6 +19,7 @@ import { registerMediaRoutes } from './lib/media/routes';
 // import { registerEmbedRoutes } from './lib/embed/routes';
 import { registerWaitlistRoutes } from './lib/waitlist/routes';
 import { registerAuthRoutes } from './lib/auth/routes';
+import { registerRiscRoutes } from './lib/auth/riscRoutes';
 import { registerAccountDeletionRoutes } from './lib/accountDeletion/routes';
 import { registerPublicApiRoutes } from './lib/publicApi/routes';
 import { registerNotificationRoutes } from './lib/notifications/routes';
@@ -121,6 +122,9 @@ async function startServer() {
     })
   );
   const PORT = Number(process.env.PORT) || 3000;
+
+  // RISC SETs are raw JWTs (application/secevent+jwt), not JSON.
+  registerRiscRoutes(app)
 
   // Keep raw body for Hubble webhook HMAC (X-Verify) verification.
   app.use(
@@ -529,6 +533,23 @@ async function startServer() {
   const { scheduleWeeklyLedgerSync } = await import('./lib/ledger/scheduledSync.js')
   scheduleWeeklyLedgerSync()
 
+  const { scheduleWwReminders } = await import('./lib/wanderworld/reminders.js')
+  scheduleWwReminders()
+
+  if (String(process.env.WANDERWORLD_STORE || 'dual').toLowerCase() === 'supabase') {
+    try {
+      const { loadSnapshotFromSupabase } = await import('./lib/wanderworld/supabaseSync.js')
+      const { writeStoreSnapshot } = await import('./lib/wanderworld/store.js')
+      const snap = await loadSnapshotFromSupabase()
+      if (snap) {
+        writeStoreSnapshot(snap)
+        console.log('[wanderworld] hydrated store from Supabase')
+      }
+    } catch (e: any) {
+      console.warn('[wanderworld] supabase hydrate skipped:', e?.message || e)
+    }
+  }
+
   // Account deletion: purge approved requests after 30-day retention.
   const runDeletionPurge = async () => {
     try {
@@ -543,6 +564,13 @@ async function startServer() {
   }
   void runDeletionPurge()
   setInterval(runDeletionPurge, 60 * 60_000)
+
+  if ((process.env.GOOGLE_RISC_SA_JSON || '').trim() && process.env.RISC_AUTO_REGISTER === 'true') {
+    void import('./lib/auth/riscRegister.js')
+      .then(({ registerRiscStream }) => registerRiscStream())
+      .then(({ url }) => console.log('[risc] stream registered', url))
+      .catch((err) => console.warn('[risc] stream register skipped:', err?.message || err))
+  }
 
   // Do not block listen on pip install. run in background so health checks pass.
   void ensurePythonDeps().then(() => {

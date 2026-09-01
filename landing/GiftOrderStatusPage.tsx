@@ -2,8 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { CheckCircle2, Copy, Loader2, XCircle } from 'lucide-react'
 import type { StoredOrder } from '@backend/lib/hubble/types'
-import Navbar from '@landing/home-v2/Navbar'
-import Footer from '@landing/home-v2/Footer'
+import { LandingShell } from '@landing/home'
 import SEO from '@shared/SEO'
 
 const formatInr = (n: number) => `₹${n.toLocaleString('en-IN')}`
@@ -51,17 +50,16 @@ const GiftOrderStatusPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-dvh bg-black text-white">
+    <>
       <SEO title="Gift order · Yureka" description="Track your Yureka gift card order." />
-      <Navbar />
-      <main className="mx-auto max-w-xl px-6 pb-20 pt-28">
-        <Link to="/gift" className="text-sm text-white/45 hover:text-white">
+      <LandingShell mainClassName="mx-auto max-w-xl px-6 pb-20 pt-28">
+        <Link to="/gift" className="text-sm text-landing-sub/45 hover:text-landing-sub">
           ← Back to gifting
         </Link>
 
         {loading ? (
           <div className="flex flex-col items-center gap-3 py-24">
-            <Loader2 className="animate-spin text-[#5fae52]" size={32} />
+            <Loader2 className="animate-spin text-landing-primary" size={32} />
             <p className="text-[12px] uppercase tracking-[0.2em] text-white/40">Loading order</p>
           </div>
         ) : error || !order ? (
@@ -79,7 +77,7 @@ const GiftOrderStatusPage: React.FC = () => {
             </div>
 
             {order.isGift && (
-              <div className="rounded-xl border border-[#5fae52]/30 bg-[#5fae52]/10 px-4 py-3 text-sm text-white/70">
+              <div className="rounded-xl border border-landing-primary/30 bg-landing-primary/10 px-4 py-3 text-sm text-white/70">
                 Sent to <span className="font-semibold text-white">{order.recipientName}</span>
                 {order.recipientEmail ? (
                   <span className="text-white/45"> ({order.recipientEmail})</span>
@@ -92,7 +90,7 @@ const GiftOrderStatusPage: React.FC = () => {
 
             {(order.status === 'PROCESSING' || order.status === 'PENDING') && (
               <div className="flex items-center gap-3 text-sm text-white/55">
-                <Loader2 className="animate-spin text-[#5fae52]" size={18} />
+                <Loader2 className="animate-spin text-landing-primary" size={18} />
                 {order.paymentStatus === 'paid'
                   ? 'Payment received. Generating voucher…'
                   : 'Waiting for payment confirmation…'}
@@ -121,7 +119,7 @@ const GiftOrderStatusPage: React.FC = () => {
 
             {order.status === 'SUCCESS' && !!order.vouchers?.length && (
               <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm font-semibold text-[#5fae52]">
+                <div className="flex items-center gap-2 text-sm font-semibold text-landing-primary">
                   <CheckCircle2 size={18} />
                   {order.isGift
                     ? 'Codes emailed to recipient. also saved here'
@@ -159,16 +157,15 @@ const GiftOrderStatusPage: React.FC = () => {
                         </button>
                       </div>
                     )}
-                    {copied && <p className="mt-2 text-[11px] text-[#5fae52]">Copied</p>}
+                    {copied && <p className="mt-2 text-[11px] text-landing-primary">Copied</p>}
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
-      </main>
-      <Footer />
-    </div>
+      </LandingShell>
+    </>
   )
 }
 

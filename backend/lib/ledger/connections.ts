@@ -248,6 +248,55 @@ export async function markLedgerConnectionSync(opts: {
   }
 }
 
+export async function listAllLedgerConnections(): Promise<LedgerConnection[]> {
+  const out: LedgerConnection[] = []
+  const sb = getSupabase()
+  if (sb) {
+    try {
+      const { data } = await sb.from('ledger_connections').select('*').eq('sync_enabled', true).limit(5000)
+      for (const row of data || []) {
+        if (!row.refresh_token_enc) continue
+        try {
+          out.push({
+            userId: String(row.user_id),
+            gmail: String(row.gmail),
+            refreshToken: decryptSecret(String(row.refresh_token_enc)),
+            connectedAt: row.connected_at ? String(row.connected_at) : undefined,
+            lastSyncAt: row.last_sync_at ? String(row.last_sync_at) : null,
+            lastSyncError: row.last_sync_error ? String(row.last_sync_error) : null,
+            syncEnabled: row.sync_enabled !== false,
+          })
+        } catch {
+          // skip undecryptable
+        }
+      }
+      if (out.length) return out
+    } catch {
+      // fall through
+    }
+  }
+  return (await readFileStore()).filter((r) => r.syncEnabled !== false)
+}
+
+export async function revokeAllLedgerConnectionsForUser(userId: string): Promise<number> {
+  const rows = await listAllLedgerConnections()
+  const mine = rows.filter((r) => r.userId === userId)
+  for (const row of mine) {
+    await revokeLedgerConnection(userId, row.gmail)
+  }
+  return mine.length
+}
+
+export async function revokeLedgerConnectionsByGmail(gmail: string): Promise<number> {
+  const normalized = gmail.trim().toLowerCase()
+  const rows = await listAllLedgerConnections()
+  const match = rows.filter((r) => r.gmail === normalized)
+  for (const row of match) {
+    await revokeLedgerConnection(row.userId, row.gmail)
+  }
+  return match.length
+}
+
 export async function revokeLedgerConnection(userId: string, gmail: string): Promise<void> {
   const normalized = gmail.trim().toLowerCase()
   const sb = getSupabase()
