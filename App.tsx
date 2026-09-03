@@ -620,7 +620,7 @@ const AppContent: React.FC = () => {
     role === 'app';
   const applyEditorialGrid = !isSpecialRoute && !isHomeRoute && !isBlogRoute && !isGiftRoute && !isBrandsRoute;
   const isZwitchRoute = location.pathname === '/zwitch';
-  const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute || isWwHostShell || isGiftRoute || isBrandsRoute;
+  const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute || isWwHostShell;
   const isProductShell =
     role === 'app' ||
     role === 'admin' ||
@@ -633,10 +633,10 @@ const AppContent: React.FC = () => {
   const shellBg =
     isProductShell || isWwHostShell
       ? 'bg-[#070707]'
-      : 'bg-landing-bg';
+      : 'bg-cream';
   const showSiteNavbar =
     role === 'landing' || role === 'all'
-      ? !isHomeRoute && !isGiftRoute && (!isSpecialRoute || isForBrandsRoute)
+      ? !isHomeRoute && (!isSpecialRoute || isForBrandsRoute)
       : false;
 
   const appRoutes =
@@ -683,7 +683,7 @@ const AppContent: React.FC = () => {
               ) : (
                 <>
                   {appRoutes}
-                  {(isBlogRoute || isBrandsRoute) ? <Footer /> : null}
+                  {(isBlogRoute || isBrandsRoute || isGiftRoute) ? <Footer /> : null}
                 </>
               )}
             </ErrorBoundary>

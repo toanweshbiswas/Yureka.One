@@ -6,7 +6,7 @@ import { breadcrumbSchema, faqPageSchema } from '@backend/lib/seo/structuredData
 import { faqQuestions } from '@backend/lib/faq'
 
 const FaqPage: React.FC = () => (
-  <div className="bg-landing-bg min-h-screen">
+  <div className="bg-cream min-h-screen">
     <SEO
       {...staticPageMeta['/faq']}
       schema={[

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { useSupabase } from '@shared/SupabaseProvider';
 import { appUrl, goExternal, isSplitHostsEnabled } from '@shared/hosts';
@@ -51,6 +51,7 @@ const NAV_THEMES = {
 const NAV_LINKS = [
   { name: 'Gifting', path: '/gift', desc: 'Send a gift card without signing up' },
   { name: 'Brands', path: '/brands', desc: 'Top reward partner brands' },
+  { name: 'Blog', path: '/blog', desc: 'Editorial insights on credit and rewards' },
   { name: 'About', path: '/about', desc: 'Who builds Yureka' },
   { name: 'FAQ', path: '/faq', desc: 'Goldback, AI, pricing' },
   { name: 'Yureka AI', path: '/yureka-ai', desc: 'Access the intelligence hub' },
@@ -135,9 +136,21 @@ function ScrambleNavLink({
 export default function Navbar({ entranceComplete = true, theme = 'site' }: NavbarProps) {
   const palette = NAV_THEMES[theme];
   const navigate = useNavigate();
+  const location = useLocation();
+  const isHome = location.pathname === '/';
   const { user, currentUserStatus } = useSupabase();
   const [menuOpen, setMenuOpen] = useState(false);
   const [hoveredCta, setHoveredCta] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20);
+    };
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   // Desktop menu is an inline expanding pill (see below); close it when the
   // user clicks anywhere outside it or presses Escape.
@@ -215,61 +228,93 @@ export default function Navbar({ entranceComplete = true, theme = 'site' }: Navb
   return (
     <>
       <motion.nav
-        className="fixed top-0 left-0 right-0 z-50 w-full"
+        className={`fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300 ${
+          scrolled || !isHome
+            ? 'bg-[#000000]/85 backdrop-blur-xl border-b border-white/10 shadow-lg shadow-black/50'
+            : 'bg-transparent'
+        }`}
         style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
         initial={{ opacity: 0, y: -8 }}
         animate={{ opacity: entranceComplete ? 1 : 0, y: entranceComplete ? 0 : -8 }}
         transition={{ type: 'spring', bounce: 0, duration: 0.45 }}
       >
         {/* Desktop */}
-        <div className="hidden md:flex items-center justify-between h-20 px-6 md:mx-auto md:max-w-[60vw] md:px-0">
-          <div className="flex items-center gap-2">
+        <div
+          className={`hidden md:flex items-center justify-between h-20 px-6 ${
+            isHome ? 'md:mx-auto md:max-w-[60vw] md:px-0' : 'max-w-[1400px] mx-auto md:px-8'
+          }`}
+        >
+          <div className="flex items-center gap-4">
             <HeaderLogo logoClass={palette.logo} />
 
-            {/* Inline expanding menu pill: collapsed it's just the toggle
-                button; open it grows to the right and reveals the nav links,
-                while the hamburger morphs into an X. */}
-            <motion.div
-              ref={desktopMenuRef}
-              className="flex items-center h-12 overflow-hidden rounded-[14px] bg-white/15 backdrop-blur-md"
-            >
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-                aria-expanded={menuOpen}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] transition-colors hover:bg-white/10 active:scale-[0.97] active:bg-white/15"
+            {/* If on home, show the micro-interaction expanding pill */}
+            {isHome ? (
+              <motion.div
+                ref={desktopMenuRef}
+                className="flex items-center h-12 overflow-hidden rounded-[14px] bg-white/15 backdrop-blur-md"
               >
-                <SquashHamburger isOpen={menuOpen} variant="desktop" color={palette.hamburger} />
-              </button>
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+                  aria-expanded={menuOpen}
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[14px] transition-colors hover:bg-white/10 active:scale-[0.97] active:bg-white/15"
+                >
+                  <SquashHamburger isOpen={menuOpen} variant="desktop" color={palette.hamburger} />
+                </button>
 
-              <AnimatePresence initial={false}>
-                {menuOpen && (
-                  <motion.div
-                    key="desktop-links"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: 'auto', opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{
-                      width: { type: 'spring', damping: 30, stiffness: 300 },
-                      opacity: { duration: 0.18 },
-                    }}
-                    className="overflow-hidden"
-                  >
-                    <div className="flex items-center gap-7 whitespace-nowrap pl-1 pr-6">
-                      {NAV_LINKS.map((item) => (
-                        <ScrambleNavLink
-                          key={item.name}
-                          to={item.path}
-                          label={item.name}
-                          onClick={closeMenu}
-                          linkClass={palette.link}
-                        />
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
+                <AnimatePresence initial={false}>
+                  {menuOpen && (
+                    <motion.div
+                      key="desktop-links"
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: 'auto', opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      transition={{
+                        width: { type: 'spring', damping: 30, stiffness: 300 },
+                        opacity: { duration: 0.18 },
+                      }}
+                      className="overflow-hidden"
+                    >
+                      <div className="flex items-center gap-7 whitespace-nowrap pl-1 pr-6">
+                        {NAV_LINKS.map((item) => (
+                          <ScrambleNavLink
+                            key={item.name}
+                            to={item.path}
+                            label={item.name}
+                            onClick={closeMenu}
+                            linkClass={palette.link}
+                          />
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            ) : (
+              /* On all related pages: display links directly in an elegant header pill */
+              <div className="flex items-center gap-5 px-5 h-12 rounded-[14px] bg-white/[0.06] border border-white/10 backdrop-blur-md">
+                {NAV_LINKS.map((item) => {
+                  const isActive =
+                    item.path === '/'
+                      ? location.pathname === '/'
+                      : location.pathname === item.path ||
+                        location.pathname.startsWith(item.path + '/');
+                  return (
+                    <Link
+                      key={item.name}
+                      to={item.path}
+                      className={`text-[13px] font-semibold tracking-tight transition-colors ${
+                        isActive
+                          ? 'text-landing-primary'
+                          : 'text-white/80 hover:text-landing-primary'
+                      }`}
+                    >
+                      {item.name}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           <motion.button

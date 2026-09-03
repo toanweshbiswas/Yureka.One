@@ -24,7 +24,7 @@ const GetawayLandingPage: React.FC = () => {
         title="WanderWorld Getaways | Yureka.One"
         description="Curated group trips and getaways. Browse trips on Yureka and book with secure checkout."
       />
-      <div className="min-h-screen bg-landing-bg px-4 py-16 text-white md:px-8 selection:bg-landing-primary selection:text-landing-ink">
+      <div className="min-h-screen bg-cream px-4 py-16 text-white md:px-8 selection:bg-landing-primary selection:text-landing-ink">
         <div className="mx-auto max-w-4xl">
           <div className="flex items-center gap-3">
             <Plane className="h-8 w-8 text-landing-primary" />

@@ -33,7 +33,7 @@ const JournalPage: React.FC = () => {
 
     if (isLoading && blogsList.length === 0) {
         return (
-            <div className="blog-reading min-h-screen bg-landing-bg px-5 sm:px-8 pt-6 md:pt-10">
+            <div className="blog-reading min-h-screen bg-cream px-5 sm:px-8 pt-6 md:pt-10">
                 <div className="max-w-6xl mx-auto space-y-10">
                     <div className="h-10 w-48 bg-white/5 rounded-2xl animate-pulse" />
                     <div className="h-[42vh] min-h-[240px] bg-white/5 rounded-[1.75rem] animate-pulse" />
@@ -46,7 +46,7 @@ const JournalPage: React.FC = () => {
     }
 
     return (
-        <div className="blog-reading min-h-screen bg-landing-bg pb-28 text-white selection:bg-landing-primary selection:text-landing-ink">
+        <div className="blog-reading min-h-screen bg-cream pb-28 text-white selection:bg-landing-primary selection:text-landing-ink">
             <SEO {...staticPageMeta['/blog']} />
 
             <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-6 md:pt-10">

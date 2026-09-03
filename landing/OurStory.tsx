@@ -27,7 +27,7 @@ const pillars = [
 ];
 
 const Manifesto: React.FC = () => (
-  <div className="bg-landing-bg text-white selection:bg-landing-primary selection:text-landing-ink">
+  <div className="bg-cream text-white selection:bg-landing-primary selection:text-landing-ink">
     <SEO {...staticPageMeta['/manifesto']} />
 
     {/* Masthead */}

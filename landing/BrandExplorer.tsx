@@ -180,7 +180,7 @@ const BrandExplorer: React.FC = () => {
     );
 
     return (
-        <div className="yureka-one-home min-h-screen bg-landing-bg pb-32 overflow-x-hidden text-white selection:bg-landing-primary selection:text-landing-ink">
+        <div className="yureka-one-home min-h-screen bg-mesh pb-32 overflow-x-hidden text-white selection:bg-landing-primary selection:text-landing-ink">
             <SEO
                 title={catSeo?.title || indexMeta.title}
                 description={catSeo?.description || indexMeta.description}
@@ -190,14 +190,14 @@ const BrandExplorer: React.FC = () => {
             />
 
             {/* ── HERO ── */}
-            <div className="relative pt-24 md:pt-40 pb-20 border-b border-white/5">
-                <div className="absolute inset-0 opacity-[0.02] pointer-events-none"
+            <div className="relative pt-10 md:pt-16 pb-20 border-b border-white/5">
+                <div className="absolute inset-0 opacity-[0.035] pointer-events-none"
                     style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 30c0-16.569-13.431-30-30-30v60c16.569 0 30-13.431 30-30zm0 0c0 16.569 13.431 30 30 30V0c-16.569 0-30 13.431-30 30z' fill='%23fff' fill-opacity='1' fill-rule='evenodd'/%3E%3C/svg%3E")` }}
                 />
 
                 {/* ambient glow orbs */}
-                <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-landing-primary/[0.04] rounded-full blur-[160px] pointer-events-none" />
-                <div className="absolute top-1/3 right-0 translate-x-1/2 w-[400px] h-[400px] bg-landing-primary/[0.03] rounded-full blur-[140px] pointer-events-none" />
+                <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-landing-primary/[0.06] rounded-full blur-[160px] pointer-events-none" />
+                <div className="absolute top-1/3 right-0 translate-x-1/2 w-[400px] h-[400px] bg-landing-primary/[0.04] rounded-full blur-[140px] pointer-events-none" />
 
                 <div className="max-w-[1400px] mx-auto px-6 relative z-10 text-center">
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>

@@ -477,6 +477,12 @@ const LoginPage: React.FC = () => {
           </form>
 
           {!isForgot && !isSignup && (
+            <p className="px-1 pt-2 text-center text-[12px] leading-relaxed text-white/45">
+              Google accounts need Continue with Google, or Forgot password to create an email password.
+            </p>
+          )}
+
+          {!isForgot && !isSignup && (
             <p className="pt-1 text-center">
               <motion.button
                 type="button"

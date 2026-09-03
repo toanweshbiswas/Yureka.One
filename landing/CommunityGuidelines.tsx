@@ -10,7 +10,7 @@ const CommunityGuidelines: React.FC = () => {
     }, []);
 
     return (
-        <div className="bg-landing-bg min-h-screen text-white pb-32 selection:bg-landing-primary selection:text-landing-ink">
+        <div className="bg-cream min-h-screen text-white pb-32 selection:bg-landing-primary selection:text-landing-ink">
             <SEO {...staticPageMeta['/community-guidelines']} />
             {/* Header Section */}
             <div className="pt-6 md:pt-16 pb-16 md:pb-24 border-b border-white/10 px-6">

@@ -156,6 +156,28 @@ export async function signInWithGmail(redirectTo?: string): Promise<{ error?: st
   return {}
 }
 
+function mapPasswordSignInError(error: { message?: string; code?: string } | null): string {
+  const message = String(error?.message || '').trim()
+  const code = String(error?.code || '').toLowerCase()
+  const lower = message.toLowerCase()
+
+  if (code === 'email_not_confirmed' || lower.includes('email not confirmed')) {
+    return 'Confirm your email first. Check your inbox for the Yureka link, then try again.'
+  }
+
+  // Most accounts on this app were created with Google and have no password yet.
+  // Supabase returns the same generic error for wrong password and for Google-only users.
+  if (
+    code === 'invalid_credentials' ||
+    lower.includes('invalid login credentials') ||
+    lower.includes('invalid credentials')
+  ) {
+    return 'Email or password is incorrect. If you signed up with Google, use Continue with Google, or tap Forgot password to set an email password.'
+  }
+
+  return message || 'Could not sign in. Please try again.'
+}
+
 export async function signInWithEmail(
   email: string,
   password: string
@@ -166,7 +188,7 @@ export async function signInWithEmail(
     email: email.trim().toLowerCase(),
     password,
   })
-  if (error) return { error: error.message }
+  if (error) return { error: mapPasswordSignInError(error) }
   return {}
 }
 

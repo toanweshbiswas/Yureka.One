@@ -161,7 +161,7 @@ const BlogDetail: React.FC = () => {
 
     if (isLoading) {
         return (
-            <div className="blog-reading min-h-screen bg-landing-bg flex items-center justify-center">
+            <div className="blog-reading min-h-screen bg-cream flex items-center justify-center">
                 <div className="space-y-4 text-center">
                     <div className="w-10 h-10 border-2 border-landing-primary/30 border-t-landing-primary rounded-full animate-spin mx-auto" />
                     <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/50">Opening article</p>
@@ -179,7 +179,7 @@ const BlogDetail: React.FC = () => {
     const isHtml = blog.content_format === 'html' || /<\/?[a-z][\s\S]*>/i.test(blog.content || '');
 
     return (
-        <div className="blog-reading min-h-screen bg-landing-bg pb-28 selection:bg-landing-primary selection:text-landing-ink" ref={articleRef}>
+        <div className="blog-reading min-h-screen bg-cream pb-28 selection:bg-landing-primary selection:text-landing-ink" ref={articleRef}>
             <SEO
                 title={`${blog.title} | Yureka Blog`}
                 description={blog.excerpt || `Read the latest insights on ${blog.category} from ${blog.author}.`}
@@ -197,7 +197,7 @@ const BlogDetail: React.FC = () => {
                 />
             </div>
 
-            <div className="sticky top-20 z-40 bg-landing-bg/90 backdrop-blur-xl border-b border-white/[0.06]">
+            <div className="sticky top-20 z-40 bg-cream/90 backdrop-blur-xl border-b border-white/[0.06]">
                 <div className="max-w-[42rem] mx-auto px-5 sm:px-6 h-12 flex items-center justify-between">
                     <Link
                         to="/blog"

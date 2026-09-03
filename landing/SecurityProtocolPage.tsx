@@ -10,7 +10,7 @@ const SecurityProtocolPage: React.FC = () => {
     }, []);
 
     return (
-        <div className="bg-landing-bg min-h-screen text-white pb-32 selection:bg-landing-primary selection:text-landing-ink">
+        <div className="bg-cream min-h-screen text-white pb-32 selection:bg-landing-primary selection:text-landing-ink">
             <SEO {...staticPageMeta['/security-protocol']} />
 
             {/* ── HERO ── */}

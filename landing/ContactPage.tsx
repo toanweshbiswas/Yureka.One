@@ -5,7 +5,7 @@ import { staticPageMeta } from '@backend/lib/seo/pageMeta'
 import { breadcrumbSchema } from '@backend/lib/seo/structuredData'
 
 const ContactPage: React.FC = () => (
-  <div className="bg-landing-bg min-h-screen">
+  <div className="bg-cream min-h-screen">
     <SEO
       {...staticPageMeta['/contact']}
       schema={[
