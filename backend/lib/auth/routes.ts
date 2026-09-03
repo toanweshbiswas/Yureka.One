@@ -108,7 +108,7 @@ export function registerAuthRoutes(app: Express) {
         status = 'accepted'
       } else if (row?.status === 'rejected') {
         status = 'rejected'
-      } else if (row?.status === 'on-hold' || row?.status === 'on_hold') {
+      } else if ((row?.status as string) === 'on-hold' || row?.status === 'on_hold') {
         status = 'on-hold'
       } else if (row) {
         status = 'pending'

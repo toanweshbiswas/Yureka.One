@@ -7,7 +7,7 @@ function secretKey(): Buffer {
   const raw =
     process.env.LEDGER_TOKEN_SECRET ||
     process.env.GOOGLE_CLIENT_SECRET ||
-    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
     'yureka-ledger-dev-only-change-me'
   return crypto.createHash('sha256').update(raw).digest()
 }

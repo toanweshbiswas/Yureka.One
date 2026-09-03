@@ -1,16 +1,42 @@
+/* ── Cooper Black (Display font for rich heading accents) ── */
+@font-face {
+  font-family: 'Cooper Black';
+  font-style: italic;
+  font-weight: 900;
+  src: local('Cooper Black Italic'), local('CooperBlackItalic'), local('CooperBlack-Italic'), local('Cooper Black'), url('https://fonts.cdnfonts.com/s/14988/COOPBL.woff') format('woff');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Cooper Black';
+  font-style: normal;
+  font-weight: 900;
+  src: local('Cooper Black'), local('CooperBlack'), url('https://fonts.cdnfonts.com/s/14988/COOPBL.woff') format('woff');
+  font-display: swap;
+}
+
+/* Cooper Black Italic 900 utility */
+.font-cooper,
+.font-cooper-italic {
+  font-family: "Cooper Black", "Cooper Std", "Fraunces", Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
+}
+
 /* Landing-only palette (MainPage / home). Scoped to .yureka-one-home. */
 .yureka-one-home {
-  --landing-bg: #0d4428;
+  --landing-bg: #000000;
   --landing-primary: #def46e;
   --landing-sub: #ffffff;
   --landing-ink: #000000;
-  --landing-gutter: #0d4428;
-  --landing-text-muted: rgba(255, 255, 255, 0.62);
-  --landing-text-caption: rgba(255, 255, 255, 0.72);
-  --landing-text-body: rgba(255, 255, 255, 0.88);
+  --landing-gutter: #000000;
+  --landing-text-muted: #ffffff;
+  --landing-text-caption: #ffffff;
+  --landing-text-body: #ffffff;
   --landing-border: rgba(255, 255, 255, 0.12);
   background-color: var(--landing-bg);
   color: var(--landing-primary);
+  font-family: 'Plus Jakarta Sans', Inter, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 @media (prefers-reduced-transparency: reduce) {

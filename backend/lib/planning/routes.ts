@@ -176,9 +176,9 @@ async function buildOverview(
   const merged = applyOverrides(
     collapseRepetitiveTransactions(
       dedupeTransactions(
-        filterMarketingTransactions([...primary, ...extra] as any) as PlanningTransaction[],
-      ),
-    ) as PlanningTransaction[],
+        filterMarketingTransactions([...primary, ...extra] as any) as unknown as PlanningTransaction[],
+      ) as any,
+    ) as unknown as PlanningTransaction[],
     overrides,
   )
   const monthTxs = transactionsInMonth(merged, month)

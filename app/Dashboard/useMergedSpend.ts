@@ -25,7 +25,7 @@ export function useExpenseLedger() {
     const rows = (ledgerTransactions || []) as SpendTransaction[]
     const filtered = rows.filter((tx) => {
       if (isMarketingLedgerRow(tx)) return false
-      if (isInvestmentTransaction(tx)) return false
+      if (isInvestmentTransaction(tx as any)) return false
       return true
     })
     return collapseRepetitiveTransactions(filtered as any) as SpendTransaction[]

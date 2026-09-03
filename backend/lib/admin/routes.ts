@@ -110,6 +110,10 @@ export function registerAdminRoutes(app: Express) {
 
   app.post('/api/admin/login', async (req, res) => {
     try {
+      const { isRateLimited } = await import('../auth/rateLimit.js')
+      if (isRateLimited(req, 'admin-login', { limit: 5, windowMs: 15 * 60_000 })) {
+        return fail(res, 429, 'Too many login attempts. Try again later.')
+      }
       const email = String(req.body?.email || '').trim().toLowerCase()
       const password = String(req.body?.password || '')
       if (!email || !password) return fail(res, 400, 'email and password required')

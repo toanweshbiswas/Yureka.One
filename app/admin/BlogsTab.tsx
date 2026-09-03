@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import { sanitizeHtml } from '@shared/sanitize'
 import { Loader2, Plus, Trash2, Mail, Pencil, ImagePlus, Upload } from 'lucide-react'
 import {
   Callout,
@@ -367,7 +368,7 @@ export default function BlogsTab({ token, canWrite }: { token: string | null; ca
               <p className="text-[11px] uppercase tracking-[0.2em] text-white/35 mb-3">Preview</p>
               <div
                 className="prose prose-invert prose-sm max-w-none text-white/80"
-                dangerouslySetInnerHTML={{ __html: form.content }}
+                dangerouslySetInnerHTML={{ __html: sanitizeHtml(form.content) }}
               />
             </div>
           )}

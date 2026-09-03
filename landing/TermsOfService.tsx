@@ -10,35 +10,35 @@ const TermsOfService: React.FC = () => {
     }, []);
 
     return (
-        <div className="bg-cream min-h-screen text-white pb-32 selection:bg-clay selection:text-cream">
+        <div className="bg-landing-bg min-h-screen text-white pb-32 selection:bg-landing-primary selection:text-landing-ink">
             <SEO {...staticPageMeta['/terms-of-service']} />
             {/* Header Section */}
             <div className="pt-6 md:pt-16 pb-16 md:pb-24 border-b border-white/10 px-6">
                 <div className="max-w-4xl mx-auto text-center md:text-left">
-                    <div className="flex items-center justify-center md:justify-start gap-2 text-clay mb-6">
+                    <div className="flex items-center justify-center md:justify-start gap-2 text-landing-primary mb-6">
                         <Shield size={18} strokeWidth={2.5} />
                         <span className="text-[10px] font-bold uppercase tracking-[0.4em]">Legal Compendium</span>
                     </div>
-                    <h1 className="text-5xl md:text-8xl font-heading font-extrabold leading-[0.9] tracking-tighter mb-8 uppercase text-white">
+                    <h1 className="text-5xl md:text-8xl font-sans font-black leading-[0.9] tracking-tighter mb-8 uppercase text-white">
                         Terms Of Use
                     </h1>
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                        <p className="text-xl md:text-2xl font-serif italic text-white/60">
+                        <p className="text-xl md:text-2xl font-sans text-white/70">
                             The Yureka.One Club Agreement.
                         </p>
                         <div className="text-center md:text-right">
                             <p className="text-[10px] uppercase tracking-widest font-bold text-white/40">Last Updated</p>
-                            <p className="text-sm font-mono mt-1 text-clay border-b border-clay/30 inline-block pb-1">26th August 2026</p>
+                            <p className="text-sm font-mono mt-1 text-landing-primary border-b border-landing-primary/30 inline-block pb-1">26th August 2026</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Content Section */}
-            <div className="max-w-4xl mx-auto px-6 pt-16 md:pt-24 font-serif text-lg md:text-xl leading-relaxed text-white/80 space-y-16">
+            <div className="max-w-4xl mx-auto px-6 pt-16 md:pt-24 font-sans text-lg md:text-xl leading-relaxed text-white/80 space-y-16">
                 
                 <section>
-                    <p className="first-letter:text-6xl first-letter:font-bold first-letter:text-clay first-letter:mr-2 first-letter:float-left first-letter:leading-none">
+                    <p className="first-letter:text-6xl first-letter:font-black first-letter:text-landing-primary first-letter:mr-2 first-letter:float-left first-letter:leading-none">
                         The website  to  ‘https://www.Yureka.One’ and mobile application “Yureka.One” and all other associated/ancillary applications, products, websites and services (“Website/Platform”) are owned and managed by Jupyter Network Technologies Pvt Ltd, a company incorporated under the Companies Act, 2013.
                     </p>
                     <p className="mt-6">
@@ -47,12 +47,12 @@ const TermsOfService: React.FC = () => {
                 </section>
 
                 <section className="space-y-6">
-                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Use of the Yureka.One Platform</h2>
+                    <h2 className="text-3xl font-sans font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Use of the Yureka.One Platform</h2>
                     <p>
                         It is important that you spend time reading the terms as they constitute a legal agreement (Terms Of Use) between You and Jupyter Network Technologies Pvt Ltd. Please go through these terms carefully before registering, accessing or using the Yureka.One Services offered through the website, app or through any other medium. By using the platform, you agree and acknowledge that you have read and accept the terms and conditions set forth below. If you do not accept these Terms, you may not use the services and must immediately uninstall the app.
                     </p>
                     <p>
-                        Product account features (including waitlist, login, and dashboard) are primarily available at <span className="text-white font-bold">https://app.yureka.one</span>. The marketing site at <span className="text-white font-bold">https://yureka.one</span> provides information about Yureka. Our Privacy Policy at <a href="https://yureka.one/privacy-policy" className="text-clay underline">https://yureka.one/privacy-policy</a> forms part of these Terms.
+                        Product account features (including waitlist, login, and dashboard) are primarily available at <span className="text-white font-bold">https://app.yureka.one</span>. The marketing site at <span className="text-white font-bold">https://yureka.one</span> provides information about Yureka. Our Privacy Policy at <a href="https://yureka.one/privacy-policy" className="text-landing-primary underline font-semibold">https://yureka.one/privacy-policy</a> forms part of these Terms.
                     </p>
                     <p>
                         If you connect a Google account, you authorize us to receive the profile information Google shares with us for authentication (name and email). Optional Gmail inbox access, if granted by you in a separate consent, is used only as described in the Privacy Policy under Google Limited Use, and may be revoked by you at any time. We do not read personal emails in the app. Gmail data is not used for ads and is not sold.
@@ -60,29 +60,29 @@ const TermsOfService: React.FC = () => {
                 </section>
 
                 <section className="space-y-6">
-                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Definitions</h2>
+                    <h2 className="text-3xl font-sans font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Definitions</h2>
                     <ul className="space-y-4 list-none pl-0">
                         <li className="pl-6 relative">
-                            <span className="absolute left-0 top-1 text-clay font-bold">&bull;</span>
-                            <strong className="text-white tracking-tight uppercase text-sm mr-2">Yureka.One</strong> means Yureka.One, Yureka.One Group Entities and its associates.
+                            <span className="absolute left-0 top-1 text-landing-primary font-bold">&bull;</span>
+                            <strong className="text-white tracking-tight uppercase text-sm mr-2 font-sans">Yureka.One</strong> means Yureka.One, Yureka.One Group Entities and its associates.
                         </li>
                         <li className="pl-6 relative">
-                            <span className="absolute left-0 top-1 text-clay font-bold">&bull;</span>
-                            <strong className="text-white tracking-tight uppercase text-sm mr-2">User / You</strong> means any prospective User or anyone who uses or accesses the App / Website / Services / Platform on any Device.
+                            <span className="absolute left-0 top-1 text-landing-primary font-bold">&bull;</span>
+                            <strong className="text-white tracking-tight uppercase text-sm mr-2 font-sans">User / You</strong> means any prospective User or anyone who uses or accesses the App / Website / Services / Platform on any Device.
                         </li>
                         <li className="pl-6 relative">
-                            <span className="absolute left-0 top-1 text-clay font-bold">&bull;</span>
-                            <strong className="text-white tracking-tight uppercase text-sm mr-2">Credit Instruments</strong> means the Credit card, Add-on Credit cards, Loans, BNPL, any other loan account defined under Bharat Bill Payment System (BBPS).
+                            <span className="absolute left-0 top-1 text-landing-primary font-bold">&bull;</span>
+                            <strong className="text-white tracking-tight uppercase text-sm mr-2 font-sans">Credit Instruments</strong> means the Credit card, Add-on Credit cards, Loans, BNPL, any other loan account defined under Bharat Bill Payment System (BBPS).
                         </li>
                         <li className="pl-6 relative">
-                            <span className="absolute left-0 top-1 text-clay font-bold">&bull;</span>
-                            <strong className="text-white tracking-tight uppercase text-sm mr-2">Loyalty Programs</strong> means any frequent flyer program, hotel loyalty program, co-branded card program or any other program that grants currency based on purchasing behaviour.
+                            <span className="absolute left-0 top-1 text-landing-primary font-bold">&bull;</span>
+                            <strong className="text-white tracking-tight uppercase text-sm mr-2 font-sans">Loyalty Programs</strong> means any frequent flyer program, hotel loyalty program, co-branded card program or any other program that grants currency based on purchasing behaviour.
                         </li>
                     </ul>
                 </section>
 
                 <section className="space-y-6">
-                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Using Yureka.One</h2>
+                    <h2 className="text-3xl font-sans font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Using Yureka.One</h2>
                     <p>As a user or prospective user, you hereby represent and warrant that:</p>
                     <ul className="list-decimal pl-8 space-y-3 font-mono text-sm tracking-wide bg-white/5 p-6 md:p-8 rounded-2xl border border-white/10 backdrop-blur-sm">
                         <li>You are 18 years of age or older and capable of entering into a legally binding agreement.</li>
@@ -93,34 +93,34 @@ const TermsOfService: React.FC = () => {
                 </section>
 
                 <section className="space-y-6">
-                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Email Connectivity & Data Fetching</h2>
+                    <h2 className="text-3xl font-sans font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Email Connectivity &amp; Data Fetching</h2>
                     <p>
                         Yureka.One currently supports Gmail, Outlook, Hotmail, and Live email accounts for automatic credit card data and statement fetching. To ensure uninterrupted data fetching from unsupported providers (such as Yahoo Mail), you must auto-forward statements to a supported, linked account. Yureka.One shall not be responsible for any incomplete data display resulting from unsupported providers or failure to forward statements correctly.
                     </p>
                 </section>
 
                 <section className="space-y-6">
-                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Yureka.One Bill Payment</h2>
+                    <h2 className="text-3xl font-sans font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Yureka.One Bill Payment</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div>
-                            <h4 className="font-bold uppercase tracking-widest text-[10px] text-clay mb-2">1. Eligibility</h4>
-                            <p className="text-base text-white/60 leading-relaxed">Must be 18+ and registered. Payments should only be made for cards/accounts you own or are authorised to pay for.</p>
+                            <h4 className="font-bold uppercase tracking-widest text-[10px] text-landing-primary mb-2">1. Eligibility</h4>
+                            <p className="text-base text-white/70 leading-relaxed">Must be 18+ and registered. Payments should only be made for cards/accounts you own or are authorised to pay for.</p>
                         </div>
                         <div>
-                            <h4 className="font-bold uppercase tracking-widest text-[10px] text-clay mb-2">2. Fees & Charges</h4>
-                            <p className="text-base text-white/60 leading-relaxed">Yureka.One may charge a convenience or facilitation fee for certain payment methods. All applicable fees are disclosed before you confirm a transaction.</p>
+                            <h4 className="font-bold uppercase tracking-widest text-[10px] text-landing-primary mb-2">2. Fees &amp; Charges</h4>
+                            <p className="text-base text-white/70 leading-relaxed">Yureka.One may charge a convenience or facilitation fee for certain payment methods. All applicable fees are disclosed before you confirm a transaction.</p>
                         </div>
                         <div className="md:col-span-2">
-                            <h4 className="font-bold uppercase tracking-widest text-[10px] text-clay mb-2">3. Failed Transactions & Refunds</h4>
-                            <p className="text-base text-white/60 leading-relaxed">Payments usually process within 48 to 72 working hours. If a transaction fails, refunds (if applicable) are processed within 3 working days back to the original source.</p>
+                            <h4 className="font-bold uppercase tracking-widest text-[10px] text-landing-primary mb-2">3. Failed Transactions &amp; Refunds</h4>
+                            <p className="text-base text-white/70 leading-relaxed">Payments usually process within 48 to 72 working hours. If a transaction fails, refunds (if applicable) are processed within 3 working days back to the original source.</p>
                         </div>
                     </div>
                 </section>
 
                 <section className="space-y-6">
-                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Cashback & Rewards</h2>
+                    <h2 className="text-3xl font-sans font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">Cashback &amp; Rewards</h2>
                     <p className="bg-white/5 text-white/80 p-8 md:p-12 mt-8 border border-white/10 rounded-[2rem] shadow-2xl relative overflow-hidden backdrop-blur-sm">
-                        <span className="absolute top-0 left-0 w-1.5 h-full bg-clay shadow-[0_0_15px_#00933b]"></span>
+                        <span className="absolute top-0 left-0 w-1.5 h-full bg-landing-primary shadow-[0_0_15px_rgba(222,244,110,0.3)]"></span>
                         <span className="italic text-lg leading-relaxed block">
                             Cashback earned will be credited to the user’s Yureka.One Wallet and can be used only on the Yureka.One platform. Cashback may be used to pay up to 5% of the total bill amount in a single bill payment transaction and up to 100% of a subscription purchase. Cashback is non-transferable, non-withdrawable, and cannot be exchanged for cash.
                         </span>
@@ -128,8 +128,8 @@ const TermsOfService: React.FC = () => {
                 </section>
 
                 <section className="space-y-8">
-                    <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">CRIF High Mark Consent</h2>
-                    <p className="italic mb-4 text-white/60">
+                    <h2 className="text-3xl font-sans font-extrabold uppercase tracking-tight text-white border-b-2 border-white/10 pb-4">CRIF High Mark Consent</h2>
+                    <p className="italic mb-4 text-white/70">
                         By using the platform, I grant unconditional consent to CRIF High Mark to deliver my Consumer Credit Information to Jupyter Network Technologies Pvt Ltd on my behalf.
                     </p>
                     <ul className="list-disc pl-8 space-y-4 text-base text-white/70 leading-relaxed">
@@ -142,15 +142,15 @@ const TermsOfService: React.FC = () => {
                 {/* Insurance Section Removed per refactor */}
                 
                 <section className="border-t-4 border-white pt-16 mt-16 text-center space-y-10">
-                     <p className="text-[10px] md:text-xs font-mono uppercase tracking-[0.3em] text-white/30 leading-relaxed max-w-2xl mx-auto">
-                         Governing Law and Jurisdiction: These T&C are governed and construed in accordance with laws of India. By using the Services, you irrevocably consent to the exclusive jurisdiction of courts in Delhi, India. 
+                     <p className="text-[10px] md:text-xs font-mono uppercase tracking-[0.3em] text-white/40 leading-relaxed max-w-2xl mx-auto">
+                         Governing Law and Jurisdiction: These T&amp;C are governed and construed in accordance with laws of India. By using the Services, you irrevocably consent to the exclusive jurisdiction of courts in Delhi, India. 
                      </p>
                      
                      <div className="pt-8">
-                         <h3 className="text-2xl font-heading font-extrabold uppercase tracking-tight text-white mb-6 italic">Grievance Redressal</h3>
-                         <p className="text-[10px] uppercase tracking-widest text-clay font-bold mb-2">Grievance Redressal Officer (per DPDP Rule 12 & IT Rules)</p>
+                         <h3 className="text-2xl font-sans font-extrabold uppercase tracking-tight text-white mb-6">Grievance Redressal</h3>
+                         <p className="text-[10px] uppercase tracking-widest text-landing-primary font-bold mb-2">Grievance Redressal Officer (per DPDP Rule 12 &amp; IT Rules)</p>
                          <p className="text-xl font-bold text-white mb-8">support@yureka.one</p>
-                         <a href="mailto:support@yureka.one" className="inline-flex items-center gap-3 bg-white text-cream px-10 py-5 rounded-full uppercase font-bold tracking-[0.2em] text-[10px] hover:bg-clay hover:scale-105 transition-all shadow-2xl">
+                         <a href="mailto:support@yureka.one" className="inline-flex items-center gap-3 bg-landing-primary text-landing-ink px-10 py-5 rounded-full uppercase font-bold tracking-[0.14em] text-[11px] hover:brightness-110 shadow-lg shadow-landing-primary/20 transition-all">
                              Contact Support <ChevronRight size={14} />
                          </a>
                      </div>

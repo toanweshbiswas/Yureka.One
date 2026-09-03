@@ -172,7 +172,6 @@ function getSupabase(): SupabaseClient | null {
   // Prefer service role for writes (RLS blocks anon). Never mix file IDs into Supabase.
   const key =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.VITE_SUPABASE_SERVICE_ROLE_KEY ||
     ''
   if (!url || !key) return null
   return createClient(url, key, { auth: { persistSession: false } })

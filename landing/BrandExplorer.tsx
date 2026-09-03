@@ -59,7 +59,7 @@ const slugify = (value: string) => categorySlug(value);
 
 const BrandCard: React.FC<{ brand: Brand; index: number }> = ({ brand, index }) => (
     <motion.div initial={{ opacity: 0, scale: 0.98 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true, margin: '100px' }} transition={{ delay: (index % 4) * 0.05 }} className="group">
-        <div className="relative bg-white/[0.03] backdrop-blur-xl rounded-[2.5rem] border border-white/10 p-2 h-full flex flex-col overflow-hidden hover:border-clay/30 hover:bg-white/[0.07] hover:-translate-y-1.5 transition-all duration-500 shadow-xl shadow-black/30 hover:shadow-2xl hover:shadow-clay/10">
+        <div className="relative bg-white/[0.03] backdrop-blur-xl rounded-[2.5rem] border border-white/10 p-2 h-full flex flex-col overflow-hidden hover:border-landing-primary/40 hover:bg-white/[0.07] hover:-translate-y-1.5 transition-all duration-500 shadow-xl shadow-black/30 hover:shadow-2xl hover:shadow-landing-primary/10">
             {/* glass sheen */}
             <div className="absolute inset-0 bg-gradient-to-br from-white/[0.06] via-transparent to-transparent pointer-events-none" />
 
@@ -79,7 +79,7 @@ const BrandCard: React.FC<{ brand: Brand; index: number }> = ({ brand, index }) 
                 )}
             </div>
 
-            <h3 className="relative text-sm font-sans font-bold text-white text-center px-4 pb-6 uppercase tracking-wider group-hover:text-clay transition-colors">{brand.name}</h3>
+            <h3 className="relative text-sm font-sans font-bold text-white text-center px-4 pb-6 uppercase tracking-wider group-hover:text-landing-primary transition-colors">{brand.name}</h3>
         </div>
     </motion.div>
 );
@@ -180,7 +180,7 @@ const BrandExplorer: React.FC = () => {
     );
 
     return (
-        <div className="min-h-screen bg-mesh pb-32 overflow-x-hidden text-white/90 selection:bg-clay selection:text-cream">
+        <div className="yureka-one-home min-h-screen bg-landing-bg pb-32 overflow-x-hidden text-white selection:bg-landing-primary selection:text-landing-ink">
             <SEO
                 title={catSeo?.title || indexMeta.title}
                 description={catSeo?.description || indexMeta.description}
@@ -196,24 +196,24 @@ const BrandExplorer: React.FC = () => {
                 />
 
                 {/* ambient glow orbs */}
-                <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-clay/[0.04] rounded-full blur-[160px] pointer-events-none" />
-                <div className="absolute top-1/3 right-0 translate-x-1/2 w-[400px] h-[400px] bg-clay/[0.03] rounded-full blur-[140px] pointer-events-none" />
+                <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[700px] bg-landing-primary/[0.04] rounded-full blur-[160px] pointer-events-none" />
+                <div className="absolute top-1/3 right-0 translate-x-1/2 w-[400px] h-[400px] bg-landing-primary/[0.03] rounded-full blur-[140px] pointer-events-none" />
 
                 <div className="max-w-[1400px] mx-auto px-6 relative z-10 text-center">
                     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-                        <p className="text-[10px] font-bold uppercase tracking-[0.4em] text-clay mb-6">Reward Partners & Brands</p>
-                        <h1 className="text-5xl sm:text-7xl md:text-8xl font-cirka font-medium text-white leading-[0.95] tracking-tighter mb-8">
+                        <p className="text-[11px] font-bold uppercase tracking-[0.3em] text-landing-primary mb-6">Reward Partners &amp; Brands</p>
+                        <h1 className="text-5xl sm:text-7xl md:text-8xl font-sans font-black text-white leading-[0.95] tracking-tight mb-8">
                             {activeCategory ? (
                                 <>
-                                    {activeCategory}.<br /><span className="text-clay italic font-light">Earn more.</span>
+                                    {activeCategory}.<br /><span className="font-cooper text-landing-primary">Earn more.</span>
                                 </>
                             ) : (
                                 <>
-                                    Shop Smarter.<br /><span className="text-clay italic font-light">Earn More.</span>
+                                    Shop Smarter.<br /><span className="font-cooper text-landing-primary">Earn More.</span>
                                 </>
                             )}
                         </h1>
-                        <p className="text-white/70 text-base md:text-xl font-serif italic max-w-2xl mx-auto leading-relaxed mb-10">
+                        <p className="text-white text-base md:text-xl font-sans max-w-2xl mx-auto leading-relaxed mb-10">
                             {activeCategory
                                 ? `${categoryCounts[activeCategory] || 0} ${activeCategory.toLowerCase()} partners with cashback and Goldback.`
                                 : `Explore ${brands.length} brand partners offering exclusive cashback, discounts, and rewards.`}
@@ -222,7 +222,7 @@ const BrandExplorer: React.FC = () => {
                         {/* ── STATS ── */}
                         <div className="flex flex-wrap items-center justify-center gap-3 mb-16">
                             {STATS.map(({ label, icon }) => (
-                                <div key={label} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/[0.04] backdrop-blur-xl border border-white/10 text-[10px] font-bold uppercase tracking-[0.2em] text-white/60 shadow-lg shadow-black/20">
+                                <div key={label} className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/[0.04] backdrop-blur-xl border border-white/10 text-[10px] font-bold uppercase tracking-[0.2em] text-white shadow-lg shadow-black/20">
                                     <Icon3d name={icon} className="h-5 w-5 object-contain" />
                                     {label}
                                 </div>
@@ -234,15 +234,15 @@ const BrandExplorer: React.FC = () => {
                     <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="max-w-4xl mx-auto px-4">
                         <div className="bg-white/[0.04] backdrop-blur-3xl rounded-[2.5rem] border border-white/10 ring-1 ring-white/5 p-3 shadow-2xl shadow-black/40 flex flex-col sm:flex-row items-center gap-3">
                             <div className="relative w-full group flex-1">
-                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-clay transition-colors" size={18} />
+                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/40 group-focus-within:text-landing-primary transition-colors" size={18} />
                                 <input type="text" placeholder="Search brands..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-14 pr-6 py-4 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl outline-none focus:border-clay/50 focus:bg-white/[0.06] transition-all text-sm text-white"
+                                    className="w-full pl-14 pr-6 py-4 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl outline-none focus:border-landing-primary/50 focus:bg-white/[0.06] transition-all text-sm text-white"
                                 />
                             </div>
 
                             <div className="relative w-full sm:w-auto shrink-0" ref={dropdownRef}>
                                 <button onClick={() => setDropdownOpen(o => !o)}
-                                    className="w-full sm:w-auto flex items-center justify-between gap-3 px-6 py-4 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white/70 hover:text-white hover:border-clay/40 hover:bg-white/[0.06] transition-all sm:min-w-[220px]"
+                                    className="w-full sm:w-auto flex items-center justify-between gap-3 px-6 py-4 bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] text-white hover:text-landing-primary hover:border-landing-primary/40 hover:bg-white/[0.06] transition-all sm:min-w-[220px]"
                                 >
                                     <span className="flex items-center gap-2">
                                         <Icon3d name={activeCategory ? (CATEGORY_ICONS[activeCategory] || 'cube') : 'cube'} className="h-5 w-5 object-contain" />
@@ -253,24 +253,24 @@ const BrandExplorer: React.FC = () => {
 
                                 {dropdownOpen && (
                                     <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}
-                                        className="absolute right-0 left-0 sm:left-auto mt-2 w-full sm:w-72 max-h-96 overflow-y-auto bg-[#0a0a0a]/80 backdrop-blur-2xl border border-white/10 ring-1 ring-white/5 rounded-2xl shadow-2xl shadow-black/50 z-50 p-2 text-left"
+                                        className="absolute right-0 left-0 sm:left-auto mt-2 w-full sm:w-72 max-h-96 overflow-y-auto bg-[#0a0a0a]/90 backdrop-blur-2xl border border-white/10 ring-1 ring-white/5 rounded-2xl shadow-2xl shadow-black/50 z-50 p-2 text-left"
                                     >
                                         <button onClick={() => handleJumpTo('All')}
-                                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-[0.2em] text-white/70 hover:bg-white/5 hover:text-clay transition-colors"
+                                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-white/5 hover:text-landing-primary transition-colors"
                                         >
                                             <Icon3d name="cube" className="h-6 w-6 object-contain" />
                                             All Brands
-                                            <span className="ml-auto text-[9px] font-bold text-white/30">{categoryCounts.All}</span>
+                                            <span className="ml-auto text-[9px] font-bold text-white/50">{categoryCounts.All}</span>
                                         </button>
                                         {categories.map(cat => {
                                             const icon = CATEGORY_ICONS[cat] || 'cube';
                                             return (
                                                 <button key={cat} onClick={() => handleJumpTo(cat)}
-                                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-[0.2em] text-white/70 hover:bg-white/5 hover:text-clay transition-colors"
+                                                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left text-[10px] font-black uppercase tracking-[0.2em] text-white hover:bg-white/5 hover:text-landing-primary transition-colors"
                                                 >
                                                     <Icon3d name={icon} className="h-6 w-6 object-contain" />
                                                     {cat}
-                                                    <span className="ml-auto text-[9px] font-bold text-white/30">{categoryCounts[cat]}</span>
+                                                    <span className="ml-auto text-[9px] font-bold text-white/50">{categoryCounts[cat]}</span>
                                                 </button>
                                             );
                                         })}
@@ -294,8 +294,8 @@ const BrandExplorer: React.FC = () => {
                                     <Icon3d name={icon} className="h-10 w-10 object-contain" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl md:text-3xl font-cirka font-medium text-white tracking-tight">{category}</h2>
-                                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/40 mt-1">
+                                    <h2 className="text-2xl md:text-3xl font-sans font-extrabold text-white tracking-tight">{category}</h2>
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white mt-1">
                                         {sectionBrands.length} {sectionBrands.length === 1 ? 'Brand' : 'Brands'}
                                     </p>
                                 </div>
@@ -314,9 +314,9 @@ const BrandExplorer: React.FC = () => {
                     <div className="flex justify-center py-32">
                         <div className="inline-flex flex-col items-center gap-4 px-12 py-16 rounded-[2.5rem] bg-white/[0.03] backdrop-blur-xl border border-white/10 shadow-2xl shadow-black/30">
                             <Icon3d name="zoom" className="h-12 w-12 object-contain opacity-70" />
-                            <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-white/40 italic">No brands found matching "{searchQuery}"</p>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.5em] text-white italic">No brands found matching "{searchQuery}"</p>
                             <button onClick={() => setSearchQuery('')}
-                                className="mt-2 text-clay text-[11px] font-bold uppercase tracking-widest hover:underline">Clear Search</button>
+                                className="mt-2 text-landing-primary text-[11px] font-bold uppercase tracking-widest hover:underline">Clear Search</button>
                         </div>
                     </div>
                 )}
@@ -328,7 +328,7 @@ const BrandExplorer: React.FC = () => {
                     <motion.button
                         initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }}
                         onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-                        className="fixed bottom-32 right-7 w-12 h-12 bg-white/10 backdrop-blur-xl text-white rounded-full shadow-2xl shadow-black/40 flex items-center justify-center hover:bg-clay hover:text-black hover:border-clay/40 transition-all z-50 border border-white/20"
+                        className="fixed bottom-32 right-7 w-12 h-12 bg-white/10 backdrop-blur-xl text-white rounded-full shadow-2xl shadow-black/40 flex items-center justify-center hover:bg-landing-primary hover:text-landing-ink hover:border-landing-primary/40 transition-all z-50 border border-white/20"
                     >
                         <ChevronUp size={20} />
                     </motion.button>

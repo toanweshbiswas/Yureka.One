@@ -5,7 +5,7 @@ import { staticPageMeta } from '@backend/lib/seo/pageMeta'
 import { breadcrumbSchema } from '@backend/lib/seo/structuredData'
 
 const ContactPage: React.FC = () => (
-  <div className="bg-cream min-h-screen">
+  <div className="bg-landing-bg min-h-screen">
     <SEO
       {...staticPageMeta['/contact']}
       schema={[
@@ -24,32 +24,31 @@ const ContactPage: React.FC = () => (
 
     <section className="px-6 pt-20 pb-24 md:pt-28">
       <div className="max-w-3xl mx-auto">
-        <span className="font-overpass-mono text-clay text-xs uppercase tracking-[0.4em] block mb-6">Support</span>
-        <h1 className="font-cirka text-white text-4xl sm:text-6xl font-extrabold leading-[1.05] mb-8" style={{ letterSpacing: '-0.03em' }}>
-          Contact Yureka.One
+        <span className="font-sans font-bold text-landing-primary text-xs uppercase tracking-[0.3em] block mb-6">Support</span>
+        <h1 className="font-sans text-white text-4xl sm:text-6xl font-black leading-[1.05] tracking-tight mb-8">
+          Contact <span className="font-cooper text-landing-primary">Yureka.One</span>
         </h1>
-        <p className="text-white/70 text-lg leading-relaxed mb-10">
+        <p className="text-white text-lg leading-relaxed mb-10">
           We serve India. For product support, partnerships, press, and careers, write to support.
         </p>
 
         <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 space-y-6">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">Email</p>
-            <a href="mailto:support@yureka.one" className="text-clay text-xl font-semibold hover:underline">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/50 mb-2">Email</p>
+            <a href="mailto:support@yureka.one" className="text-landing-primary text-xl font-semibold hover:underline">
               support@yureka.one
             </a>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">HQ</p>
-            <p className="text-white/70">Bengaluru, India</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/50 mb-2">HQ</p>
+            <p className="text-white">Bengaluru, India</p>
           </div>
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-2">Product access</p>
-            <p className="text-white/70">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/50 mb-2">Product access</p>
+            <p className="text-white">
               Create an account and open the dashboard.{' '}
-              <Link to="/login" className="text-clay hover:underline">Get started</Link>
+              <Link to="/login" className="text-landing-primary hover:underline font-semibold">Get started</Link>
               {' '}from the header, or sign in if you already have an account.
-              {/* Waitlist paused. Join the waitlist via /join-waitlist when VITE_WAITLIST_REQUIRED=true */}
             </p>
           </div>
         </div>

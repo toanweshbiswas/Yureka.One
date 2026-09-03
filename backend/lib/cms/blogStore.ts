@@ -81,7 +81,7 @@ function writeFileStore(snap: BlogFileStore) {
 function getSupabase(): SupabaseClient | null {
   if (forceFileMode() || supabaseSchemaUnavailable) return null
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   if (!url || !key) return null
   return createClient(url, key, { auth: { persistSession: false } })
 }

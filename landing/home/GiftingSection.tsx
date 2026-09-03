@@ -6,7 +6,7 @@ import {
   landingSection,
 } from './landingLayout'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { Loader2, X } from 'lucide-react'
+import { Loader2, Search, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { GiftCard } from '@backend/lib/hubble/types'
 import {
@@ -49,6 +49,9 @@ export default function GiftingSection() {
   const navigate = useNavigate()
   const reduceMotion = useReducedMotion()
   const [cards, setCards] = useState<GiftCard[]>([])
+  const [categories, setCategories] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('ALL')
   const [loading, setLoading] = useState(true)
   const [checkoutEnabled, setCheckoutEnabled] = useState(false)
   const [selected, setSelected] = useState<GiftCard | null>(null)
@@ -68,7 +71,7 @@ export default function GiftingSection() {
       try {
         const [healthRes, listRes] = await Promise.all([
           fetch('/api/giftcards/health'),
-          fetch('/api/giftcards?status=ACTIVE&limit=24'),
+          fetch('/api/giftcards?status=ACTIVE'),
         ])
         const health = await healthRes.json().catch(() => ({}))
         const list = await listRes.json().catch(() => ({}))
@@ -80,7 +83,17 @@ export default function GiftingSection() {
           : Array.isArray(list?.data)
             ? (list.data as GiftCard[])
             : []
-        setCards(items.filter((c) => c.status === 'ACTIVE').slice(0, 12))
+        const activeCards = items.filter((c) => c.status === 'ACTIVE')
+        setCards(activeCards)
+        if (Array.isArray(list?.data?.categories)) {
+          setCategories(list.data.categories)
+        } else {
+          const catSet = new Set<string>()
+          for (const c of activeCards) {
+            for (const cat of c.categories || []) catSet.add(cat)
+          }
+          setCategories(Array.from(catSet).sort())
+        }
       } catch {
         if (!cancelled) setCards([])
       } finally {
@@ -91,6 +104,22 @@ export default function GiftingSection() {
       cancelled = true
     }
   }, [])
+
+  const displayedCards = useMemo(() => {
+    let res = cards
+    if (selectedCategory !== 'ALL') {
+      const catUpper = selectedCategory.toUpperCase()
+      res = res.filter((c) => c.categories.some((cat) => cat.toUpperCase() === catUpper))
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.trim().toLowerCase()
+      res = res.filter((c) => {
+        const hay = `${c.title} ${c.brand} ${c.description || ''} ${(c.tags || []).join(' ')}`.toLowerCase()
+        return hay.includes(q)
+      })
+    }
+    return res
+  }, [cards, selectedCategory, searchQuery])
 
   useEffect(() => {
     if (!selected) {
@@ -229,13 +258,11 @@ export default function GiftingSection() {
           Gift cards
         </p>
         <h2
-          style={{ fontFamily: 'Inter, sans-serif' }}
-          className="mt-3 text-[28px] font-extrabold leading-[1.15] tracking-[-0.03em] text-landing-primary sm:text-[40px]"
+          className="font-sans mt-3 text-[28px] font-extrabold leading-[1.15] tracking-[-0.03em] text-landing-primary sm:text-[40px]"
         >
           Send a gift{' '}
           <span
-            style={{ fontFamily: '"Playfair Display", serif' }}
-            className="italic font-semibold text-landing-primary"
+            className="font-cooper text-[30px] sm:text-[44px] text-landing-primary"
           >
             without signing up
           </span>
@@ -245,25 +272,97 @@ export default function GiftingSection() {
           account required.
         </p>
 
+        {!loading && cards.length > 0 && (
+          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative w-full sm:max-w-sm">
+              <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40" />
+              <input
+                type="text"
+                placeholder="Search brands & gift cards..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-full border border-white/15 bg-white/[0.04] py-2.5 pl-10 pr-10 text-sm text-white placeholder:text-white/40 focus:border-landing-primary focus:outline-none focus:ring-1 focus:ring-landing-primary transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-semibold text-white/50 hover:text-white"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+
+            {categories.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1 text-[11px] font-bold uppercase tracking-wider">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory('ALL')}
+                  className={`rounded-full px-3.5 py-1.5 transition-all ${
+                    selectedCategory === 'ALL'
+                      ? 'bg-landing-primary text-landing-ink font-extrabold shadow-sm'
+                      : 'border border-white/10 bg-white/[0.03] text-white hover:bg-white/10'
+                  }`}
+                >
+                  All ({cards.length})
+                </button>
+                {categories.slice(0, 8).map((cat) => {
+                  const count = cards.filter((c) => (c.categories || []).includes(cat)).length
+                  if (count === 0) return null
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`rounded-full px-3.5 py-1.5 transition-all whitespace-nowrap ${
+                        selectedCategory === cat
+                          ? 'bg-landing-primary text-landing-ink font-extrabold shadow-sm'
+                          : 'border border-white/10 bg-white/[0.03] text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {cat} ({count})
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {loading ? (
           <div className="mt-12 flex justify-center py-16">
             <Loader2 className="animate-spin text-landing-primary" size={28} />
           </div>
         ) : cards.length === 0 ? (
           <p className="mt-10 text-sm text-landing-muted">Gift cards are temporarily unavailable.</p>
+        ) : displayedCards.length === 0 ? (
+          <div className="mt-12 rounded-2xl border border-white/10 bg-white/[0.03] p-10 text-center">
+            <p className="text-sm text-white">No gift cards found matching your search.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchQuery('')
+                setSelectedCategory('ALL')
+              }}
+              className="mt-3 text-xs font-bold uppercase tracking-widest text-landing-primary hover:underline"
+            >
+              Reset filters
+            </button>
+          </div>
         ) : (
-          <div className="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {cards.map((card, index) => (
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {displayedCards.map((card, index) => (
               <motion.button
                 key={card.id}
                 type="button"
                 initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: 12 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, margin: '-40px' }}
-                transition={{ ...spring, delay: reduceMotion ? 0 : Math.min(index * 0.03, 0.2) }}
+                transition={{ ...spring, delay: reduceMotion ? 0 : Math.min(index * 0.02, 0.2) }}
                 whileTap={{ scale: 0.97 }}
                 onClick={() => setSelected(card)}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-white/15 bg-white/[0.04] text-left backdrop-blur-xl active:scale-[0.98]"
+                className="group flex flex-col overflow-hidden rounded-2xl border border-white/15 bg-white/[0.04] text-left backdrop-blur-xl active:scale-[0.98] hover:border-landing-primary/40 transition-colors"
               >
                 <div className="flex aspect-[4/3] items-center justify-center bg-white/95 p-4">
                   {card.imageUrl || card.logoUrl ? (
@@ -281,7 +380,7 @@ export default function GiftingSection() {
                   <p className="truncate text-[13px] font-semibold tracking-[-0.02em] text-white">
                     {card.title}
                   </p>
-                  <p className="mt-1 text-[11px] text-white/40">
+                  <p className="mt-1 text-[11px] text-white">
                     {card.minAmount != null
                       ? `From ${formatInr(card.minAmount)}`
                       : denomsPreview(card)}
@@ -320,7 +419,7 @@ export default function GiftingSection() {
             >
               <div className="mb-4 flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
                     Gift someone
                   </p>
                   <h3 className="mt-1 text-[18px] font-bold tracking-[-0.02em] text-white">
@@ -331,7 +430,7 @@ export default function GiftingSection() {
                   type="button"
                   disabled={buying}
                   onClick={() => setSelected(null)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white/70 active:scale-95"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white active:scale-95"
                 >
                   <X size={16} />
                 </button>
@@ -339,7 +438,7 @@ export default function GiftingSection() {
 
               <div className="space-y-3">
                 <div>
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
                     Amount
                   </p>
                   {denoms.length > 0 && (
@@ -352,7 +451,7 @@ export default function GiftingSection() {
                           className={`rounded-full px-3 py-1.5 text-[12px] font-semibold ${
                             amount === d
                               ? 'bg-landing-primary text-landing-ink'
-                              : 'bg-white/10 text-white/70'
+                              : 'bg-white/10 text-white'
                           }`}
                         >
                           {formatInr(d)}
@@ -362,15 +461,15 @@ export default function GiftingSection() {
                   )}
                   <input
                     type="number"
-                    min={1}
-                    value={amount ?? ''}
-                    onChange={(e) => setAmount(e.target.value ? Math.ceil(Number(e.target.value)) : null)}
+                    inputMode="numeric"
+                    placeholder="Or enter custom amount in ₹"
+                    value={amount || ''}
+                    onChange={(e) => setAmount(Number(e.target.value) || 0)}
                     className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white"
-                    placeholder="Custom amount"
                   />
                 </div>
 
-                <Field label="Your name" value={senderName} onChange={setSenderName} placeholder="Your name" />
+                <Field label="Your name" value={senderName} onChange={setSenderName} placeholder="Who is this from?" />
                 <Field
                   label="Your email"
                   value={senderEmail}
@@ -399,7 +498,7 @@ export default function GiftingSection() {
                   type="email"
                 />
                 <div>
-                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
                     Message (optional)
                   </p>
                   <textarea
@@ -431,7 +530,7 @@ export default function GiftingSection() {
                     <>Gift {amount != null ? formatInr(amount) : ''}</>
                   )}
                 </button>
-                <p className="pb-2 text-[11px] leading-relaxed text-white/35">
+                <p className="pb-2 text-[11px] leading-relaxed text-white">
                   No account needed. After payment, we email the codes to your recipient and confirm
                   to you.
                 </p>
@@ -467,7 +566,7 @@ function Field({
 }) {
   return (
     <div>
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/35">{label}</p>
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">{label}</p>
       <input
         type={type}
         inputMode={inputMode}

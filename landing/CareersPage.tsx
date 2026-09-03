@@ -89,20 +89,19 @@ const CareersPage: React.FC = () => {
 
       <section className="px-6 pt-20 pb-16 md:pt-28 md:pb-20 border-b border-white/10">
         <div className="max-w-3xl mx-auto">
-          <span className="font-overpass-mono text-clay text-xs uppercase tracking-[0.4em] block mb-6">
+          <span className="font-sans font-bold text-landing-primary text-xs uppercase tracking-[0.3em] block mb-6">
             Careers
           </span>
           <h1
-            className="font-cirka text-white text-4xl sm:text-6xl font-extrabold leading-[1.05] mb-8"
-            style={{ letterSpacing: '-0.03em' }}
+            className="font-sans text-white text-4xl sm:text-6xl font-black leading-[1.05] tracking-tight mb-8"
           >
-            Build India&apos;s AI Wealth OS
+            Build India&apos;s <span className="font-cooper text-landing-primary">AI Wealth OS</span>
           </h1>
-          <p className="text-white/70 text-lg leading-relaxed mb-6">
+          <p className="text-white text-lg leading-relaxed mb-6">
             Yureka.One turns everyday spending into digital gold, AI ordering, and alternative credit.
             We&apos;re a small team in Bengaluru building for power shoppers who expect more from every transaction.
           </p>
-          <p className="text-white/55 leading-relaxed">
+          <p className="text-white leading-relaxed">
             High autonomy, competitive equity, and craft-first product work. If banking rewards feel broken to you,
             you&apos;ll fit right in.
           </p>
@@ -112,19 +111,19 @@ const CareersPage: React.FC = () => {
       <section className="px-6 py-16 md:py-20">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between gap-4 mb-8">
-            <h2 className="font-cirka text-white text-2xl font-bold">Open roles</h2>
-            <p className="text-[11px] uppercase tracking-[0.22em] text-white/35">Bengaluru · Hybrid</p>
+            <h2 className="font-sans text-white text-2xl font-bold tracking-tight">Open roles</h2>
+            <p className="text-[11px] uppercase tracking-[0.22em] text-white">Bengaluru · Hybrid</p>
           </div>
 
           {loading ? (
             <div className="flex justify-center py-16">
-              <Loader2 className="animate-spin text-clay" size={28} />
+              <Loader2 className="animate-spin text-landing-primary" size={28} />
             </div>
           ) : !roles.length ? (
             <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-10 text-center">
-              <Briefcase className="mx-auto mb-4 text-white/30" size={28} />
-              <p className="text-white/55">No open roles right now.</p>
-              <a href="mailto:support@yureka.one" className="mt-4 inline-block text-clay hover:underline">
+              <Briefcase className="mx-auto mb-4 text-white" size={28} />
+              <p className="text-white">No open roles right now.</p>
+              <a href="mailto:support@yureka.one" className="mt-4 inline-block text-landing-primary hover:underline">
                 Email us anyway
               </a>
             </div>
@@ -142,28 +141,28 @@ const CareersPage: React.FC = () => {
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35 mb-2">
+                          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white mb-2">
                             {role.refId}
                           </p>
-                          <h3 className="font-cirka text-white text-xl md:text-2xl font-bold leading-snug">
+                          <h3 className="font-sans text-white text-xl md:text-2xl font-bold leading-snug tracking-tight">
                             {role.title}
                           </h3>
-                          <p className="mt-2 text-[13px] text-white/45">
+                          <p className="mt-2 text-[13px] text-white">
                             {dept} · {role.location} · {role.type}
                           </p>
                         </div>
-                        <span className="shrink-0 mt-1 text-white/35 text-sm">{open ? '−' : '+'}</span>
+                        <span className="shrink-0 mt-1 text-white text-sm">{open ? '−' : '+'}</span>
                       </div>
                     </button>
 
                     {open && (
                       <div className="px-5 pb-5 md:px-6 md:pb-6 -mt-2">
                         {role.description ? (
-                          <p className="text-white/65 leading-relaxed mb-5 max-w-2xl">{role.description}</p>
+                          <p className="text-white leading-relaxed mb-5 max-w-2xl">{role.description}</p>
                         ) : null}
                         <a
                           href={applyHref(role)}
-                          className="inline-flex items-center gap-2 rounded-full bg-clay px-5 py-2.5 text-[12px] font-bold uppercase tracking-[0.14em] text-black active:scale-[0.98] transition-transform"
+                          className="inline-flex items-center gap-2 rounded-full bg-landing-primary px-5 py-2.5 text-[12px] font-bold uppercase tracking-[0.14em] text-landing-ink hover:brightness-110 shadow-sm shadow-landing-primary/20 active:scale-[0.98] transition-all"
                         >
                           Apply
                           <ArrowUpRight size={14} />
@@ -177,15 +176,15 @@ const CareersPage: React.FC = () => {
           )}
 
           <div className="mt-12 rounded-3xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white/35 mb-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.25em] text-white mb-3">
               Don&apos;t see your role?
             </p>
-            <p className="text-white/55 mb-4">Tell us what you&apos;d build at Yureka and attach a CV or portfolio.</p>
-            <a href="mailto:support@yureka.one" className="text-clay font-semibold hover:underline">
+            <p className="text-white mb-4">Tell us what you&apos;d build at Yureka and attach a CV or portfolio.</p>
+            <a href="mailto:support@yureka.one" className="text-landing-primary font-semibold hover:underline">
               support@yureka.one
             </a>
-            <p className="mt-6 text-[13px] text-white/40">
-              Read more about the company on the <Link to="/about" className="text-clay hover:underline">About</Link> page.
+            <p className="mt-6 text-[13px] text-white">
+              Read more about the company on the <Link to="/about" className="text-landing-primary hover:underline">About</Link> page.
             </p>
           </div>
         </div>

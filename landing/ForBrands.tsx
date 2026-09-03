@@ -29,7 +29,7 @@ const ForBrands: React.FC = () => {
       <button
         type="button"
         onClick={() => goExternal(portalHref)}
-        className="fixed bottom-6 right-6 z-[10000] rounded-2xl bg-clay text-black px-5 py-3 text-[10px] font-black uppercase tracking-[0.18em] shadow-lg"
+        className="fixed bottom-6 right-6 z-[10000] rounded-2xl bg-landing-primary text-landing-ink font-bold hover:brightness-110 px-5 py-3 text-[10px] uppercase tracking-[0.18em] shadow-lg shadow-landing-primary/20 transition-all"
       >
         Partner login
       </button>

@@ -21,8 +21,19 @@
 .yureka-one-home h5,
 .yureka-one-home h6,
 .yureka-one-home .font-heading {
-  font-family: 'Space Mono', monospace !important;
+  font-family: 'Plus Jakarta Sans', Inter, -apple-system, sans-serif !important;
   text-transform: none !important;
+}
+
+.yureka-one-home .font-blackletter,
+.yureka-one-home h1 em, .yureka-one-home h2 em, .yureka-one-home h3 em,
+.yureka-one-home h4 em, .yureka-one-home h5 em, .yureka-one-home h6 em,
+.yureka-one-home h1 i, .yureka-one-home h2 i, .yureka-one-home h3 i,
+.yureka-one-home h4 i, .yureka-one-home h5 i, .yureka-one-home h6 i,
+.yureka-one-home .font-cooper {
+  font-family: "Cooper Black", "Cooper Std", "Fraunces", Georgia, serif !important;
+  font-style: italic !important;
+  font-weight: 900 !important;
 }
 
 /* Beat sitewide `h1–h6 { color: #00933b !important }` for landing tokens. */
@@ -239,13 +250,14 @@
         font-family: 'Space Mono', monospace !important;
       }
 
-      /* Heading accent. Playfair Display italic (the .font-blackletter token
+      /* Heading accent. Cooper Black italic 900 (the .font-blackletter token
          and any emphasized text nested inside a heading). */
       .font-blackletter,
       h1 em, h2 em, h3 em, h4 em, h5 em, h6 em,
       h1 i, h2 i, h3 i, h4 i, h5 i, h6 i {
-        font-family: 'Playfair Display', serif !important;
-        font-style: italic;
+        font-family: "Cooper Black", "Cooper Std", "Fraunces", Georgia, serif !important;
+        font-style: italic !important;
+        font-weight: 900 !important;
       }
 
       h1, .font-heading {

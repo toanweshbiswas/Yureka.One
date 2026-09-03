@@ -24,22 +24,22 @@ const GetawayLandingPage: React.FC = () => {
         title="WanderWorld Getaways | Yureka.One"
         description="Curated group trips and getaways. Browse trips on Yureka and book with secure checkout."
       />
-      <div className="min-h-screen bg-cream px-4 py-16 text-ink md:px-8">
+      <div className="min-h-screen bg-landing-bg px-4 py-16 text-white md:px-8 selection:bg-landing-primary selection:text-landing-ink">
         <div className="mx-auto max-w-4xl">
           <div className="flex items-center gap-3">
-            <Plane className="h-8 w-8 text-clay" />
-            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-white/40">WanderWorld</p>
+            <Plane className="h-8 w-8 text-landing-primary" />
+            <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-landing-primary">WanderWorld</p>
           </div>
-          <h1 className="mt-4 font-cirka text-4xl font-bold tracking-tight text-white md:text-5xl">
-            Curated getaways
+          <h1 className="mt-4 font-sans text-4xl font-black tracking-tight text-white md:text-5xl">
+            Curated <span className="font-cooper text-landing-primary">getaways</span>
           </h1>
-          <p className="mt-4 max-w-xl text-base text-white/55">
+          <p className="mt-4 max-w-xl text-base text-white/70">
             Book trips on Yureka with full or installment plans. All confirmations and payment reminders land in your
             Yureka inbox.
           </p>
           <Link
             to={appUrl('/login?next=%2Fdashboard%2Fgetaway')}
-            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-clay px-6 py-3 text-xs font-black uppercase tracking-[0.2em] text-black transition hover:opacity-90"
+            className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-landing-primary px-6 py-3 text-xs font-black uppercase tracking-[0.14em] text-landing-ink hover:brightness-110 shadow-lg shadow-landing-primary/20 transition-all"
           >
             Open in app <ArrowRight className="h-4 w-4" />
           </Link>
@@ -53,7 +53,7 @@ const GetawayLandingPage: React.FC = () => {
               <Link
                 key={t.id}
                 to={appUrl(`/login?next=${encodeURIComponent(`/dashboard/getaway/${t.slug}`)}`)}
-                className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:border-clay/30"
+                className="group overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] transition hover:border-landing-primary/40"
               >
                 {t.coverImageUrl ? (
                   <img src={t.coverImageUrl} alt="" className="aspect-[16/10] w-full object-cover" loading="lazy" />
@@ -61,11 +61,11 @@ const GetawayLandingPage: React.FC = () => {
                   <div className="aspect-[16/10] bg-white/5" />
                 )}
                 <div className="p-5">
-                  <h2 className="text-lg font-bold text-white group-hover:text-clay">{t.title}</h2>
-                  <p className="mt-1 text-sm text-white/45">
+                  <h2 className="text-lg font-bold text-white group-hover:text-landing-primary transition-colors">{t.title}</h2>
+                  <p className="mt-1 text-sm text-white/60">
                     {t.startDate?.slice(0, 10)} · {t.seatsLeft} seats left
                   </p>
-                  <p className="mt-3 text-sm font-semibold text-clay">From {formatInr(t.priceInr)}</p>
+                  <p className="mt-3 text-sm font-semibold text-landing-primary">From {formatInr(t.priceInr)}</p>
                 </div>
               </Link>
             ))}

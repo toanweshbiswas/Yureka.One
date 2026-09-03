@@ -16,13 +16,13 @@ export default {
     extend: {
       colors: {
         landing: {
-          bg: '#0d4428',
+          bg: '#000000',
           primary: '#def46e',
           sub: '#ffffff',
           ink: '#000000',
-          muted: 'rgba(255, 255, 255, 0.62)',
-          caption: 'rgba(255, 255, 255, 0.72)',
-          body: 'rgba(255, 255, 255, 0.88)',
+          muted: '#ffffff',
+          caption: '#ffffff',
+          body: '#ffffff',
         },
         cream: '#0a0a0a', 
         ink: 'rgba(255, 255, 255, 0.9)',   
@@ -56,17 +56,15 @@ export default {
         ring: 'hsl(var(--ring))',
       },
       fontFamily: {
-        // Sitewide type system: Space Mono for headings (primary) + Playfair
-        // Display italic for heading accents. Almarai for body/subheadings/context.
-        // Legacy class names are kept so existing markup doesn't need touching . 
-        // they resolve to one of these fonts.
-        sans: ['Almarai', 'sans-serif'],
-        heading: ['"Space Mono"', 'monospace'],
-        serif: ['Almarai', 'sans-serif'],
-        blackletter: ['"Playfair Display"', 'serif'],
-        kanit: ['Almarai', 'sans-serif'],
-        cirka: ['"Space Mono"', 'monospace'],
-        'overpass-mono': ['Almarai', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+        cooper: ['"Cooper Black"', '"Cooper Std"', 'Fraunces', 'serif'],
+        display: ['"Cooper Black"', '"Cooper Std"', 'Fraunces', 'serif'],
+        heading: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+        serif: ['"Cooper Black"', '"Cooper Std"', 'Fraunces', 'serif'],
+        blackletter: ['"Cooper Black"', '"Cooper Std"', 'Fraunces', 'serif'],
+        kanit: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+        cirka: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+        'overpass-mono': ['"Space Mono"', 'monospace'],
       },
       lineHeight: {
         tight: '1.1',

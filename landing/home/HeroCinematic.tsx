@@ -327,17 +327,15 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
 
           {/* "Meet Yureka" panel */}
           <div className="relative h-full w-screen overflow-hidden">
-            <div className="relative z-10 mx-auto flex h-full w-full flex-col gap-5 px-6 pb-10 pt-28 sm:pt-32 md:max-w-[60vw]">
+            <div className="relative z-10 mx-auto flex h-full w-full flex-col justify-center gap-3 lg:gap-4 px-6 py-16 sm:py-20 md:max-w-[64vw]">
               <div className="flex items-baseline gap-2">
                 <span
-                  style={{ fontFamily: '"Playfair Display", serif' }}
-                  className="text-[28px] italic font-semibold text-landing-primary sm:text-[36px]"
+                  className="font-cooper text-[30px] sm:text-[40px] text-landing-primary pr-1"
                 >
                   Meet
                 </span>
                 <span
-                  style={{ fontFamily: 'Inter, sans-serif' }}
-                  className="text-[28px] font-extrabold text-landing-primary sm:text-[36px]"
+                  className="font-sans text-[26px] font-black tracking-tight text-landing-primary sm:text-[36px]"
                 >
                   Yureka<span className="text-landing-primary">.</span>
                 </span>
@@ -346,8 +344,7 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
               <JoinWaitlistButton />
 
               <p
-                style={{ fontFamily: 'Inter, sans-serif' }}
-                className={`max-w-2xl ${landingBody}`}
+                className={`max-w-2xl text-[13px] sm:text-[14px] leading-relaxed ${landingBody}`}
               >
                 Yureka offers you 360° Rewards and Saving ecosystem where you get more than
                 700+ brands to shop from. Every time you get assured digital gold and reward
@@ -358,33 +355,34 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
               </p>
 
               <div
-                style={{ fontFamily: 'Inter, sans-serif' }}
                 className="grid min-h-0 flex-1 grid-cols-1 gap-4 md:grid-cols-[1.1fr_1fr_1fr]"
               >
                 <PhoneBubbleMockup />
 
                 {/* Hide extra cards on mobile. PhoneBubbleMockup fills
                     the flex-1 space; cards would overflow the 100dvh panel. */}
-                <div className="hidden md:flex relative flex-col overflow-hidden rounded-2xl border border-white/20 bg-landing-ink/80 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
-                  <h3 className="h-12 shrink-0 overflow-hidden text-[16px] font-extrabold uppercase leading-tight text-landing-primary sm:h-14 sm:text-[18px]">
-                    Shop Across <span className="text-landing-primary">700+</span> Brands
-                  </h3>
-                  <div className="relative mt-4 min-h-0 w-full flex-1 overflow-hidden rounded-2xl bg-landing-ink">
-                    <img
-                      src="/feat-card-gift.png"
-                      alt=""
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                    <GlassLayer />
+                <div className="hidden md:flex relative flex-col justify-between overflow-hidden rounded-2xl border border-white/20 bg-landing-ink/80 p-4 lg:p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                  <div>
+                    <h3 className="text-[14px] lg:text-[16px] font-extrabold uppercase leading-snug text-landing-primary">
+                      Shop Across <span className="font-cooper text-[18px] lg:text-[20px] text-landing-primary">700+</span> Brands
+                    </h3>
+                    <div className="relative my-2.5 h-32 sm:h-36 lg:h-44 w-full shrink-0 overflow-hidden rounded-xl bg-black/40 p-1.5">
+                      <img
+                        src="/feat-card-gift.png"
+                        alt="Shop across 700+ brands"
+                        loading="lazy"
+                        className="h-full w-full object-contain"
+                      />
+                      <GlassLayer />
+                    </div>
                   </div>
-                  <ul className={`h-[135px] shrink-0 list-inside list-disc space-y-1 overflow-hidden sm:h-[150px] ${landingCaption}`}>
+                  <ul className={`list-inside list-disc space-y-0.5 text-[11px] lg:text-[12px] leading-snug ${landingCaption}`}>
                     <li>Quick Commerce</li>
                     <li>Fashion &amp; Apparel</li>
                     <li>Footwear</li>
                     <li>Flights &amp; Hotels</li>
                     <li>Medicines &amp; Treatments</li>
-                    <li>Everything that you need in your day to day life</li>
+                    <li>Everything you need in your day to day life</li>
                   </ul>
                   <div
                     className="pointer-events-none absolute inset-0"
@@ -397,23 +395,24 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
                   <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/25" />
                 </div>
 
-                <div className="hidden md:flex relative flex-col overflow-hidden rounded-2xl border border-white/20 bg-landing-ink/80 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
-                  <h3
-                    style={{ fontFamily: '"Playfair Display", serif' }}
-                    className="h-12 shrink-0 overflow-hidden text-[16px] italic font-semibold leading-tight text-landing-primary sm:h-14 sm:text-[18px]"
-                  >
-                    Not Just One Time Saving Or Cashback Or Reward Points
-                  </h3>
-                  <div className="relative mt-4 min-h-0 w-full flex-1 overflow-hidden rounded-2xl bg-landing-ink">
-                    <img
-                      src="/card-calendar.png"
-                      alt=""
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                    />
-                    <GlassLayer />
+                <div className="hidden md:flex relative flex-col justify-between overflow-hidden rounded-2xl border border-white/20 bg-landing-ink/80 p-4 lg:p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                  <div>
+                    <h3
+                      className="font-cooper text-[15px] lg:text-[17px] leading-snug text-landing-primary"
+                    >
+                      Not Just One Time Saving Or Cashback Or Reward Points
+                    </h3>
+                    <div className="relative my-2.5 h-32 sm:h-36 lg:h-44 w-full shrink-0 overflow-hidden rounded-xl bg-black/40 p-1.5">
+                      <img
+                        src="/card-calendar.png"
+                        alt="Not just one time savings"
+                        loading="lazy"
+                        className="h-full w-full object-contain"
+                      />
+                      <GlassLayer />
+                    </div>
                   </div>
-                  <ul className={`h-[135px] shrink-0 list-inside list-disc space-y-1 overflow-hidden sm:h-[150px] ${landingCaption}`}>
+                  <ul className={`list-inside list-disc space-y-0.5 text-[11px] lg:text-[12px] leading-snug ${landingCaption}`}>
                     <li>24 Hours a Day</li>
                     <li>7 Days a Week</li>
                     <li>365 Days a Year</li>
@@ -435,16 +434,15 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
           {/* "We Hate Gatekeeping" panel */}
           <div className="relative h-full w-screen overflow-hidden">
             <div className="relative z-10 mx-auto flex h-full w-full items-center gap-12 px-6 md:max-w-[60vw]">
-              <div className="flex-1" style={{ fontFamily: 'Inter, sans-serif' }}>
+              <div className="flex-1">
                 <p className={`text-[12px] font-bold uppercase tracking-[0.2em] text-landing-sub`}>
                   Yureka is your new age Ai backed SavingOs
                 </p>
-                <h2 className="mt-4 text-[40px] font-extrabold leading-[1.05] text-landing-primary sm:text-[56px]">
+                <h2 className="mt-4 text-[42px] font-extrabold leading-[1.05] text-landing-primary sm:text-[58px]">
                   We Hate
                   <br />
                   <span
-                    style={{ fontFamily: '"Playfair Display", serif' }}
-                    className="italic font-semibold text-landing-primary"
+                    className="font-cooper text-[46px] sm:text-[64px] text-landing-primary"
                   >
                     Gatekeeping
                   </span>

@@ -129,20 +129,17 @@ export default function BrandsSection() {
 
       <div className={`${landingContainer} my-16 text-center sm:my-20`}>
         <p
-          style={{ fontFamily: 'Inter, sans-serif' }}
-          className="text-[28px] font-extrabold leading-[1.2] text-landing-primary sm:text-[40px]"
+          className="text-[28px] font-extrabold leading-[1.2] text-landing-primary sm:text-[40px] font-sans"
         >
           Partnered with Over{' '}
           <span
-            style={{ fontFamily: '"Playfair Display", serif' }}
-            className="italic font-semibold text-landing-primary"
+            className="font-cooper text-[32px] sm:text-[46px] text-landing-primary"
           >
             700+ Brands
           </span>
         </p>
         <p
-          style={{ fontFamily: 'Inter, sans-serif' }}
-          className="mt-2 text-[24px] font-extrabold leading-[1.2] text-landing-primary sm:text-[36px]"
+          className="mt-2 text-[24px] font-extrabold leading-[1.2] text-landing-primary sm:text-[36px] font-sans"
         >
           We are not stopping anytime soon
         </p>

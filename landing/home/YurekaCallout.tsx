@@ -35,8 +35,7 @@ function LinkColumn({
   return (
     <div>
       <p
-        style={{ fontFamily: '"Playfair Display", serif' }}
-        className="text-[13px] italic font-semibold text-landing-primary"
+        className="text-[14px] font-cooper text-landing-primary"
       >
         {title}
       </p>

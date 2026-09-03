@@ -18,10 +18,8 @@ const DEMO_CHAT: { role: 'user' | 'ai'; text: string; delay: number }[] = [
   { role: 'ai', text: 'Yes! Buy a ₹2,000 Amazon gift card via **RewardX** for ₹1,820 (9% off), then pay with your ICICI Amazon card for 5% cashback. Total effective discount: **14%** on this order.', delay: 1000 },
 ];
 
-// On-brand two-tone system: emerald-green (clay) as primary, gold as the accent . 
-// mirroring the homepage's green + gold palette. Legacy color keys are remapped
-// so existing markup doesn't need touching.
-const CLAY_TONE = { bg: 'bg-clay/10', text: 'text-clay', glow: 'shadow-clay/20', border: 'border-clay/20' };
+// On-brand two-tone system: neon-lime (landing-primary) as primary, gold as the accent . 
+const CLAY_TONE = { bg: 'bg-landing-primary/10', text: 'text-landing-primary', glow: 'shadow-landing-primary/20', border: 'border-landing-primary/25' };
 const GOLD_TONE = { bg: 'bg-[#E8C468]/10', text: 'text-[#E8C468]', glow: 'shadow-[#E8C468]/20', border: 'border-[#E8C468]/20' };
 const COLOR_MAP: Record<string, { bg: string; text: string; glow: string; border: string }> = {
   clay: CLAY_TONE,
@@ -90,7 +88,7 @@ const TypingIndicator = () => (
     {[0, 1, 2].map(i => (
       <motion.div
         key={i}
-        className="w-2 h-2 rounded-full bg-clay"
+        className="w-2 h-2 rounded-full bg-landing-primary"
         animate={{ y: [0, -6, 0] }}
         transition={{ duration: 0.6, delay: i * 0.15, repeat: Infinity }}
       />
@@ -102,7 +100,7 @@ const TypingIndicator = () => (
 const renderText = (text: string) => {
   const parts = text.split(/\*\*(.*?)\*\*/g);
   return parts.map((p, i) =>
-    i % 2 === 1 ? <strong key={i} className="font-black text-clay">{p}</strong> : p
+    i % 2 === 1 ? <strong key={i} className="font-black text-landing-primary">{p}</strong> : p
   );
 };
 
@@ -143,23 +141,23 @@ const LiveChatDemo = () => {
   }, [visibleMessages, showTyping]);
 
   return (
-    <div className="relative bg-cream rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl shadow-black/50">
+    <div className="relative bg-[#000000]/90 rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl shadow-black/50">
       {/* Chrome Bar */}
       <div className="flex items-center gap-2 px-6 py-4 border-b border-white/5 bg-white/[0.02]">
         <div className="flex gap-1.5">
           <div className="w-3 h-3 rounded-full bg-red-500/40" />
           <div className="w-3 h-3 rounded-full bg-yellow-500/40" />
-          <div className="w-3 h-3 rounded-full bg-[#00933b]/40" />
+          <div className="w-3 h-3 rounded-full bg-landing-primary/40" />
         </div>
         <div className="flex-1 flex justify-center">
           <div className="flex items-center gap-2 px-4 py-1 bg-white/5 rounded-full border border-white/5">
-            <span className="w-1.5 h-1.5 rounded-full bg-clay animate-pulse" />
-            <span className="text-[10px] text-white/40 font-mono tracking-widest uppercase">Yureka AI · Live Session</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-landing-primary animate-pulse" />
+            <span className="text-[10px] text-white/50 font-mono tracking-widest uppercase">Yureka AI · Live Session</span>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Sparkles size={14} className="text-clay" />
-          <span className="text-[10px] text-white/30 font-bold uppercase tracking-widest">v2 · Pro</span>
+          <Sparkles size={14} className="text-landing-primary" />
+          <span className="text-[10px] text-white/40 font-bold uppercase tracking-widest">v2 · Pro</span>
         </div>
       </div>
 
@@ -168,8 +166,8 @@ const LiveChatDemo = () => {
         {/* Welcome state */}
         {visibleMessages.length === 0 && !showTyping && (
           <div className="flex flex-col items-center justify-center h-full gap-4 opacity-40">
-            <Brain size={40} className="text-clay" />
-            <p className="text-white/30 text-sm font-sans text-center">Your AI co-pilot is ready</p>
+            <Brain size={40} className="text-landing-primary" />
+            <p className="text-white/40 text-sm font-sans text-center">Your AI co-pilot is ready</p>
           </div>
         )}
 
@@ -182,13 +180,13 @@ const LiveChatDemo = () => {
               transition={{ duration: 0.35 }}
               className={`flex items-end gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
             >
-              <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center ${msg.role === 'ai' ? 'bg-clay/10' : 'bg-white/5'}`}>
-                {msg.role === 'ai' ? <Bot size={16} className="text-clay" /> : <User size={16} className="text-white/20" />}
+              <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center ${msg.role === 'ai' ? 'bg-landing-primary/10' : 'bg-white/5'}`}>
+                {msg.role === 'ai' ? <Bot size={16} className="text-landing-primary" /> : <User size={16} className="text-white/30" />}
               </div>
               <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed font-sans ${
                 msg.role === 'ai'
-                  ? 'bg-white/5 border border-white/10 text-white/90 rounded-bl-sm'
-                  : 'bg-clay text-cream rounded-br-sm shadow-lg shadow-clay/20 font-bold'
+                  ? 'bg-white/5 border border-white/10 text-white rounded-bl-sm'
+                  : 'bg-landing-primary text-landing-ink rounded-br-sm shadow-lg shadow-landing-primary/20 font-bold'
               }`}>
                 {msg.role === 'ai' ? renderText(msg.text) : msg.text}
               </div>
@@ -203,8 +201,8 @@ const LiveChatDemo = () => {
               exit={{ opacity: 0 }}
               className="flex items-end gap-3"
             >
-              <div className="w-8 h-8 shrink-0 rounded-full bg-clay/10 flex items-center justify-center">
-                <Bot size={16} className="text-clay" />
+              <div className="w-8 h-8 shrink-0 rounded-full bg-landing-primary/10 flex items-center justify-center">
+                <Bot size={16} className="text-landing-primary" />
               </div>
               <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm">
                 <TypingIndicator />
@@ -217,11 +215,11 @@ const LiveChatDemo = () => {
       {/* Input Bar */}
       <div className="flex items-center gap-3 px-6 py-4 border-t border-white/5 bg-white/[0.02]">
         <div className="flex-1 flex items-center gap-3 px-4 py-2.5 bg-black rounded-xl border border-white/5">
-          <MessageCircle size={16} className="text-white/10 shrink-0" />
-          <span className="text-white/10 text-sm font-sans">Ask anything about rewards…</span>
+          <MessageCircle size={16} className="text-white/20 shrink-0" />
+          <span className="text-white/30 text-sm font-sans">Ask anything about rewards…</span>
         </div>
-        <button className="w-10 h-10 bg-clay rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-clay/20">
-          <Send size={16} className="text-cream" />
+        <button className="w-10 h-10 bg-landing-primary rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-landing-primary/20 hover:brightness-110 transition-all">
+          <Send size={16} className="text-landing-ink" />
         </button>
       </div>
     </div>
@@ -234,11 +232,11 @@ const YurekaAIPage: React.FC = () => {
   const basePath = isDashboard ? '/dashboard' : '';
 
   return (
-    <div className="yureka-ai-page relative min-h-screen bg-cream overflow-x-hidden selection:bg-clay selection:text-cream">
+    <div className="yureka-ai-page relative min-h-screen bg-landing-bg overflow-x-hidden text-white selection:bg-landing-primary selection:text-landing-ink">
       {/* Background Glows */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-15%] left-[-10%] w-[50%] h-[50%] bg-clay/5 rounded-full blur-[140px]" />
-        <div className="absolute top-[30%] right-[-10%] w-[35%] h-[40%] bg-[#00933b]/5 rounded-full blur-[120px]" />
+        <div className="absolute top-[-15%] left-[-10%] w-[50%] h-[50%] bg-landing-primary/5 rounded-full blur-[140px]" />
+        <div className="absolute top-[30%] right-[-10%] w-[35%] h-[40%] bg-landing-primary/5 rounded-full blur-[120px]" />
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #ffffff 0.5px, transparent 0)', backgroundSize: '48px 48px' }}
@@ -256,30 +254,25 @@ const YurekaAIPage: React.FC = () => {
             viewport={{ once: true }}
             transition={{ duration: 0.7 }}
           >
-            <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 bg-clay/10 border border-clay/20 rounded-full">
-              <span className="w-1.5 h-1.5 rounded-full bg-clay animate-ping" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-clay">Yureka AI · Personalised Intelligence</span>
+            <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 bg-landing-primary/10 border border-landing-primary/25 rounded-full">
+              <span className="w-1.5 h-1.5 rounded-full bg-landing-primary animate-ping" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-landing-primary">Yureka AI · Personalised Intelligence</span>
             </div>
 
-            <h1 className="text-3xl sm:text-6xl md:text-7xl font-sans font-extrabold tracking-tighter text-white leading-[1.05] mb-8 max-w-5xl mx-auto">
+            <h1 className="text-3xl sm:text-6xl md:text-7xl font-sans font-black tracking-tight text-white leading-[1.05] mb-8 max-w-5xl mx-auto">
               Your financial life,{' '}
-              <span className="relative italic">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-clay to-[#00933b]">
-                  optimised
-                </span>
-                <span className="absolute -bottom-1 left-0 right-0 h-px bg-gradient-to-r from-clay/0 via-clay/60 to-clay/0" />
-              </span>
-              {' '}by AI.
+              <span className="font-cooper text-landing-primary">optimised</span>{' '}
+              by AI.
             </h1>
 
-            <p className="text-white/60 text-xl md:text-2xl font-sans max-w-3xl mx-auto leading-relaxed mb-12">
+            <p className="text-white text-xl md:text-2xl font-sans max-w-3xl mx-auto leading-relaxed mb-12">
               From deciding how to spend to squeezing every rupee of reward. Yureka AI is your always-on financial co-pilot.
             </p>
 
             <div className="flex flex-col sm:flex-row justify-center gap-4">
               <Link
                 to={`${basePath}/join-waitlist`}
-                className="group relative overflow-hidden bg-clay text-cream px-10 py-5 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-2xl shadow-clay/10 hover:shadow-clay/30 transition-all"
+                className="group relative overflow-hidden bg-landing-primary text-landing-ink font-bold px-10 py-5 rounded-2xl uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-2xl shadow-landing-primary/20 hover:brightness-110 transition-all"
               >
                 <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                 <Sparkles size={16} />
@@ -288,7 +281,7 @@ const YurekaAIPage: React.FC = () => {
               </Link>
               <a
                 href="#ai-demo"
-                className="px-10 py-5 rounded-2xl font-bold uppercase tracking-widest text-xs border border-white/10 text-white/70 hover:text-white hover:border-clay/40 transition-all flex items-center justify-center gap-2 backdrop-blur-sm"
+                className="px-10 py-5 rounded-2xl font-bold uppercase tracking-widest text-xs border border-white/10 text-white hover:border-landing-primary/40 transition-all flex items-center justify-center gap-2 backdrop-blur-sm"
               >
                 See It In Action
               </a>
@@ -468,15 +461,15 @@ const YurekaAIPage: React.FC = () => {
               </div>
 
               <div className="space-y-3">
-                <div className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-3">Today's AI Alerts</div>
+                <div className="text-white/40 text-[10px] font-bold uppercase tracking-widest mb-3">Today&apos;s AI Alerts</div>
                 {[
                   { msg: 'Use Axis Magnus for ₹12,000 Flipkart order → earn 4,800 pts (₹1,200 value)', type: 'emerald' },
                   { msg: 'Goldback tip: ₹8,000 more spend unlocks this month’s bonus tier', type: 'clay' },
                   { msg: 'Transfer 50,000 Amex MR → Marriott Bonvoy before Jan 31 for best value', type: 'purple' },
                 ].map((alert, i) => (
                   <div key={i} className="flex items-start gap-3 p-3 bg-white/[0.02] border border-white/5 rounded-xl">
-                    <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${alert.type === 'emerald' ? 'bg-[#00933b]' : alert.type === 'clay' ? 'bg-clay' : 'bg-[#E8C468]'}`} />
-                    <span className="text-white/50 text-xs leading-relaxed">{alert.msg}</span>
+                    <div className={`w-1.5 h-1.5 rounded-full mt-1.5 shrink-0 ${alert.type === 'emerald' ? 'bg-landing-primary' : alert.type === 'clay' ? 'bg-landing-primary' : 'bg-[#E8C468]'}`} />
+                    <span className="text-white/70 text-xs leading-relaxed">{alert.msg}</span>
                   </div>
                 ))}
               </div>
@@ -493,18 +486,18 @@ const YurekaAIPage: React.FC = () => {
             viewport={{ once: true }}
             className="relative rounded-[3rem] overflow-hidden border border-white/5 bg-white/[0.02] p-10 md:p-20 shadow-2xl backdrop-blur-md"
           >
-            <div className="absolute top-0 right-0 w-96 h-96 bg-clay/5 rounded-full blur-[100px] pointer-events-none" />
+            <div className="absolute top-0 right-0 w-96 h-96 bg-landing-primary/5 rounded-full blur-[100px] pointer-events-none" />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center relative z-10">
               <div>
-                <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 bg-[#00933b]/10 border border-[#00933b]/20 rounded-full">
-                  <ShoppingBag size={12} className="text-[#00933b]" />
-                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-[#00933b]">Built into Yureka AI</span>
+                <div className="inline-flex items-center gap-2 px-4 py-2 mb-8 bg-landing-primary/10 border border-landing-primary/25 rounded-full">
+                  <ShoppingBag size={12} className="text-landing-primary" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.3em] text-landing-primary">Built into Yureka AI</span>
                 </div>
                 <h2 className="text-4xl md:text-6xl font-sans font-extrabold text-white tracking-tighter leading-tight mb-6">
-                  RewardX <br /><span className="text-clay">by Yureka</span>
+                  RewardX <br /><span className="font-cooper text-landing-primary">by Yureka</span>
                 </h2>
-                <p className="text-white/60 text-xl leading-relaxed mb-10 font-serif">
+                <p className="text-white/70 text-xl leading-relaxed mb-10 font-sans">
                   Shop smarter with AI-powered gift card stacking. Average checkout saving: <strong className="text-white">11.5%</strong>.
                 </p>
                 <div className="grid grid-cols-2 gap-4 mb-10">
@@ -517,19 +510,19 @@ const YurekaAIPage: React.FC = () => {
                     { brand: 'Uber', saving: '8%' },
                   ].map(b => (
                     <div key={b.brand} className="flex items-center justify-between p-3 bg-white/[0.02] border border-white/5 rounded-xl">
-                      <span className="text-white/70 text-sm font-bold">{b.brand}</span>
-                      <span className="text-clay text-[10px] font-black uppercase tracking-widest">Save {b.saving}</span>
+                      <span className="text-white/80 text-sm font-bold">{b.brand}</span>
+                      <span className="text-landing-primary text-[10px] font-black uppercase tracking-widest">Save {b.saving}</span>
                     </div>
                   ))}
                 </div>
-                <Link to={`${basePath}/join-waitlist`} className="inline-flex items-center gap-3 px-8 py-4 bg-clay text-cream rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-white transition-all group shadow-lg shadow-clay/10">
+                <Link to={`${basePath}/join-waitlist`} className="inline-flex items-center gap-3 px-8 py-4 bg-landing-primary text-landing-ink font-bold rounded-2xl uppercase tracking-widest text-xs hover:brightness-110 transition-all group shadow-lg shadow-landing-primary/20">
                   Get RewardX Access <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
                 </Link>
               </div>
 
               <div className="hidden lg:block">
                 <div className="space-y-4">
-                  <div className="text-white/20 text-[10px] font-bold uppercase tracking-widest mb-6">Live Cart Optimisation</div>
+                  <div className="text-white/30 text-[10px] font-bold uppercase tracking-widest mb-6">Live Cart Optimisation</div>
                   {[
                     { step: '1', action: 'Cart value', amount: '₹4,200', note: 'Amazon order' },
                     { step: '2', action: 'RewardX Gift Card', amount: '−₹378', note: '9% discount' },
@@ -542,23 +535,23 @@ const YurekaAIPage: React.FC = () => {
                       whileInView={{ opacity: 1, x: 0 }}
                       viewport={{ once: true }}
                       transition={{ delay: i * 0.1 }}
-                      className={`flex items-center justify-between p-4 rounded-2xl border ${i === 3 ? 'bg-clay/5 border-clay/20' : 'bg-white/[0.02] border-white/5'}`}
+                      className={`flex items-center justify-between p-4 rounded-2xl border ${i === 3 ? 'bg-landing-primary/10 border-landing-primary/25' : 'bg-white/[0.02] border-white/5'}`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${i === 3 ? 'bg-clay text-cream' : 'bg-white/10 text-white/40'}`}>{row.step}</div>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${i === 3 ? 'bg-landing-primary text-landing-ink' : 'bg-white/10 text-white/50'}`}>{row.step}</div>
                         <div>
-                          <div className={`text-sm font-bold ${i === 3 ? 'text-clay' : 'text-white/70'}`}>{row.action}</div>
-                          <div className="text-white/20 text-[10px] uppercase tracking-widest">{row.note}</div>
+                          <div className={`text-sm font-bold ${i === 3 ? 'text-landing-primary' : 'text-white'}`}>{row.action}</div>
+                          <div className="text-white/30 text-[10px] uppercase tracking-widest">{row.note}</div>
                         </div>
                       </div>
-                      <div className={`font-black text-sm ${i === 0 ? 'text-white' : 'text-clay'}`}>{row.amount}</div>
+                      <div className={`font-black text-sm ${i === 0 ? 'text-white' : 'text-landing-primary'}`}>{row.amount}</div>
                     </motion.div>
                   ))}
-                  <div className="flex items-center justify-between p-5 rounded-2xl bg-white/[0.02] border-2 border-clay/20 shadow-2xl shadow-clay/5">
+                  <div className="flex items-center justify-between p-5 rounded-2xl bg-white/[0.02] border-2 border-landing-primary/30 shadow-2xl shadow-landing-primary/10">
                     <span className="text-white font-sans font-extrabold text-lg">You Pay</span>
                     <div className="text-right">
                       <div className="text-white font-sans font-extrabold text-2xl">₹3,546</div>
-                      <div className="text-clay text-[10px] font-bold uppercase tracking-widest">You saved ₹654 · 15.6%</div>
+                      <div className="text-landing-primary text-[10px] font-bold uppercase tracking-widest">You saved ₹654 · 15.6%</div>
                     </div>
                   </div>
                 </div>
@@ -576,23 +569,23 @@ const YurekaAIPage: React.FC = () => {
         >
           <div className="relative rounded-[4rem] overflow-hidden bg-white/[0.02] border border-white/5 p-12 md:p-24 shadow-2xl backdrop-blur-md">
             <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, #ffffff 1px, transparent 0)', backgroundSize: '40px 40px' }} />
-            <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-clay/5 rounded-full blur-[100px] pointer-events-none" />
+            <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-landing-primary/5 rounded-full blur-[100px] pointer-events-none" />
 
             <div className="relative z-10">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-clay/5 border border-clay/10 rounded-[2rem] mb-10 mx-auto shadow-[0_0_30px_rgba(0,147,59,0.1)]">
-                <Brain size={36} className="text-clay" />
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-landing-primary/10 border border-landing-primary/20 rounded-[2rem] mb-10 mx-auto shadow-[0_0_30px_rgba(222,244,110,0.15)]">
+                <Brain size={36} className="text-landing-primary" />
               </div>
               <h2 className="text-3xl sm:text-6xl font-sans font-extrabold text-white tracking-tighter leading-tight mb-8">
                 Ready for your<br />
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-clay to-[#00933b]">AI co-pilot?</span>
+                <span className="font-cooper text-landing-primary">AI co-pilot?</span>
               </h2>
-              <p className="text-white/40 text-xl max-w-2xl mx-auto leading-relaxed mb-12 font-serif">
+              <p className="text-white/70 text-xl max-w-2xl mx-auto leading-relaxed mb-12 font-sans">
                 Join the waitlist and get personalised access to Yureka AI, RewardX, and the full Rewards Engine.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link
                   to={`${basePath}/join-waitlist`}
-                  className="group relative overflow-hidden bg-clay text-cream px-12 py-5 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-2xl shadow-clay/10 hover:shadow-clay/30 transition-all"
+                  className="group relative overflow-hidden bg-landing-primary text-landing-ink font-bold px-12 py-5 rounded-2xl uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-2xl shadow-landing-primary/20 hover:brightness-110 transition-all"
                 >
                   <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                   <Sparkles size={16} />
@@ -601,12 +594,12 @@ const YurekaAIPage: React.FC = () => {
                 </Link>
                 <Link
                   to={`${basePath}/brands`}
-                  className="border border-white/10 text-white/50 hover:text-white hover:border-clay/40 px-12 py-5 rounded-2xl font-bold uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 backdrop-blur-sm"
+                  className="border border-white/10 text-white hover:border-landing-primary/40 px-12 py-5 rounded-2xl font-bold uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 backdrop-blur-sm"
                 >
                   Explore Partner Brands
                 </Link>
               </div>
-              <p className="mt-8 text-white/10 text-[10px] font-bold uppercase tracking-[0.5em]">
+              <p className="mt-8 text-white/30 text-[10px] font-bold uppercase tracking-[0.5em]">
                 Free forever tier available
               </p>
             </div>

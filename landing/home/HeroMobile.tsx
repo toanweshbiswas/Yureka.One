@@ -106,15 +106,14 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
           </div>
         </section>
 
-        <section className="mt-16" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <section className="mt-16">
           <div className="flex items-baseline gap-2">
             <span
-              style={{ fontFamily: '"Playfair Display", serif' }}
-              className="text-[28px] italic font-semibold text-landing-primary"
+              className="font-cooper text-[32px] text-landing-primary pr-1"
             >
               Meet
             </span>
-            <span className="text-[28px] font-extrabold text-landing-primary">
+            <span className="font-sans text-[30px] font-black tracking-tight text-landing-primary">
               Yureka<span className="text-landing-primary">.</span>
             </span>
           </div>
@@ -145,10 +144,10 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
         <div className="mt-4 grid grid-cols-1 gap-4">
           <div className="relative flex flex-col overflow-hidden rounded-2xl border border-white/20 bg-landing-ink/80 p-5">
             <h3 className="text-[18px] font-extrabold uppercase leading-tight text-landing-primary">
-              Shop Across <span className="text-landing-primary">700+</span> Brands
+              Shop Across <span className="font-cooper text-[22px] text-landing-primary">700+</span> Brands
             </h3>
-            <div className="relative mt-4 h-44 w-full overflow-hidden rounded-2xl bg-landing-ink">
-              <img src="/feat-card-gift.png" alt="" loading="lazy" className="h-full w-full object-cover" />
+            <div className="relative mt-4 h-44 w-full overflow-hidden rounded-2xl bg-black/50 p-2">
+              <img src="/feat-card-gift.png" alt="" loading="lazy" className="h-full w-full object-contain" />
               <GlassLayer />
             </div>
             <ul className={`mt-3 list-inside list-disc space-y-1 ${landingCaption}`}>
@@ -163,13 +162,12 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
 
           <div className="relative flex flex-col overflow-hidden rounded-2xl border border-white/20 bg-landing-ink/80 p-5">
             <h3
-              style={{ fontFamily: '"Playfair Display", serif' }}
-              className="text-[18px] italic font-semibold leading-tight text-landing-primary"
+              className="font-cooper text-[18px] leading-snug text-landing-primary"
             >
               Not Just One Time Saving Or Cashback Or Reward Points
             </h3>
-            <div className="relative mt-4 h-44 w-full overflow-hidden rounded-2xl bg-landing-ink">
-              <img src="/card-calendar.png" alt="" loading="lazy" className="h-full w-full object-cover" />
+            <div className="relative mt-4 h-44 w-full overflow-hidden rounded-2xl bg-black/50 p-2">
+              <img src="/card-calendar.png" alt="" loading="lazy" className="h-full w-full object-contain" />
               <GlassLayer />
             </div>
             <ul className={`mt-3 list-inside list-disc space-y-1 ${landingCaption}`}>
@@ -181,7 +179,7 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
         </div>
       </div>
 
-      <div className={`${landingContainer} pt-16`} style={{ fontFamily: 'Inter, sans-serif' }}>
+      <div className={`${landingContainer} pt-16`}>
         <p className="text-[12px] font-bold uppercase tracking-[0.2em] text-landing-sub">
           Yureka is your new age Ai backed SavingOs
         </p>
@@ -189,8 +187,7 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
           We Hate
           <br />
           <span
-            style={{ fontFamily: '"Playfair Display", serif' }}
-            className="italic font-semibold text-landing-primary"
+            className="font-cooper text-[44px] text-landing-primary"
           >
             Gatekeeping
           </span>

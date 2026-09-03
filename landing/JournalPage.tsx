@@ -33,7 +33,7 @@ const JournalPage: React.FC = () => {
 
     if (isLoading && blogsList.length === 0) {
         return (
-            <div className="blog-reading min-h-screen bg-cream px-5 sm:px-8 pt-6 md:pt-10">
+            <div className="blog-reading min-h-screen bg-landing-bg px-5 sm:px-8 pt-6 md:pt-10">
                 <div className="max-w-6xl mx-auto space-y-10">
                     <div className="h-10 w-48 bg-white/5 rounded-2xl animate-pulse" />
                     <div className="h-[42vh] min-h-[240px] bg-white/5 rounded-[1.75rem] animate-pulse" />
@@ -46,17 +46,17 @@ const JournalPage: React.FC = () => {
     }
 
     return (
-        <div className="blog-reading min-h-screen bg-cream pb-28 text-white selection:bg-clay selection:text-cream">
+        <div className="blog-reading min-h-screen bg-landing-bg pb-28 text-white selection:bg-landing-primary selection:text-landing-ink">
             <SEO {...staticPageMeta['/blog']} />
 
             <div className="max-w-6xl mx-auto px-5 sm:px-8 pt-6 md:pt-10">
                 <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-8 pb-10 border-b border-white/10 mb-10">
                     <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-clay mb-3">Yureka Editorial</p>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-landing-primary mb-3">Yureka Editorial</p>
                         <h1 className="text-[clamp(2.4rem,6vw,4.5rem)] font-extrabold text-white leading-[1.05] tracking-[-0.03em]">
-                            Blog
+                            <span className="font-cooper text-landing-primary">Yureka</span> Blog
                         </h1>
-                        <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white/50">
+                        <p className="mt-3 max-w-md text-[15px] leading-relaxed text-white">
                             Credit, gold, and spending. written for people who actually shop.
                         </p>
                     </div>
@@ -75,12 +75,12 @@ const JournalPage: React.FC = () => {
                                         value={searchQuery}
                                         onChange={e => setSearchQuery(e.target.value)}
                                         placeholder="Search articles..."
-                                        className="w-full bg-white/5 border border-white/10 rounded-full px-5 py-3 text-sm text-white placeholder:text-white/30 outline-none focus:border-clay/50"
+                                        className="w-full bg-white/5 border border-white/10 rounded-full px-5 py-3 text-sm text-white placeholder:text-white/40 outline-none focus:border-landing-primary/50"
                                     />
                                     <button
                                         type="button"
                                         onClick={() => { setSearchOpen(false); setSearchQuery(''); }}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white active:scale-[0.97]"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white active:scale-[0.97]"
                                         aria-label="Close search"
                                     >
                                         <X size={16} />
@@ -92,7 +92,7 @@ const JournalPage: React.FC = () => {
                                     initial={{ opacity: 0 }}
                                     animate={{ opacity: 1 }}
                                     onClick={() => setSearchOpen(true)}
-                                    className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 active:scale-[0.97] transition-colors"
+                                    className="w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-white/10 active:scale-[0.97] transition-colors"
                                     aria-label="Search articles"
                                 >
                                     <Search size={16} />
@@ -100,7 +100,7 @@ const JournalPage: React.FC = () => {
                             )}
                         </AnimatePresence>
                         <div className="text-right min-w-[4.5rem]">
-                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/40 font-semibold">{blogsList.length} articles</p>
+                            <p className="text-[11px] uppercase tracking-[0.16em] text-white/60 font-semibold">{blogsList.length} articles</p>
                         </div>
                     </div>
                 </div>
@@ -114,15 +114,15 @@ const JournalPage: React.FC = () => {
                                 onClick={() => setActiveCategory(cat)}
                                 className={`shrink-0 px-4 py-2 rounded-full text-[11px] font-semibold uppercase tracking-[0.14em] transition-colors active:scale-[0.97] ${
                                     activeCategory === cat
-                                        ? 'bg-clay text-black'
-                                        : 'bg-white/5 text-white/45 hover:bg-white/10 hover:text-white'
+                                        ? 'bg-landing-primary text-landing-ink font-extrabold shadow-sm'
+                                        : 'bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
                                 }`}
                             >
                                 {cat}
                             </button>
                         ))}
                     </div>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-cream to-transparent sm:hidden" />
+                    <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-landing-bg to-transparent sm:hidden" />
                 </div>
 
                 {hero && (
@@ -140,25 +140,25 @@ const JournalPage: React.FC = () => {
                             </div>
                             <div className="lg:col-span-5 flex flex-col justify-center p-6 sm:p-8 lg:p-10">
                                 <div className="flex flex-wrap items-center gap-3 mb-4">
-                                    <span className="bg-clay/15 text-clay text-[10px] font-semibold uppercase tracking-[0.16em] px-3 py-1 rounded-full">{hero.category}</span>
-                                    <span className="text-white/40 text-[11px] font-semibold uppercase tracking-[0.14em] inline-flex items-center gap-1.5">
+                                    <span className="bg-landing-primary/15 text-landing-primary border border-landing-primary/20 text-[10px] font-semibold uppercase tracking-[0.16em] px-3 py-1 rounded-full">{hero.category}</span>
+                                    <span className="text-white/60 text-[11px] font-semibold uppercase tracking-[0.14em] inline-flex items-center gap-1.5">
                                         <Clock size={11} />{hero.read_time || '5 min read'}
                                     </span>
                                 </div>
-                                <h2 className="text-[1.65rem] sm:text-[2rem] font-extrabold text-white leading-[1.15] tracking-[-0.03em] group-hover:text-clay transition-colors">
+                                <h2 className="text-[1.65rem] sm:text-[2rem] font-extrabold text-white leading-[1.15] tracking-[-0.03em] group-hover:text-landing-primary transition-colors">
                                     {hero.title}
                                 </h2>
                                 {hero.excerpt ? (
-                                    <p className="mt-3 text-[15px] leading-relaxed text-white/50 line-clamp-3">{hero.excerpt}</p>
+                                    <p className="mt-3 text-[15px] leading-relaxed text-white/70 line-clamp-3">{hero.excerpt}</p>
                                 ) : null}
                                 <div className="mt-6 flex items-center justify-between gap-3">
                                     <div className="flex items-center gap-2.5 min-w-0">
-                                        <div className="w-8 h-8 rounded-full bg-clay/20 text-clay text-xs font-bold flex items-center justify-center shrink-0">
+                                        <div className="w-8 h-8 rounded-full bg-landing-primary/20 text-landing-primary text-xs font-bold flex items-center justify-center shrink-0">
                                             {hero.author?.[0] || 'Y'}
                                         </div>
-                                        <span className="text-[12px] text-white/45 truncate">{hero.author || 'Yureka Editorial'}</span>
+                                        <span className="text-[12px] text-white/70 truncate">{hero.author || 'Yureka Editorial'}</span>
                                     </div>
-                                    <span className="inline-flex items-center gap-1.5 text-[12px] text-white/40 group-hover:text-clay transition-colors shrink-0">
+                                    <span className="inline-flex items-center gap-1.5 text-[12px] text-white/70 group-hover:text-landing-primary transition-colors shrink-0">
                                         Read <ArrowRight size={14} />
                                     </span>
                                 </div>
@@ -186,11 +186,11 @@ const JournalPage: React.FC = () => {
                                         </span>
                                     </div>
                                     <div className="flex flex-col flex-1 p-5 space-y-2.5">
-                                        <h3 className="text-[17px] font-bold text-white leading-snug tracking-[-0.02em] group-hover:text-clay transition-colors line-clamp-2">{post.title}</h3>
-                                        <p className="text-[13px] text-white/40 leading-relaxed line-clamp-2 flex-1">{post.excerpt}</p>
-                                        <div className="flex items-center gap-2 pt-1 text-[11px] text-white/35">
+                                        <h3 className="text-[17px] font-bold text-white leading-snug tracking-[-0.02em] group-hover:text-landing-primary transition-colors line-clamp-2">{post.title}</h3>
+                                        <p className="text-[13px] text-white/70 leading-relaxed line-clamp-2 flex-1">{post.excerpt}</p>
+                                        <div className="flex items-center gap-2 pt-1 text-[11px] text-white/50">
                                             <span className="truncate">{post.author || 'Yureka'}</span>
-                                            <span className="text-white/15">·</span>
+                                            <span className="text-white/20">·</span>
                                             <span className="inline-flex items-center gap-1 shrink-0"><Clock size={10} />{post.read_time || '5m'}</span>
                                         </div>
                                     </div>
@@ -202,8 +202,8 @@ const JournalPage: React.FC = () => {
 
                 {rest.length > 0 && (
                     <div className="flex items-center gap-3 mb-8 pt-2 border-t border-white/10">
-                        <TrendingUp size={14} className="text-clay shrink-0" />
-                        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/45">More articles</span>
+                        <TrendingUp size={14} className="text-landing-primary shrink-0" />
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/70">More articles</span>
                         <div className="flex-1 h-px bg-white/10" />
                     </div>
                 )}
@@ -221,13 +221,13 @@ const JournalPage: React.FC = () => {
                             <Link to={`/blog/${post.slug}`} className="group h-full flex flex-col active:scale-[0.99] transition-transform">
                                 <div className="relative aspect-[16/10] rounded-[1.15rem] overflow-hidden mb-4 border border-white/10">
                                     <ImageWithLoader src={post.image} alt={post.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
-                                    <span className="absolute bottom-3 left-3 bg-clay text-black text-[9px] font-semibold uppercase tracking-[0.14em] px-2 py-1 rounded-full">
+                                    <span className="absolute bottom-3 left-3 bg-landing-primary text-landing-ink text-[9px] font-bold uppercase tracking-[0.14em] px-2.5 py-1 rounded-full shadow-sm">
                                         {post.category}
                                     </span>
                                 </div>
-                                <h3 className="text-[16px] font-bold text-white leading-snug tracking-[-0.02em] group-hover:text-clay transition-colors line-clamp-2">{post.title}</h3>
-                                <p className="mt-2 text-[13px] text-white/40 leading-relaxed line-clamp-2 flex-1">{post.excerpt}</p>
-                                <div className="mt-3 flex items-center justify-between text-[11px] text-white/30">
+                                <h3 className="text-[16px] font-bold text-white leading-snug tracking-[-0.02em] group-hover:text-landing-primary transition-colors line-clamp-2">{post.title}</h3>
+                                <p className="mt-2 text-[13px] text-white/70 leading-relaxed line-clamp-2 flex-1">{post.excerpt}</p>
+                                <div className="mt-3 flex items-center justify-between text-[11px] text-white/50">
                                     <span className="truncate">{post.author || 'Yureka'}</span>
                                     <span className="inline-flex items-center gap-1 shrink-0"><Clock size={10} />{post.read_time || '5m'}</span>
                                 </div>
@@ -238,11 +238,11 @@ const JournalPage: React.FC = () => {
 
                 {filtered.length === 0 && (
                     <div className="py-28 text-center">
-                        <p className="text-[13px] text-white/40">No articles match that filter.</p>
+                        <p className="text-[13px] text-white/50">No articles match that filter.</p>
                         <button
                             type="button"
                             onClick={() => { setActiveCategory('All'); setSearchQuery(''); }}
-                            className="mt-5 text-clay text-[12px] font-semibold uppercase tracking-[0.16em] active:scale-[0.97]"
+                            className="mt-5 text-landing-primary text-[12px] font-semibold uppercase tracking-[0.16em] active:scale-[0.97] hover:underline"
                         >
                             Clear filters
                         </button>
@@ -253,21 +253,21 @@ const JournalPage: React.FC = () => {
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
                     viewport={{ once: true }}
-                    className="mt-24 rounded-[1.75rem] bg-gradient-to-br from-clay to-[#00933b] p-10 md:p-16 text-center overflow-hidden relative"
+                    className="mt-24 rounded-[1.75rem] bg-gradient-to-br from-landing-primary to-[#b8d447] p-10 md:p-16 text-center overflow-hidden relative"
                 >
                     <div className="relative max-w-xl mx-auto space-y-5">
-                        <p className="text-black/55 text-[11px] font-semibold uppercase tracking-[0.2em]">Weekly dispatch</p>
+                        <p className="text-black/60 text-[11px] font-semibold uppercase tracking-[0.2em]">Weekly dispatch</p>
                         <h2 className="text-[clamp(1.8rem,4vw,2.8rem)] font-extrabold text-black leading-[1.12] tracking-[-0.03em]">
                             Stay ahead of the credit curve
                         </h2>
-                        <p className="text-black/65 text-[15px] leading-relaxed">
+                        <p className="text-black/75 text-[15px] leading-relaxed">
                             Deep analysis of credit markets and reward loops, every Sunday.
                         </p>
                         <form className="flex flex-col sm:flex-row gap-2.5 max-w-md mx-auto" onSubmit={(e) => e.preventDefault()}>
                             <input
                                 type="email"
                                 placeholder="your@email.com"
-                                className="flex-1 bg-black/10 border border-black/10 rounded-xl px-4 py-3.5 text-black placeholder:text-black/40 outline-none focus:border-black/30 text-sm"
+                                className="flex-1 bg-black/10 border border-black/10 rounded-xl px-4 py-3.5 text-black placeholder:text-black/50 outline-none focus:border-black/30 text-sm"
                             />
                             <button type="submit" className="bg-black text-white px-6 py-3.5 rounded-xl text-[11px] font-semibold uppercase tracking-[0.16em] active:scale-[0.97] shrink-0">
                                 Subscribe

@@ -59,8 +59,7 @@ export default function FAQSection() {
       <div className={`${landingContainer} grid grid-cols-1 gap-12 md:grid-cols-[0.85fr_1.15fr] md:gap-16`}>
         <div>
           <h2
-            style={{ fontFamily: '"Playfair Display", serif' }}
-            className="text-[34px] italic font-semibold uppercase leading-[1.1] text-landing-primary sm:text-[44px]"
+            className="font-cooper text-[36px] leading-[1.1] text-landing-primary sm:text-[48px]"
           >
             Your Questions,
             <br />

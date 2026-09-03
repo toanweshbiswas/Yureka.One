@@ -259,7 +259,7 @@ function HostGate({ role, children }: { role: SiteRole; children: React.ReactNod
         const stripped =
           pathname === '/ww' || pathname === '/ww/'
             ? '/'
-            : pathname.replace(/^\/ww/, '') || '/'
+            : pathname.replace(/^\/ww/, '') || '/';
         goExternal(wanderworldUrl(`${stripped}${search}${hash}`));
         return;
       }
@@ -603,6 +603,7 @@ const AppContent: React.FC = () => {
   const isDashboardRoute = location.pathname.startsWith('/dashboard');
   const isHomeRoute = location.pathname === '/' && (role === 'landing' || role === 'all');
   const isGiftRoute = location.pathname === '/gift' || location.pathname.startsWith('/gift/');
+  const isBrandsRoute = location.pathname === '/brands' || location.pathname.startsWith('/brands/');
   const isForBrandsRoute = location.pathname === '/for-brands';
   const isBlogRoute =
     location.pathname === '/blog' ||
@@ -617,9 +618,9 @@ const AppContent: React.FC = () => {
     isWwHostShell ||
     isForBrandsRoute ||
     role === 'app';
-  const applyEditorialGrid = !isSpecialRoute && !isHomeRoute && !isBlogRoute && !isGiftRoute;
+  const applyEditorialGrid = !isSpecialRoute && !isHomeRoute && !isBlogRoute && !isGiftRoute && !isBrandsRoute;
   const isZwitchRoute = location.pathname === '/zwitch';
-  const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute || isWwHostShell || isGiftRoute;
+  const noTopPadding = isSpecialRoute || isHomeRoute || isZwitchRoute || isWwHostShell || isGiftRoute || isBrandsRoute;
   const isProductShell =
     role === 'app' ||
     role === 'admin' ||
@@ -630,11 +631,9 @@ const AppContent: React.FC = () => {
     isBrandRoute ||
     isWwRoute;
   const shellBg =
-    isHomeRoute || isGiftRoute
-      ? 'bg-landing-bg'
-      : isProductShell || isWwHostShell
-        ? 'bg-[#070707]'
-        : 'bg-cream';
+    isProductShell || isWwHostShell
+      ? 'bg-[#070707]'
+      : 'bg-landing-bg';
   const showSiteNavbar =
     role === 'landing' || role === 'all'
       ? !isHomeRoute && !isGiftRoute && (!isSpecialRoute || isForBrandsRoute)
@@ -667,7 +666,7 @@ const AppContent: React.FC = () => {
       <div className={`min-h-screen font-sans text-white relative ${shellBg} ${isProductShell ? 'yureka-product' : ''} ${noTopPadding ? 'pt-0' : 'pt-24 md:pt-28'}`}>
         <ScrollToTop />
         <CaptureWwPromoterRef />
-        {showSiteNavbar && <Navbar />}
+        {showSiteNavbar && <Navbar theme="landing" />}
 
         <main className={`relative z-10 ${noTopPadding ? 'pt-0' : ''}`}>
           <Suspense fallback={suspenseFallback}>
@@ -684,7 +683,7 @@ const AppContent: React.FC = () => {
               ) : (
                 <>
                   {appRoutes}
-                  {isBlogRoute ? <Footer /> : null}
+                  {(isBlogRoute || isBrandsRoute) ? <Footer /> : null}
                 </>
               )}
             </ErrorBoundary>
