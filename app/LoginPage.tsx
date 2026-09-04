@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, EyeOff, Loader2, Mail, User } from 'lucide-react'
-import { motion, useReducedMotion } from 'motion/react'
+import { Eye, EyeOff, Mail, User } from 'lucide-react'
+import AuthRingLoader from '@shared/AuthRingLoader'
+import AuthPillField from '@shared/AuthPillField'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useSupabase } from '@shared/SupabaseProvider'
 import {
   authCallbackUrl,
@@ -20,70 +22,42 @@ import YurekaBrandMark from '@shared/YurekaBrandMark'
 import { WAITLIST_REQUIRED } from '@shared/waitlistGate'
 import { captureGetawayRefFromSearch } from '@app/Dashboard/Getaway/getawayUtils'
 
-const spring = { type: 'spring' as const, bounce: 0, duration: 0.35 }
-const springSnappy = { type: 'spring' as const, bounce: 0, duration: 0.22 }
+/** Critically damped defaults (Apple: bounce only when gesture carries momentum). */
+const spring = { type: 'spring' as const, bounce: 0, duration: 0.4 }
+const springSnappy = { type: 'spring' as const, bounce: 0, duration: 0.28 }
 
-const pillInputClass =
-  'w-full rounded-full border border-white/12 bg-white/[0.05] py-3.5 pl-5 pr-12 text-[16px] leading-none text-white placeholder:text-white/35 outline-none transition-[border-color,box-shadow] duration-150 focus:border-clay/50 focus:ring-2 focus:ring-clay/15'
-
-type AuthPillFieldProps = {
-  id: string
-  label: string
-  type?: string
-  value: string
-  onChange: (value: string) => void
-  autoComplete?: string
-  required?: boolean
-  minLength?: number
-  placeholder?: string
-  icon?: React.ReactNode
-  trailing?: React.ReactNode
+const staggerParent = {
+  hidden: {},
+  show: {
+    transition: { staggerChildren: 0.06, delayChildren: 0.04 },
+  },
 }
 
-function AuthPillField({
-  id,
-  label,
-  type = 'text',
-  value,
-  onChange,
-  autoComplete,
-  required,
-  minLength,
-  placeholder,
-  icon,
-  trailing,
-}: AuthPillFieldProps) {
-  return (
-    <div className="relative">
-      <label htmlFor={id} className="sr-only">
-        {label}
-      </label>
-      <input
-        id={id}
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        autoComplete={autoComplete}
-        required={required}
-        minLength={minLength}
-        placeholder={placeholder}
-        className={pillInputClass}
-      />
-      {icon && (
-        <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-clay/70" aria-hidden>
-          {icon}
-        </span>
-      )}
-      {trailing}
-    </div>
-  )
+const staggerItem = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: spring },
+}
+
+const staggerItemReduced = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { duration: 0.2 } },
 }
 
 function AuthHero({ reduceMotion }: { reduceMotion: boolean | null }) {
   return (
-    <div className="relative mx-auto mb-8 flex h-[7.5rem] w-[7.5rem] items-center justify-center">
+    <motion.div
+      className="relative mx-auto mb-8 flex h-[7.5rem] w-[7.5rem] items-center justify-center"
+      variants={reduceMotion ? staggerItemReduced : staggerItem}
+    >
       {!reduceMotion && (
         <>
+          {/* Soft radial luminescence behind the mark */}
+          <motion.span
+            className="absolute inset-0 rounded-full bg-clay/15 blur-2xl"
+            animate={{ opacity: [0.35, 0.65, 0.35], scale: [0.92, 1.05, 0.92] }}
+            transition={{ duration: 5.5, repeat: Infinity, ease: 'easeInOut' }}
+            aria-hidden
+          />
           <motion.span
             className="absolute -left-3 top-2 h-10 w-10 rounded-full bg-clay/10 blur-[1px]"
             animate={{ y: [0, -6, 0], opacity: [0.45, 0.7, 0.45] }}
@@ -104,10 +78,141 @@ function AuthHero({ reduceMotion }: { reduceMotion: boolean | null }) {
           />
         </>
       )}
-      <div className="relative flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-full border border-clay/20 bg-clay/[0.08] shadow-[0_0_40px_rgba(52,211,153,0.15),inset_0_1px_0_rgba(255,255,255,0.12)]">
+      <motion.div
+        className="relative flex h-[5.5rem] w-[5.5rem] items-center justify-center rounded-full border border-clay/20 bg-clay/[0.08] shadow-[0_0_40px_rgba(52,211,153,0.15),inset_0_1px_0_rgba(255,255,255,0.12)]"
+        initial={reduceMotion ? false : { scale: 0.88, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={spring}
+      >
         <YurekaBrandMark className="h-12 w-12 rounded-2xl object-cover" />
-      </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+function AmbientScene({ reduceMotion }: { reduceMotion: boolean | null }) {
+  return (
+    <div className="pointer-events-none fixed inset-0 overflow-hidden" aria-hidden>
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(52,211,153,0.14), transparent 60%), radial-gradient(circle at 80% 20%, rgba(52,211,153,0.07), transparent 35%)',
+        }}
+      />
+      {!reduceMotion && (
+        <>
+          <motion.div
+            className="absolute left-1/2 top-0 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full bg-clay/[0.08] blur-3xl"
+            animate={{ opacity: [0.35, 0.55, 0.35], scale: [1, 1.06, 1] }}
+            transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+          />
+          {[
+            { left: '18%', top: '22%', size: 6, delay: 0 },
+            { left: '72%', top: '18%', size: 4, delay: 1.2 },
+            { left: '84%', top: '48%', size: 5, delay: 0.6 },
+            { left: '12%', top: '58%', size: 3, delay: 2.1 },
+            { left: '62%', top: '72%', size: 4, delay: 1.5 },
+          ].map((p, i) => (
+            <motion.span
+              key={i}
+              className="absolute rounded-full bg-clay/30"
+              style={{
+                left: p.left,
+                top: p.top,
+                width: p.size,
+                height: p.size,
+                filter: 'blur(0.5px)',
+              }}
+              animate={{ y: [0, -10, 0], opacity: [0.25, 0.55, 0.25] }}
+              transition={{
+                duration: 5 + i * 0.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+                delay: p.delay,
+              }}
+            />
+          ))}
+        </>
+      )}
     </div>
+  )
+}
+
+function PrimaryAuthButton({
+  busy,
+  disabled,
+  label,
+  successPulse,
+}: {
+  busy: boolean
+  disabled: boolean
+  label: string
+  successPulse: boolean
+}) {
+  const reduceMotion = useReducedMotion()
+
+  return (
+    <motion.button
+      type="submit"
+      disabled={disabled}
+      whileTap={busy || disabled ? undefined : { scale: 0.98 }}
+      animate={
+        successPulse
+          ? {
+              boxShadow: [
+                '0 8px 24px rgba(52,211,153,0.28)',
+                '0 0 0 12px rgba(52,211,153,0.18)',
+                '0 8px 24px rgba(52,211,153,0.28)',
+              ],
+            }
+          : busy
+            ? { boxShadow: '0 8px 32px rgba(52,211,153,0.42)' }
+            : { boxShadow: '0 8px 24px rgba(52,211,153,0.28)' }
+      }
+      transition={springSnappy}
+      className={`relative mt-2 flex w-full items-center justify-center gap-2 overflow-hidden rounded-full py-3.5 text-[15px] font-semibold tracking-[-0.01em] disabled:opacity-50 ${
+        busy
+          ? 'bg-[#0a0a0a] text-clay ring-1 ring-clay/25'
+          : 'bg-clay text-black'
+      }`}
+    >
+      {/* Specular sheen. decorative only; paused under reduced motion */}
+      {!reduceMotion && !busy && (
+        <motion.span
+          className="pointer-events-none absolute inset-y-0 w-1/3 skew-x-[-18deg] bg-gradient-to-r from-transparent via-white/35 to-transparent"
+          initial={{ left: '-40%' }}
+          animate={{ left: ['-40%', '140%'] }}
+          transition={{ duration: 2.4, repeat: Infinity, repeatDelay: 3.2, ease: 'easeInOut' }}
+          aria-hidden
+        />
+      )}
+      <AnimatePresence mode="wait" initial={false}>
+        {busy ? (
+          <motion.span
+            key="busy"
+            className="relative z-10 flex items-center justify-center"
+            initial={{ opacity: 0, scale: 0.85 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.85 }}
+            transition={springSnappy}
+          >
+            <AuthRingLoader size={20} label={label} />
+          </motion.span>
+        ) : (
+          <motion.span
+            key="label"
+            className="relative z-10"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={springSnappy}
+          >
+            {label}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </motion.button>
   )
 }
 
@@ -117,6 +222,7 @@ const LoginPage: React.FC = () => {
   const [searchParams] = useSearchParams()
   const reduceMotion = useReducedMotion()
   const [busy, setBusy] = useState(false)
+  const [successPulse, setSuccessPulse] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [email, setEmail] = useState('')
@@ -144,14 +250,21 @@ const LoginPage: React.FC = () => {
     typeof window !== 'undefined' ? window.location.hash : location.hash,
   )
 
+  const item = reduceMotion ? staggerItemReduced : staggerItem
+
   const setMode = (next: 'signin' | 'signup') => {
     setError(null)
     setInfo(null)
+    setSuccessPulse(false)
     if (next === 'signup') {
-      navigate(`/signup${nextPath !== '/dashboard' ? `?next=${encodeURIComponent(nextPath)}` : ''}`, { replace: true })
+      navigate(`/signup${nextPath !== '/dashboard' ? `?next=${encodeURIComponent(nextPath)}` : ''}`, {
+        replace: true,
+      })
       return
     }
-    navigate(`/login${nextPath !== '/dashboard' ? `?next=${encodeURIComponent(nextPath)}` : ''}`, { replace: true })
+    navigate(`/login${nextPath !== '/dashboard' ? `?next=${encodeURIComponent(nextPath)}` : ''}`, {
+      replace: true,
+    })
   }
 
   captureGetawayRefFromSearch(location.search)
@@ -230,6 +343,7 @@ const LoginPage: React.FC = () => {
     e.preventDefault()
     setError(null)
     setInfo(null)
+    setSuccessPulse(false)
     if (!email.trim() || !password) {
       setError('Email and password are required')
       return
@@ -263,6 +377,7 @@ const LoginPage: React.FC = () => {
       setInfo('Check your inbox to confirm this email, then sign in to open your dashboard.')
       return
     }
+    setSuccessPulse(true)
     try {
       await refreshUserStatus()
     } catch {
@@ -289,14 +404,10 @@ const LoginPage: React.FC = () => {
     setInfo('If an account exists for this email, we will send you a password reset link.')
   }
 
-  const enter = reduceMotion ? { opacity: 0 } : { opacity: 0, y: 16 }
-  const settle = { opacity: 1, y: 0 }
-
   if (isRecovery || isLoading || (oauthReturning && !user && !error)) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#070707]">
-        <Loader2 className="animate-spin text-clay" size={36} aria-hidden />
-        <span className="sr-only">Signing you in</span>
+        <AuthRingLoader size={40} label="Signing you in" />
       </div>
     )
   }
@@ -318,35 +429,29 @@ const LoginPage: React.FC = () => {
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif',
       }}
     >
-      {!isEmbedded && (
-        <div
-          className="pointer-events-none fixed inset-0"
-          style={{
-            background:
-              'radial-gradient(ellipse 70% 45% at 50% 0%, rgba(52,211,153,0.12), transparent 60%), radial-gradient(circle at 80% 20%, rgba(52,211,153,0.06), transparent 35%)',
-          }}
-        />
-      )}
+      {!isEmbedded && <AmbientScene reduceMotion={reduceMotion} />}
 
       <motion.div
-        initial={enter}
-        animate={settle}
-        transition={spring}
         className="relative z-10 w-full max-w-[22rem]"
+        variants={staggerParent}
+        initial="hidden"
+        animate="show"
       >
         <AuthHero reduceMotion={reduceMotion} />
 
-        <div className="text-center">
-          <h1 className="text-[1.5rem] font-semibold leading-tight tracking-[-0.03em] text-white">{title}</h1>
+        <motion.div className="text-center" variants={item}>
+          <h1 className="text-[1.5rem] font-semibold leading-tight tracking-[-0.03em] text-white">
+            {title}
+          </h1>
           {isForgot && (
             <p className="mt-2 text-[14px] leading-relaxed text-white/45">
               Enter your email and we will send a reset link.
             </p>
           )}
-        </div>
+        </motion.div>
 
         {isForgot && (
-          <div className="mt-4 text-center">
+          <motion.div className="mt-4 text-center" variants={item}>
             <motion.button
               type="button"
               whileTap={{ scale: 0.97 }}
@@ -357,29 +462,45 @@ const LoginPage: React.FC = () => {
             >
               Back to sign in
             </motion.button>
-          </div>
+          </motion.div>
         )}
 
-        <div className="mt-7 space-y-3">
+        <motion.div className="mt-7 space-y-3" variants={item}>
           {!supabaseConfigured && (
             <p className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-[13px] leading-relaxed text-amber-100/90">
               Sign-in is temporarily unavailable. Please try again later.
             </p>
           )}
 
-          {error && (
-            <p
-              role="alert"
-              className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-[13px] leading-relaxed text-red-100/90"
-            >
-              {error}
-            </p>
-          )}
-          {info && (
-            <p className="rounded-2xl border border-clay/25 bg-clay/10 px-4 py-3 text-[13px] leading-relaxed text-clay">
-              {info}
-            </p>
-          )}
+          <AnimatePresence>
+            {error && (
+              <motion.p
+                key="error"
+                role="alert"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={springSnappy}
+                className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-[13px] leading-relaxed text-red-100/90"
+              >
+                {error}
+              </motion.p>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {info && (
+              <motion.p
+                key="info"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={springSnappy}
+                className="rounded-2xl border border-clay/25 bg-clay/10 px-4 py-3 text-[13px] leading-relaxed text-clay"
+              >
+                {info}
+              </motion.p>
+            )}
+          </AnimatePresence>
 
           <form onSubmit={isForgot ? handleForgotPassword : handleEmailAuth} className="space-y-3">
             {isSignup && (
@@ -420,8 +541,9 @@ const LoginPage: React.FC = () => {
                     <motion.button
                       type="button"
                       whileTap={{ scale: 0.92 }}
+                      whileHover={{ scale: 1.05 }}
                       transition={springSnappy}
-                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
+                      className="absolute right-3 top-1/2 z-[2] flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
@@ -448,8 +570,9 @@ const LoginPage: React.FC = () => {
                       <motion.button
                         type="button"
                         whileTap={{ scale: 0.92 }}
+                        whileHover={{ scale: 1.05 }}
                         transition={springSnappy}
-                        className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
+                        className="absolute right-3 top-1/2 z-[2] flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
                         onClick={() => setShowConfirmPassword((v) => !v)}
                         aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
                       >
@@ -465,15 +588,12 @@ const LoginPage: React.FC = () => {
               </>
             )}
 
-            <motion.button
-              type="submit"
+            <PrimaryAuthButton
+              busy={busy}
               disabled={busy || !supabaseConfigured}
-              whileTap={{ scale: busy ? 1 : 0.98 }}
-              transition={springSnappy}
-              className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-clay py-3.5 text-[15px] font-semibold tracking-[-0.01em] text-black shadow-[0_8px_24px_rgba(52,211,153,0.28)] disabled:opacity-50"
-            >
-              {busy ? <Loader2 size={18} className="animate-spin" aria-hidden /> : primaryLabel}
-            </motion.button>
+              label={primaryLabel}
+              successPulse={successPulse}
+            />
           </form>
 
           {!isForgot && !isSignup && (
@@ -514,12 +634,12 @@ const LoginPage: React.FC = () => {
                 type="button"
                 onClick={handleGmail}
                 disabled={busy || !supabaseConfigured}
-                whileTap={{ scale: busy ? 1 : 0.98 }}
+                whileTap={busy ? undefined : { scale: 0.98 }}
                 transition={springSnappy}
-                className="flex w-full items-center justify-center gap-3 rounded-full border border-white/12 bg-white/[0.04] py-3.5 text-[15px] font-semibold tracking-[-0.01em] text-white disabled:opacity-50"
+                className="flex w-full items-center justify-center gap-3 rounded-full border border-white/12 bg-white/[0.04] py-3.5 text-[15px] font-semibold tracking-[-0.01em] text-white transition-colors hover:border-white/20 hover:bg-white/[0.06] disabled:opacity-50"
               >
                 {busy ? (
-                  <Loader2 size={18} className="animate-spin" aria-hidden />
+                  <AuthRingLoader size={20} label="Connecting to Google" />
                 ) : (
                   <>
                     <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" aria-hidden>
@@ -547,10 +667,10 @@ const LoginPage: React.FC = () => {
               <GoogleSignInScopeNote className="text-center text-[11px] leading-relaxed text-white/35" />
             </>
           )}
-        </div>
+        </motion.div>
 
         {!isForgot && (
-          <p className="mt-8 text-center text-[14px] text-white/45">
+          <motion.p className="mt-8 text-center text-[14px] text-white/45" variants={item}>
             {isSignup ? 'Already have an account?' : "Don't have an account?"}{' '}
             <motion.button
               type="button"
@@ -561,12 +681,13 @@ const LoginPage: React.FC = () => {
             >
               {isSignup ? 'Sign in' : 'Sign up'}
             </motion.button>
-          </p>
+          </motion.p>
         )}
 
-        <nav
+        <motion.nav
           className="mt-8 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[12px] font-medium text-white/30"
           aria-label="Auth footer"
+          variants={item}
         >
           <Link to="/dashboard" className="transition-colors hover:text-white/55">
             Dashboard
@@ -580,7 +701,7 @@ const LoginPage: React.FC = () => {
           <a href={landingUrl('/terms-of-service')} className="transition-colors hover:text-white/55">
             Terms
           </a>
-        </nav>
+        </motion.nav>
       </motion.div>
     </div>
   )

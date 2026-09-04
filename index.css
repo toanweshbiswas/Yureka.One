@@ -317,6 +317,43 @@
         animation: loader-bar-sweep 1.4s ease-in-out infinite;
       }
 
+      /* Auth busy spinner — glowing mint conic ring */
+      @keyframes auth-ring-spin {
+        to { transform: rotate(360deg); }
+      }
+      .auth-ring-loader {
+        animation: auth-ring-spin 0.85s linear infinite;
+        will-change: transform;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .auth-ring-loader {
+          animation-duration: 1.6s;
+        }
+      }
+
+      /* Auth input plasma focus aura */
+      @keyframes auth-plasma-pulse {
+        0%, 100% { opacity: 0.85; }
+        50% { opacity: 1; }
+      }
+      .auth-plasma-pulse {
+        animation: auth-plasma-pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes auth-plasma-spark {
+        0%, 100% { opacity: 0.15; transform: scale(0.6); }
+        40% { opacity: 1; transform: scale(1.15); }
+        70% { opacity: 0.35; transform: scale(0.85); }
+      }
+      .auth-plasma-spark {
+        animation: auth-plasma-spark 1.4s ease-in-out infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .auth-plasma-pulse,
+        .auth-plasma-spark {
+          animation: none;
+        }
+      }
+
       /* Rest of existing styles... */
       /* Allow selection on form inputs/textareas only */
       input, textarea, [contenteditable="true"] {

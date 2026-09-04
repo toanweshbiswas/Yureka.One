@@ -1,16 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { establishRecoverySession, friendlyAuthError, getSupabaseBrowser } from '@shared/auth'
 import { landingUrl } from '@shared/hosts'
+import AuthRingLoader from '@shared/AuthRingLoader'
+import AuthPillField from '@shared/AuthPillField'
 import YurekaBrandMark from '@shared/YurekaBrandMark'
 
 const spring = { type: 'spring' as const, bounce: 0, duration: 0.35 }
 const springSnappy = { type: 'spring' as const, bounce: 0, duration: 0.22 }
-
-const pillInputClass =
-  'w-full rounded-full border border-white/12 bg-white/[0.05] py-3.5 pl-5 pr-12 text-[16px] leading-none text-white placeholder:text-white/35 outline-none transition-[border-color,box-shadow] duration-150 focus:border-clay/50 focus:ring-2 focus:ring-clay/15'
 
 function AuthHero({ reduceMotion }: { reduceMotion: boolean | null }) {
   return (
@@ -127,8 +126,7 @@ const ResetPasswordPage: React.FC = () => {
   if (busy) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#070707]">
-        <Loader2 className="animate-spin text-clay" size={36} aria-hidden />
-        <span className="sr-only">Loading</span>
+        <AuthRingLoader size={40} label="Loading" />
       </div>
     )
   }
@@ -186,76 +184,78 @@ const ResetPasswordPage: React.FC = () => {
 
           {canReset ? (
             <form onSubmit={handleUpdate} className="space-y-3">
-              <div className="relative">
-                <label htmlFor="new-password" className="sr-only">
-                  New password
-                </label>
-                <input
-                  id="new-password"
-                  className={pillInputClass}
-                  placeholder="New password"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  minLength={8}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.92 }}
-                  transition={springSnappy}
-                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
-                  onClick={() => setShowPassword((v) => !v)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? (
-                    <EyeOff size={18} strokeWidth={1.75} />
-                  ) : (
-                    <Eye size={18} strokeWidth={1.75} />
-                  )}
-                </motion.button>
-              </div>
+              <AuthPillField
+                id="new-password"
+                label="New password"
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={setPassword}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                placeholder="New password"
+                trailing={
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.92 }}
+                    transition={springSnappy}
+                    className="absolute right-3 top-1/2 z-[2] flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? (
+                      <EyeOff size={18} strokeWidth={1.75} />
+                    ) : (
+                      <Eye size={18} strokeWidth={1.75} />
+                    )}
+                  </motion.button>
+                }
+              />
 
-              <div className="relative">
-                <label htmlFor="confirm-new-password" className="sr-only">
-                  Confirm password
-                </label>
-                <input
-                  id="confirm-new-password"
-                  className={pillInputClass}
-                  placeholder="Confirm password"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  required
-                  minLength={8}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  autoComplete="new-password"
-                />
-                <motion.button
-                  type="button"
-                  whileTap={{ scale: 0.92 }}
-                  transition={springSnappy}
-                  className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
-                  onClick={() => setShowConfirmPassword((v) => !v)}
-                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showConfirmPassword ? (
-                    <EyeOff size={18} strokeWidth={1.75} />
-                  ) : (
-                    <Eye size={18} strokeWidth={1.75} />
-                  )}
-                </motion.button>
-              </div>
+              <AuthPillField
+                id="confirm-new-password"
+                label="Confirm password"
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+                autoComplete="new-password"
+                required
+                minLength={8}
+                placeholder="Confirm password"
+                trailing={
+                  <motion.button
+                    type="button"
+                    whileTap={{ scale: 0.92 }}
+                    transition={springSnappy}
+                    className="absolute right-3 top-1/2 z-[2] flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-clay/70 hover:text-clay"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff size={18} strokeWidth={1.75} />
+                    ) : (
+                      <Eye size={18} strokeWidth={1.75} />
+                    )}
+                  </motion.button>
+                }
+              />
 
               <motion.button
                 type="submit"
                 disabled={updating}
                 whileTap={{ scale: updating ? 1 : 0.98 }}
                 transition={springSnappy}
-                className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-clay py-3.5 text-[15px] font-semibold tracking-[-0.01em] text-black shadow-[0_8px_24px_rgba(52,211,153,0.28)] disabled:opacity-50"
+                className={`mt-2 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-[15px] font-semibold tracking-[-0.01em] shadow-[0_8px_24px_rgba(52,211,153,0.28)] disabled:opacity-50 ${
+                  updating
+                    ? 'bg-[#0a0a0a] text-clay ring-1 ring-clay/25'
+                    : 'bg-clay text-black'
+                }`}
               >
-                {updating ? <Loader2 size={18} className="animate-spin" aria-hidden /> : 'Update password'}
+                {updating ? (
+                  <AuthRingLoader size={20} label="Updating password" />
+                ) : (
+                  'Update password'
+                )}
               </motion.button>
             </form>
           ) : null}
