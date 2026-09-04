@@ -514,6 +514,30 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     const sb = getSupabaseBrowser();
     if (!sb) {
+      const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      if (isLocal) {
+        console.info('[auth] Supabase not configured locally. Using mock dev user session for dashboard access.');
+        const mockUser: any = {
+          id: 'dev-user-local',
+          email: 'dev@yureka.one',
+          app_metadata: {},
+          user_metadata: { full_name: 'Local Developer' },
+          aud: 'authenticated',
+          created_at: new Date().toISOString(),
+        };
+        const mockSession: any = {
+          access_token: 'mock-dev-token',
+          token_type: 'bearer',
+          user: mockUser,
+        };
+        setUser(mockUser);
+        setSession(mockSession);
+        sessionRef.current = mockSession;
+        setCurrentUserStatus('accepted');
+        setIsLoading(false);
+        return () => setAuthTokenGetter(null);
+      }
+
       console.warn(
         supabaseConfigured
           ? 'Auth client failed to initialize'

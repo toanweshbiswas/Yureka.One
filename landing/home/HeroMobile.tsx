@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import JoinWaitlistButton from './JoinWaitlistButton';
 import ScrambleIn from './ScrambleIn';
 import GlassLayer from './GlassLayer';
@@ -203,20 +202,6 @@ export default function HeroMobile({ entranceComplete = true }: { entranceComple
 
       <section className={`mt-4 ${landingBleed} pb-10`}>
         <InViewLoopVideo src={CINEMATIC_VIDEO_URL} />
-        <motion.p
-          className={`mt-6 px-2 text-center font-sans text-[16px] leading-[1.5] tracking-[-0.01em] ${landingBody}`}
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.4 }}
-          transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
-        >
-          Experience the future of financial intelligence with Yureka, the premier AI-native Wealth
-          Operating System built for India&apos;s digital economy. Yureka functions as a neural-AI
-          interface that bridges the gap between daily consumer behavior and automated wealth
-          accumulation. Whether you are seeking to maximize returns through gold-backed investments
-          or build a high-fidelity alternative credit profile, Yureka filters out digital noise to
-          deliver precision financial insights.
-        </motion.p>
       </section>
     </div>
   );

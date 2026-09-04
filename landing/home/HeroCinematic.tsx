@@ -36,10 +36,10 @@ const CINEMATIC_VIDEO_URL = '/rewards-desktop-final.mp4';
 const VAULT_SCRUB_VH = 130; // phase 0: scrub the vault video to its end
 const VAULT_ZOOM_VH = 50; // phase 1: zoom into the vault (kept short. long holds read as a dead black screen)
 const HERO_ZOOM_OUT_VH = 55; // phase 2: vault overlay fades away, revealing the Hero panel
-const SLIDE_VH = 140; // phase 3: Hero exits left, Yureka panels, Cinematic Text enters
-const CRAWL_VH = 90; // phase 4: Cinematic Text's tilted 3D crawl
+const SLIDE_VH = 140; // phase 3: Hero exits left, Yureka panels, Cinematic Video enters
+const HOLD_VH = 40; // phase 4: hold on the video card before releasing pin
 const TOTAL_EXTRA_VH =
-  VAULT_SCRUB_VH + VAULT_ZOOM_VH + HERO_ZOOM_OUT_VH + SLIDE_VH + CRAWL_VH;
+  VAULT_SCRUB_VH + VAULT_ZOOM_VH + HERO_ZOOM_OUT_VH + SLIDE_VH + HOLD_VH;
 
 const VAULT_SCRUB_END = VAULT_SCRUB_VH / TOTAL_EXTRA_VH;
 const VAULT_ZOOM_END = (VAULT_SCRUB_VH + VAULT_ZOOM_VH) / TOTAL_EXTRA_VH;
@@ -47,7 +47,6 @@ const HERO_ZOOM_OUT_END =
   (VAULT_SCRUB_VH + VAULT_ZOOM_VH + HERO_ZOOM_OUT_VH) / TOTAL_EXTRA_VH;
 const SLIDE_END =
   (VAULT_SCRUB_VH + VAULT_ZOOM_VH + HERO_ZOOM_OUT_VH + SLIDE_VH) / TOTAL_EXTRA_VH;
-const CRAWL_END = 0.96;
 
 // Begin dissolving the vault overlay mid-zoom so we never park on a solid
 // black frame between zoom-complete and hero-reveal.
@@ -63,9 +62,9 @@ const VAULT_FADE_START =
 // to be playing at the time.
 const VAULT_ZOOM_ORIGIN = '49% 53%';
 
-// Two full readable panels sit between Hero and Cinematic Text in the
+// Two full readable panels sit between Hero and Cinematic Video in the
 // sliding row, so the slide reads as: Hero exits left, "Meet Yureka" and
-// "We Hate Gatekeeping" pass through, then Cinematic Text arrives from
+// "We Hate Gatekeeping" pass through, then Cinematic Video arrives from
 // the right.
 const GAP_VW = 200;
 const ROW_WIDTH_VW = 100 + GAP_VW + 100;
@@ -80,18 +79,9 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
   const vaultVideoRef = useRef<HTMLVideoElement>(null);
   const cinematicPanelRef = useRef<HTMLDivElement>(null);
 
-  const [viewportHeight, setViewportHeight] = useState(
-    typeof window !== 'undefined' ? window.innerHeight : 800,
-  );
   const [cinematicVideoEnabled, setCinematicVideoEnabled] = useState(false);
 
-  useEffect(() => {
-    const onResize = () => setViewportHeight(window.innerHeight);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
-  }, []);
-
-  // The Cinematic Text panel is the last of four in the sliding row --
+  // The Cinematic Video panel is the last of four in the sliding row --
   // there's no reason to fetch its video until the user has scrolled far
   // enough into the pin that it's about to come into frame. Lookahead
   // bumped to 1600px (from 800px) and preload="auto" added on the video
@@ -165,21 +155,29 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
     [1, 0],
   );
 
+  // Framer's scroll-linked opacity style can desync from its own computed
+  // value on fast/flick scrolling (the inline style occasionally never
+  // receives the final "0" write and stays stuck opaque), which blacked out
+  // the rest of the pinned sequence. Once the fade is done, hard-remove the
+  // overlay via React state instead of trusting the style commit to stay at 0.
+  const [vaultVisible, setVaultVisible] = useState(true);
+  useEffect(() => {
+    return scrollYProgress.on('change', (v) => {
+      setVaultVisible((prev) => {
+        const next = v < HERO_ZOOM_OUT_END;
+        return prev === next ? prev : next;
+      });
+    });
+  }, [scrollYProgress]);
+
   // Watermark can stay sprung. it's decorative and benefits from weight.
   const heroZoomOutProgress = useTransform(smoothProgress, [VAULT_FADE_START, HERO_ZOOM_OUT_END], [0, 1]);
   const watermarkOpacity = useTransform(heroZoomOutProgress, [0, 1], [0, 0.4]);
 
   // Phase 3: Hero slides left, past the blank black panel, and Cinematic
-  // Text slides in from the right.
+  // Video slides in from the right.
   const rowX = useTransform(smoothProgress, [HERO_ZOOM_OUT_END, SLIDE_END], [0, ROW_END_X]);
   const rowTransform = useMotionTemplate`translateX(${rowX}vw)`;
-
-  // Phase 4: the tilted 3D text crawl, re-keyed off the tail of the scroll.
-  const crawlProgress = useTransform(smoothProgress, [SLIDE_END, CRAWL_END], [0, 1]);
-  const crawlAmplitude = viewportHeight * 0.6;
-  const crawlY = useTransform(crawlProgress, [0, 1], [crawlAmplitude, -crawlAmplitude]);
-  const crawlOpacity = useTransform(crawlProgress, [0.15, 0.35], [0, 1]);
-  const crawlTransform = useMotionTemplate`rotateX(24deg) translateY(${crawlY}px) translateZ(15px)`;
 
   // Vault scrub: 1:1 with raw scroll (direct manipulation). Never spring the
   // media time. spring lag reads as a dropped refresh rate.
@@ -484,30 +482,6 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
                   />
                 )}
 
-                <div
-                  className="pointer-events-none absolute left-0 right-0 top-0 z-10"
-                  style={{ height: 180, background: 'linear-gradient(to bottom, #010103, transparent)' }}
-                />
-
-                <div
-                  className="relative z-10 flex h-full w-full items-center justify-center"
-                  style={{ perspective: 400 }}
-                >
-                  <motion.p
-                    className="max-w-5xl select-none px-6 text-center font-sans text-[22px] font-normal leading-[1.35] tracking-[-0.02em] text-landing-sub sm:px-12 sm:text-[30px] md:text-[36px] lg:text-[42px]"
-                    style={{ transform: crawlTransform, opacity: crawlOpacity }}
-                  >
-                    Experience the future of financial intelligence with Yureka, the premier
-                    AI-native Wealth Operating System built for India's digital economy. Yureka
-                    functions as a neural-AI interface that bridges the gap between daily
-                    consumer behavior and automated wealth accumulation. Whether you are seeking
-                    to maximize returns through gold-backed investments or build a high-fidelity
-                    alternative credit profile, Yureka filters out digital noise to deliver
-                    precision financial insights. Join the next evolution of fintech, where every
-                    signal becomes measurable, visible, and optimized for your long-term growth.
-                  </motion.p>
-                </div>
-
                 {/* Glass sheen: a soft diagonal highlight band, like light
                     catching a curved glass surface. */}
                 <div
@@ -528,39 +502,46 @@ export default function HeroCinematic({ entranceComplete }: HeroCinematicProps) 
         <div className="pointer-events-none absolute inset-y-0 left-0 z-20 hidden w-[20vw] bg-landing-bg md:block" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-20 hidden w-[20vw] bg-landing-bg md:block" />
 
-        {/* Vault overlay: green field + centered vault video in the 60vw column. */}
-        <motion.div
-          className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-landing-bg px-4 md:px-0"
-          style={{ opacity: vaultOverlayOpacity }}
-        >
-          <div
-            className="relative h-full w-full overflow-hidden md:h-auto md:w-[min(60vw,calc((100dvh-5.5rem-env(safe-area-inset-top,0px))*1.6))] md:max-h-[calc(100dvh-5.5rem-env(safe-area-inset-top,0px))] md:aspect-[16/10] md:rounded-3xl md:border md:border-white/10"
+        {/* Vault overlay: green field + centered vault video in the 60vw column.
+            Hard-removed via vaultVisible once its fade-out finishes -- the
+            scroll-linked opacity style can occasionally get stuck instead of
+            settling at 0 on fast/flick scrolling, which blacked out every
+            phase after it. React unmount is the reliable way to guarantee it
+            stays gone (it remounts if the user scrolls back up). */}
+        {vaultVisible && (
+          <motion.div
+            className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-landing-bg px-4 md:px-0"
+            style={{ opacity: vaultOverlayOpacity }}
           >
-            <motion.video
-              ref={vaultVideoRef}
-              src={VAULT_VIDEO_URL}
-              poster="/vault-poster.jpg"
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{ scale: vaultVideoScale, transformOrigin: VAULT_ZOOM_ORIGIN, willChange: 'transform' }}
-              muted
-              playsInline
-              preload="auto"
-              onLoadedData={(e) => {
-                // Seed first frame so the card never sits black while scrub waits.
-                try {
-                  if (Math.abs(e.currentTarget.currentTime - VAULT_START_TIME) > 0.15) {
-                    e.currentTarget.currentTime = VAULT_START_TIME;
+            <div
+              className="relative h-full w-full overflow-hidden md:h-auto md:w-[min(60vw,calc((100dvh-5.5rem-env(safe-area-inset-top,0px))*1.6))] md:max-h-[calc(100dvh-5.5rem-env(safe-area-inset-top,0px))] md:aspect-[16/10] md:rounded-3xl md:border md:border-white/10"
+            >
+              <motion.video
+                ref={vaultVideoRef}
+                src={VAULT_VIDEO_URL}
+                poster="/vault-poster.jpg"
+                className="absolute inset-0 h-full w-full object-cover"
+                style={{ scale: vaultVideoScale, transformOrigin: VAULT_ZOOM_ORIGIN, willChange: 'transform' }}
+                muted
+                playsInline
+                preload="auto"
+                onLoadedData={(e) => {
+                  // Seed first frame so the card never sits black while scrub waits.
+                  try {
+                    if (Math.abs(e.currentTarget.currentTime - VAULT_START_TIME) > 0.15) {
+                      e.currentTarget.currentTime = VAULT_START_TIME;
+                    }
+                  } catch {
+                    /* ignore */
                   }
-                } catch {
-                  /* ignore */
-                }
-              }}
-              onError={(e) => {
-                e.currentTarget.style.opacity = '0';
-              }}
-            />
-          </div>
-        </motion.div>
+                }}
+                onError={(e) => {
+                  e.currentTarget.style.opacity = '0';
+                }}
+              />
+            </div>
+          </motion.div>
+        )}
       </section>
     </div>
   );
